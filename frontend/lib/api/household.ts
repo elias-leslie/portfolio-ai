@@ -81,6 +81,7 @@ export type {
   HouseholdDocumentReviewDecisionResult,
   HouseholdDocumentReviewFieldPreview,
   HouseholdDocumentReviewHoldingPreview,
+  HouseholdDocumentReviewImportPreview,
   HouseholdDocumentReviewProposal,
   HouseholdDocumentReviewProposalImpact,
   HouseholdDocumentReviewProposalPreview,

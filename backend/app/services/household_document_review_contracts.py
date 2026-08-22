@@ -74,7 +74,9 @@ class HouseholdDocumentReviewProposalImpact(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["accounts", "transactions", "holdings", "planning", "inferences"]
+    kind: Literal[
+        "accounts", "transactions", "holdings", "planning", "inferences", "imports"
+    ]
     label: str
     count: int = Field(ge=1)
 
@@ -125,6 +127,27 @@ class HouseholdDocumentReviewFieldPreview(BaseModel):
     value: JsonValue
 
 
+class HouseholdDocumentReviewImportPreview(BaseModel):
+    """What a bulk row import would add, before it is approved.
+
+    A merchant export is the household's whole history every time, so the number
+    that decides anything is the delta, not the file. Stating both -- and the
+    dates the new rows fall in -- is what makes the import reviewable rather than
+    a row count nobody can check.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dataset_type: str = Field(min_length=1, max_length=64)
+    label: str = Field(min_length=1, max_length=160)
+    rows_in_file: int = Field(ge=0)
+    new_rows: int = Field(ge=0)
+    known_rows: int = Field(ge=0)
+    unreadable_rows: int = Field(default=0, ge=0)
+    earliest_new_row: date | None = None
+    latest_new_row: date | None = None
+
+
 class HouseholdDocumentReviewProposalPreview(BaseModel):
     """Typed, redacted representation of every proposed money-data mutation."""
 
@@ -137,12 +160,18 @@ class HouseholdDocumentReviewProposalPreview(BaseModel):
     holdings: list[HouseholdDocumentReviewHoldingPreview] = Field(default_factory=list)
     planning: list[HouseholdDocumentReviewFieldPreview] = Field(default_factory=list)
     inferences: list[HouseholdDocumentReviewFieldPreview] = Field(default_factory=list)
+    imports: list[HouseholdDocumentReviewImportPreview] = Field(default_factory=list)
 
     def has_changes(self) -> bool:
         """Return whether the preview contains at least one visible mutation."""
-        return any(
-            (self.accounts, self.transactions, self.holdings, self.planning, self.inferences)
-        )
+        return any((
+            self.accounts,
+            self.transactions,
+            self.holdings,
+            self.planning,
+            self.inferences,
+            self.imports,
+        ))
 
 
 class HouseholdDocumentReviewProposal(BaseModel):

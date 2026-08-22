@@ -1102,12 +1102,24 @@ export interface HouseholdDocumentReviewFieldPreview {
   value: unknown
 }
 
+export interface HouseholdDocumentReviewImportPreview {
+  datasetType: string
+  label: string
+  rowsInFile: number
+  newRows: number
+  knownRows: number
+  unreadableRows: number
+  earliestNewRow: string | null
+  latestNewRow: string | null
+}
+
 export interface HouseholdDocumentReviewProposalPreview {
   accounts: HouseholdDocumentReviewAccountPreview[]
   transactions: HouseholdDocumentReviewTransactionPreview[]
   holdings: HouseholdDocumentReviewHoldingPreview[]
   planning: HouseholdDocumentReviewFieldPreview[]
   inferences: HouseholdDocumentReviewFieldPreview[]
+  imports: HouseholdDocumentReviewImportPreview[]
 }
 
 export interface HouseholdDocumentReviewProposal {

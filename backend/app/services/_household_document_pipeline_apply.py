@@ -16,7 +16,11 @@ from app.services._household_document_pipeline_db import (
     upsert_receipt_line_item_row,
 )
 from app.services._household_document_pipeline_receipt import receipt_line_item_rows
-from app.services._household_document_pipeline_utils import detect_import_dataset
+from app.services._household_document_pipeline_utils import (
+    build_import_row_hash,
+    detect_import_dataset,
+    parse_row_date,
+)
 from app.services._household_finance_utils import iso, iso_or_none, to_float
 from app.services.household_document_storage import (
     household_upload_root,
@@ -180,6 +184,7 @@ def _enriched_import_summary(
     dataset_type: str,
     inserted: int,
     duplicates: int,
+    skipped: int = 0,
 ) -> dict[str, object]:
     enrichment_summary = service.product_enrichment_service.enrich_import_rows(
         service,
@@ -190,6 +195,10 @@ def _enriched_import_summary(
         "dataset_type": dataset_type,
         "inserted": inserted,
         "duplicates": duplicates,
+        # Rows the file contained but that carried no usable identity. Zero
+        # inserted and zero duplicates otherwise reads as "already up to date"
+        # when it actually means "nothing in this file was understood".
+        "skipped": skipped,
         "enrichment": enrichment_summary,
     }
 
@@ -201,7 +210,7 @@ def import_receipt_line_item_rows(
     rows: list[dict[str, str | None]],
 ) -> dict[str, object]:
     dataset_type = "receipt_line_items"
-    inserted = duplicates = 0
+    inserted = duplicates = skipped = 0
     now = datetime.now(UTC).isoformat()
     with service.storage.connection() as conn:
         for row in rows:
@@ -210,17 +219,19 @@ def import_receipt_line_item_rows(
             )
             inserted += result is True
             duplicates += result is False
+            skipped += result is None
         update_import_summary(
             conn,
             document_id=document.id,
             dataset_type=dataset_type,
             inserted=inserted,
             duplicates=duplicates,
+            skipped=skipped,
         )
         conn.commit()
     return _enriched_import_summary(
         service, document=document, dataset_type=dataset_type,
-        inserted=inserted, duplicates=duplicates,
+        inserted=inserted, duplicates=duplicates, skipped=skipped,
     )
 
 
@@ -232,9 +243,14 @@ def import_csv_rows(
     stored_path: Path,
 ) -> dict[str, object]:
     now = datetime.now(UTC).isoformat()
-    with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+    # utf-8-sig, not utf-8: a byte-order mark binds itself to the first header
+    # name, so `ASIN` arrives as `\ufeffASIN` and every row loses the field the
+    # dedup hash is built from. Each row is then skipped for missing identity
+    # and the import reports nothing inserted and nothing duplicated -- an
+    # export that looks already-applied while none of it landed.
+    with stored_path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
         rows = list(DictReader(fh))
-    inserted = duplicates = 0
+    inserted = duplicates = skipped = 0
     with service.storage.connection() as conn:
         for row in rows:
             result = upsert_import_row(
@@ -243,15 +259,95 @@ def import_csv_rows(
             )
             inserted += result is True
             duplicates += result is False
+            skipped += result is None
         update_import_summary(
             conn, document_id=document.id, dataset_type=dataset_type,
-            inserted=inserted, duplicates=duplicates,
+            inserted=inserted, duplicates=duplicates, skipped=skipped,
         )
         conn.commit()
+    if rows and not inserted and not duplicates:
+        logger.warning(
+            "household_csv_import_understood_no_rows",
+            document_id=document.id,
+            dataset_type=dataset_type,
+            rows_read=len(rows),
+            skipped=skipped,
+        )
     return _enriched_import_summary(
         service, document=document, dataset_type=dataset_type,
-        inserted=inserted, duplicates=duplicates,
+        inserted=inserted, duplicates=duplicates, skipped=skipped,
     )
+
+
+_IMPORT_DATASET_LABELS = {
+    "amazon_order_history": "Amazon order history",
+    "receipt_line_items": "Receipt line items",
+}
+
+
+def preview_import_delta(
+    service: HouseholdFinanceService,
+    *,
+    document: HouseholdDocument,
+    reviewed: dict[str, object],
+) -> list[dict[str, object]]:
+    """Describe what a bulk row import would add, without writing anything.
+
+    A merchant export carries the household's entire history on every download,
+    so the file size says nothing about what an upload would change. Approving
+    it blind is the only option when the proposal cannot describe it, which is
+    how a routine re-export becomes a decision nobody can make. Counting the
+    unknown rows first turns it into one.
+    """
+    dataset_type = detect_import_dataset(document=document, reviewed=reviewed)
+    if dataset_type is None:
+        return []
+    stored_path = resolve_document_upload(
+        document.metadata,
+        household_upload_root(service),
+    )
+    if stored_path is None:
+        return []
+    with stored_path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
+        rows = list(DictReader(fh))
+    hashed: dict[str, dict[str, str | None]] = {}
+    unreadable = 0
+    for row in rows:
+        row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
+        if row_hash is None:
+            unreadable += 1
+            continue
+        hashed.setdefault(row_hash, row)
+    if not hashed and not unreadable:
+        return []
+    with service.storage.connection() as conn:
+        known = {
+            str(existing[0])
+            for existing in conn.execute(
+                "SELECT row_hash FROM household_import_rows WHERE row_hash = ANY(%s)",
+                [list(hashed)],
+            ).fetchall()
+        }
+    # parse_row_date yields a full ISO timestamp; the preview states a day, and
+    # an export whose rows carry a time of day must not fail to render for it.
+    new_dates = sorted(
+        parsed[:10]
+        for row_hash, row in hashed.items()
+        if row_hash not in known
+        and (parsed := parse_row_date(row.get("Order Date"))) is not None
+    )
+    return [
+        {
+            "dataset_type": dataset_type,
+            "label": _IMPORT_DATASET_LABELS.get(dataset_type, dataset_type),
+            "rows_in_file": len(rows),
+            "new_rows": len(hashed) - len(known),
+            "known_rows": len(known),
+            "unreadable_rows": unreadable,
+            "earliest_new_row": new_dates[0] if new_dates else None,
+            "latest_new_row": new_dates[-1] if new_dates else None,
+        }
+    ]
 
 
 def import_document_rows(

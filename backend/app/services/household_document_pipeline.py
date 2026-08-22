@@ -39,6 +39,9 @@ from app.services._household_document_pipeline_apply import (
     merge_review_planning_items as _merge_review_planning_items,
 )
 from app.services._household_document_pipeline_apply import (
+    preview_import_delta as _preview_import_delta,
+)
+from app.services._household_document_pipeline_apply import (
     signature_structured_data as _signature_structured_data,
 )
 from app.services._household_document_pipeline_apply import (
@@ -315,6 +318,11 @@ class HouseholdDocumentPipeline:
                 document=document,
                 reviewed=reviewed,
             ),
+            imports=(
+                _preview_import_delta(service, document=document, reviewed=reviewed)
+                if service is not None
+                else []
+            ),
         )
         preview_payload = preview.model_dump(mode="json")
         proposed_changes = [
@@ -342,6 +350,11 @@ class HouseholdDocumentPipeline:
                 "kind": "inferences",
                 "label": "Inferred values",
                 "count": len(preview.inferences),
+            },
+            {
+                "kind": "imports",
+                "label": "Imported rows",
+                "count": sum(entry.new_rows for entry in preview.imports),
             },
         ]
         proposal_hash = document_review_proposal_hash(
@@ -818,6 +831,10 @@ class HouseholdDocumentPipeline:
             document=document,
             binding=binding,
         )
+        # Recomputed with the same import delta the proposal was built from. A
+        # bulk import whose delta has moved since the household looked at it is
+        # a different decision, and must be re-reviewed rather than approved
+        # against a number that has since changed.
         recomputed_preview = build_document_review_preview(
             document=document,
             reviewed=reviewed,
@@ -826,6 +843,9 @@ class HouseholdDocumentPipeline:
                 service,
                 document=document,
                 reviewed=reviewed,
+            ),
+            imports=_preview_import_delta(
+                service, document=document, reviewed=reviewed
             ),
         )
         canonical_preview = canonical_review_json(

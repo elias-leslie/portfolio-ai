@@ -239,6 +239,7 @@ def build_document_review_preview(
     reviewed: dict[str, object],
     stored_path: Path | None = None,
     normalized_accounts: list[dict[str, object]] | None = None,
+    imports: list[dict[str, object]] | None = None,
 ) -> HouseholdDocumentReviewProposalPreview:
     """Build the exact typed preview shown to the user before approval."""
     structured = reviewed.get("structured_data")
@@ -373,6 +374,7 @@ def build_document_review_preview(
             "inferences": _field_previews(
                 reviewed.get("inferred_values"), kind="inference"
             ),
+            "imports": imports or [],
         }
     )
 

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import type {
   HouseholdDocument,
+  HouseholdDocumentReviewImportPreview,
   HouseholdDocumentReviewProposalPreview,
 } from '@/lib/api/household'
 import { formatEnumLabel, formatFileSize } from '@/lib/formatters'
@@ -431,7 +432,24 @@ function parseProposalPreview(
       field: nullableText(item.field) ?? 'Inferred field',
       value: item.value,
     })),
+    imports: recordList(preview.imports).map((item) => ({
+      datasetType: nullableText(item.datasetType ?? item.dataset_type) ?? '',
+      label: nullableText(item.label) ?? 'Imported rows',
+      rowsInFile: numberValue(item.rowsInFile ?? item.rows_in_file),
+      newRows: numberValue(item.newRows ?? item.new_rows),
+      knownRows: numberValue(item.knownRows ?? item.known_rows),
+      unreadableRows: numberValue(item.unreadableRows ?? item.unreadable_rows),
+      earliestNewRow: nullableText(
+        item.earliestNewRow ?? item.earliest_new_row,
+      ),
+      latestNewRow: nullableText(item.latestNewRow ?? item.latest_new_row),
+    })),
   }
+}
+
+function numberValue(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function formatPreviewAmount(amount: string | null, currency = 'USD'): string {
@@ -464,7 +482,8 @@ function ProposalPreviewDetails({
     preview.transactions.length > 0 ||
     preview.holdings.length > 0 ||
     preview.planning.length > 0 ||
-    preview.inferences.length > 0
+    preview.inferences.length > 0 ||
+    preview.imports.length > 0
   if (!hasValues) return null
 
   return (
@@ -549,8 +568,45 @@ function ProposalPreviewDetails({
           ))}
         </PreviewGroup>
       ) : null}
+      {preview.imports.length > 0 ? (
+        <PreviewGroup label="Imported rows">
+          {preview.imports.map((item) => (
+            <li key={item.datasetType || item.label}>
+              <span className="font-medium text-text">{item.label}</span>
+              {' · '}
+              {describeImportDelta(item)}
+            </li>
+          ))}
+        </PreviewGroup>
+      ) : null}
     </div>
   )
+}
+
+/**
+ * An order-history export is the whole history every time, so the file size is
+ * not the number that decides anything. Lead with what is actually new.
+ */
+function describeImportDelta(
+  item: HouseholdDocumentReviewImportPreview,
+): string {
+  const parts: string[] = [
+    item.newRows === 0
+      ? 'nothing new'
+      : `${item.newRows.toLocaleString()} new row${item.newRows === 1 ? '' : 's'}`,
+  ]
+  if (item.earliestNewRow && item.latestNewRow) {
+    parts.push(
+      item.earliestNewRow === item.latestNewRow
+        ? item.earliestNewRow
+        : `${item.earliestNewRow} to ${item.latestNewRow}`,
+    )
+  }
+  parts.push(`${item.knownRows.toLocaleString()} already recorded`)
+  if (item.unreadableRows > 0) {
+    parts.push(`${item.unreadableRows.toLocaleString()} unreadable`)
+  }
+  return parts.join(' · ')
 }
 
 function PreviewGroup({

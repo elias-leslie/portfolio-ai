@@ -192,6 +192,7 @@ def test_review_proposal_summarizes_held_mutations() -> None:
         ],
         "planning": [],
         "inferences": [],
+        "imports": [],
     }
 
 

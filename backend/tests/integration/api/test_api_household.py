@@ -1520,6 +1520,233 @@ def test_household_order_history_reupload_dedupes_import_rows(
     assert float(imported_amount) == 25.50
 
 
+def test_household_order_history_reimport_reports_only_the_real_delta(
+    client: TestClient,
+    tmp_path: Path,
+    test_storage,
+) -> None:
+    """Re-applying an export the household already has must report only the delta.
+
+    Amazon's export is the whole order history every time, so the ordinary case
+    is a file of thousands of rows carrying a handful of new orders. The count
+    written back to the document is what a household reads to decide whether an
+    upload did anything, so it has to be the delta and not the file size.
+    """
+    review_payload = {
+        "summary": "Amazon order history export.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.93,
+        "structured_data": {"merchant": "Amazon", "account_hint": "Amazon account"},
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": "ASIN,Order Date,Order ID,Original Quantity,Total Amount",
+    }
+    header = (
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,"
+        "Currency,Shipping Charge,Total Amount,Unit Price\n"
+    )
+    first_row = "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD,0,10.00,10.00\n"
+    second_row = "B002,2026-03-02T00:00:00Z,222-2222222-2222222,VISA,1,USD,0,25.50,25.50\n"
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+    ):
+        client.post(
+            "/api/household/documents",
+            files={"file": ("Order History.csv", (header + first_row).encode(), "text/csv")},
+        )
+        second = client.post(
+            "/api/household/documents",
+            files={
+                "file": (
+                    "Order History.csv",
+                    (header + first_row + second_row).encode(),
+                    "text/csv",
+                )
+            },
+        )
+
+    assert second.status_code == 200
+
+    with test_storage.connection() as conn:
+        summary = conn.execute(
+            "SELECT metadata->'import_summary' FROM household_documents WHERE id = %s",
+            [second.json()["id"]],
+        ).fetchone()[0]
+        total = conn.execute(
+            "SELECT COUNT(*) FROM household_import_rows "
+            "WHERE dataset_type = 'amazon_order_history'"
+        ).fetchone()[0]
+
+    # One order is genuinely new; the other was already known.
+    assert summary["inserted_rows"] == 1
+    assert summary["duplicate_rows"] == 1
+    assert summary["skipped_rows"] == 0
+    assert total == 2
+
+
+def test_order_history_held_for_review_can_be_approved_and_imported(
+    client: TestClient,
+    tmp_path: Path,
+    test_storage,
+) -> None:
+    """A bulk import held for review must be approvable, and say what it would add.
+
+    The proposal only ever described accounts, transactions, holdings, planning
+    and inferences. A merchant export produces none of those, so its proposal was
+    empty, approval was refused as having "no explicit money-data changes", and a
+    single optional preference question could park an entire order history
+    permanently out of reach of the UI that is supposed to apply it.
+    """
+    review_payload = {
+        "summary": "Amazon order history export.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.98,
+        "structured_data": {"merchant": "Amazon", "account_hint": "Amazon account"},
+        "inferred_values": [],
+        # A soft preference question, not an account ambiguity -- but enough to
+        # hold the document for review.
+        "questions": [
+            {
+                "field_name": None,
+                "question": "Should Amazon orders count as regular household spending?",
+                "priority": "medium",
+                "question_format": "boolean",
+            }
+        ],
+        "extracted_text": "ASIN,Order Date,Order ID,Original Quantity,Total Amount",
+    }
+    csv_body = (
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency,Shipping Charge,Total Amount,Unit Price\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD,0,10.00,10.00\n"
+        "B002,2026-03-04T00:00:00Z,222-2222222-2222222,VISA,2,USD,0,20.00,10.00\n"
+    )
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+    ):
+        upload = client.post(
+            "/api/household/documents",
+            files={"file": ("Order History.csv", csv_body.encode(), "text/csv")},
+        )
+        assert upload.status_code == 200
+        document_id = upload.json()["id"]
+
+        listing = client.get("/api/intake/evidence")
+        assert listing.status_code == 200
+        entry = next(
+            item for item in listing.json()["items"] if item["id"] == document_id
+        )
+        proposal = entry["metadata"]["review_proposal"]
+
+        # The held proposal states the delta, not the file size.
+        imports = proposal["preview"]["imports"]
+        assert len(imports) == 1
+        assert imports[0]["new_rows"] == 2
+        assert imports[0]["known_rows"] == 0
+        assert imports[0]["earliest_new_row"] == "2026-03-01"
+        assert imports[0]["latest_new_row"] == "2026-03-04"
+        assert {change["kind"] for change in proposal["proposed_changes"]} == {"imports"}
+
+        decision = client.post(
+            f"/api/intake/evidence/{document_id}/decision",
+            json={
+                "review_id": proposal["review_id"],
+                "proposal_hash": proposal["proposal_hash"],
+                "proposal_preview": proposal["preview"],
+                "decision": "approve",
+            },
+        )
+
+    assert decision.status_code == 200, decision.json()
+
+    with test_storage.connection() as conn:
+        rows = conn.execute(
+            "SELECT COUNT(*) FROM household_import_rows "
+            "WHERE dataset_type = 'amazon_order_history'"
+        ).fetchone()[0]
+
+    assert rows == 2
+
+
+def test_household_order_history_import_survives_a_byte_order_mark(
+    client: TestClient,
+    tmp_path: Path,
+    test_storage,
+) -> None:
+    """A BOM must not silently swallow an entire export.
+
+    Amazon's export is sometimes written with a UTF-8 byte-order mark. Read as
+    plain utf-8 the mark binds to the first header, so `ASIN` arrives as
+    `\ufeffASIN`, every row loses the field its dedup hash is built from, and
+    every row is skipped for missing identity. The import then reports nothing
+    inserted and nothing duplicated -- indistinguishable from an export that was
+    already applied, which is how a household concludes its data is up to date
+    when none of it landed.
+    """
+    review_payload = {
+        "summary": "Amazon order history export.",
+        "document_type": "receipt",
+        "source_type": "receipt",
+        "confidence": 0.93,
+        "structured_data": {"merchant": "Amazon", "account_hint": "Amazon account"},
+        "inferred_values": [],
+        "questions": [],
+        "extracted_text": "ASIN,Order Date,Order ID,Original Quantity,Total Amount",
+    }
+    csv_body = (
+        "ASIN,Order Date,Order ID,Payment Instrument Type,Original Quantity,Currency,Shipping Charge,Total Amount,Unit Price\n"
+        "B001,2026-03-01T00:00:00Z,111-1111111-1111111,VISA,1,USD,0,10.00,10.00\n"
+    )
+
+    with (
+        patch(
+            "app.services.household_finance_service.HouseholdFinanceService._upload_root",
+            return_value=tmp_path,
+        ),
+        patch(
+            "app.services.household_document_review.HouseholdDocumentReviewService.review",
+            return_value=review_payload,
+        ),
+    ):
+        response = client.post(
+            "/api/household/documents",
+            files={
+                "file": (
+                    "Order History.csv",
+                    csv_body.encode("utf-8-sig"),
+                    "text/csv",
+                )
+            },
+        )
+
+    assert response.status_code == 200
+
+    with test_storage.connection() as conn:
+        rows = conn.execute(
+            "SELECT external_row_id FROM household_import_rows "
+            "WHERE dataset_type = 'amazon_order_history'"
+        ).fetchall()
+
+    assert [row[0] for row in rows] == ["111-1111111-1111111"]
+
+
 def test_household_order_history_reupload_backfills_amounts(
     client: TestClient,
     tmp_path: Path,

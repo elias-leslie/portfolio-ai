@@ -342,6 +342,24 @@ def upsert_signature_record(
     )
 
 
+def _import_row_exists(conn: DatabaseConnection, *, row_hash: str) -> bool:
+    """Whether this row is already known, asked before the upsert writes it.
+
+    New-or-already-had-it was previously inferred from ``xmax`` on the upserted
+    tuple. That reads correctly today, but it reads a storage detail rather than
+    the question being asked, and the answer decides what a household is told
+    changed in its own data. Asking directly costs one indexed lookup per row
+    and cannot drift.
+    """
+    return (
+        conn.execute(
+            "SELECT 1 FROM household_import_rows WHERE row_hash = %s",
+            [row_hash],
+        ).fetchone()
+        is not None
+    )
+
+
 def upsert_import_row(
     conn: DatabaseConnection,
     *,
@@ -354,7 +372,8 @@ def upsert_import_row(
     row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
     if row_hash is None:
         return None
-    result = conn.execute(
+    inserted = not _import_row_exists(conn, row_hash=row_hash)
+    conn.execute(
         """
         INSERT INTO household_import_rows (
             id, document_id, dataset_type, row_hash, external_row_id,
@@ -371,7 +390,6 @@ def upsert_import_row(
             currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
             row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
             updated_at = EXCLUDED.updated_at
-        RETURNING (xmax = 0) AS was_inserted
         """,
         [
             str(uuid.uuid4()), document_id, dataset_type, row_hash,
@@ -388,8 +406,8 @@ def upsert_import_row(
             json.dumps(row),
             now, now,
         ],
-    ).fetchone()
-    return result is not None and bool(result[0])
+    )
+    return inserted
 
 
 def upsert_receipt_line_item_row(
@@ -404,7 +422,8 @@ def upsert_receipt_line_item_row(
     row_hash = build_import_row_hash(dataset_type=dataset_type, row=row)
     if row_hash is None:
         return None
-    result = conn.execute(
+    inserted = not _import_row_exists(conn, row_hash=row_hash)
+    conn.execute(
         """
         INSERT INTO household_import_rows (
             id, document_id, dataset_type, row_hash, external_row_id,
@@ -421,7 +440,6 @@ def upsert_receipt_line_item_row(
             currency = COALESCE(EXCLUDED.currency, household_import_rows.currency),
             row_metadata = household_import_rows.row_metadata || EXCLUDED.row_metadata,
             updated_at = EXCLUDED.updated_at
-        RETURNING (xmax = 0) AS was_inserted
         """,
         [
             str(uuid.uuid4()),
@@ -438,8 +456,8 @@ def upsert_receipt_line_item_row(
             now,
             now,
         ],
-    ).fetchone()
-    return result is not None and bool(result[0])
+    )
+    return inserted
 
 
 _DUPLICATE_LOOKUP_SQL = """
@@ -540,6 +558,7 @@ def update_import_summary(
     dataset_type: str,
     inserted: int,
     duplicates: int,
+    skipped: int = 0,
 ) -> None:
     """Patch the document metadata with a CSV import summary."""
     conn.execute(
@@ -554,6 +573,7 @@ def update_import_summary(
                     "dataset_type": dataset_type,
                     "inserted_rows": inserted,
                     "duplicate_rows": duplicates,
+                    "skipped_rows": skipped,
                 }
             }),
             document_id,
