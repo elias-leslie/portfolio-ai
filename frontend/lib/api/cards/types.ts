@@ -57,6 +57,14 @@ export interface HouseholdCreditCard {
   createdAt?: string | null
   updatedAt?: string | null
   product?: CreditCardProduct | null
+  /**
+   * The linked account's own identity. A household can hold two cards of the
+   * same product, and the issuer reports one name for both, so the product name
+   * alone cannot say which card a row is about.
+   */
+  accountLabel?: string | null
+  accountMask?: string | null
+  accountOwner?: string | null
 }
 
 export interface SoftCharge {

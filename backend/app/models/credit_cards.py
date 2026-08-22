@@ -88,6 +88,12 @@ class HouseholdCreditCard(BaseModel):
     updated_at: str | None = None
     # Hydrated join (optional) for convenience in the UI.
     product: CreditCardProduct | None = None
+    # Also hydrated: which physical account this card is. A household can hold
+    # two cards of one product, and the issuer names both of them the same
+    # thing, so the product alone cannot say which card a row is about.
+    account_label: str | None = None
+    account_mask: str | None = None
+    account_owner: str | None = None
 
 
 class SoftCharge(BaseModel):

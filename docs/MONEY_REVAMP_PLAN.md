@@ -1,9 +1,11 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** AUDIT + GRILL COMPLETE, ALL OPEN QUESTIONS RESOLVED, PLAN READY TO BUILD — **AWAITING USER APPROVAL BEFORE ANY CODE CHANGE**
+**Status:** PHASE 0 IN FLIGHT — 8 of 13 tasks landed, 3 partial, 2 blocked on a
+household answer. Phase 1 has not started.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (all 7 open questions closed; D1–D23; findings through P2-26; plan ready to build)
+**Last updated:** 2026-08-22 (both Sapphire cards connected and named; card
+registry seeded; the 63% `removed` rate cleared as genuine dedupe)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -14,11 +16,10 @@
 > — IA before/after, the Review screen mockup on real July 2026 data, the Prices
 > subsystem, and the tab disposition table.
 >
-> **State as of this writing:** audit + grill complete, plan written, **nothing in
-> the project has been changed.** 13 receipts (8 Walmart, 5 Costco) sit at
-> `status: staged` and were deliberately NOT ingested. Read §5 (remaining open
-> questions — now all resolved) and §7 (the phased plan) first, then confirm
-> Phase 0 with the user before touching anything.
+> **State as of this writing:** Phase 0 is being worked. The 13 receipts (8
+> Walmart, 5 Costco) still sit at `status: staged` — they wait on the Costco
+> parser in Phase 4.2. Read §7 Phase 0 for what has landed and what is blocked;
+> every item there carries a status key. Phase 1 has not started.
 >
 > **Read order for a cold start:** §1 goal → §4 diagnosis → §7 the plan → §6
 > decisions (D1–D23) for the *why* behind any phase → §3 findings for evidence.
@@ -982,48 +983,68 @@ not priority triage.
 ### Phase 0 — Connect and clean (prerequisite, no UI work)
 Everything downstream is wrong until this lands.
 
-0.1 Connect the two **Chase Sapphire Preferred** cards (P0-20). Backfill the
-    ~$11,500 AC replacement and all spend since opening. Seed
-    `household_credit_cards` rows so the idle welcome-bonus / annual-fee alerting
-    has real subjects.
-0.2 **Mark dead accounts dead** (P0-21, D22). Add an explicit
-    `feed_status` / `coverage_through` on `household_accounts`. Wells Fargo is
-    **closed** — do not reconnect; the fix is that rolling windows must stop
-    treating a feed that ended 2026-02-27 as live. Every window must state its
-    account set and coverage range.
-0.3 **Resolve account labels to accounts** (P1-24). 19 labels → ~7 accounts.
-    Merge the three CMA variants, the three `9728` variants, the three `4635`
-    variants, and `Chase Amazon card` + `Prime Visa` (one card, per D22). Every
-    transaction already carries `household_account_id` (2,713 of 2,725), so this
-    is a labeling fix, not a re-ingest.
-0.4 Fix `asset_group` on both Fidelity 529s (`taxable` → `education`) and
-    `account_type` (`brokerage` → `529`). Merge CollegeAmerica/VCSP into the
-    Fidelity pair and the two stale "529 College Savings" rows into Merrill
-    (D20). **Verify the identical $14,363.57 balances against the source PDF
-    first** — likely an extraction error. Education resolves to $36,651.61.
-0.5 **Fix the duplicated-with-opposite-sign ingest** (P0-22). The Progressive
-    premium is booked `income` on one row and `expense` on its twin, both live.
-    Dedup must be case-insensitive and must never let two rows of the same
-    payment disagree on `flow_type`.
-0.6 **Stop the spend filters from eating income** (P0-23). `"zelle from"` and
-    `"recurring transfer"` currently delete $506.31/mo of real note income.
-    Filters must classify, not delete — see 1.2.
-0.7 **Add `amount` to ledger search** (P1-25). One line in
-    `_LEDGER_SEARCH_FIELDS` plus numeric matching. Small, but it is the reason
-    the user believed known payments were missing entirely.
-0.8 Purge the **"Codex archive smoke"** test account; resolve duplicate registry
-    rows ("Wells Fargo checking activity export" ×2, "FRS Investment Plan" ×2)
-    (P2-14).
-0.9 Investigate the **63% `removed` rate** (1,722 of 2,723). Confirm it is genuine
-    dedupe and not identity-collision loss — 0.3 and 0.5 are likely direct causes.
-0.10 **Seed known pre-feed obligations** (D23): the $2,144.48 property tax, plus
-    any annual premium paid before 2026-02. Without these the D18 sinking funds
-    derive from incomplete history.
-0.11 Fix the HOA rows (P2-26): dedupe the six `HARBOR HILLS PROPERTY` entries,
-    recategorize from `Subscriptions` to housing, and determine the real cadence.
-0.12 Set vendor fees + Costco `membership_active` on `household_vendor_profiles`.
-0.13 Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — see Phase 4 for the
-    Costco parser work they depend on.
+Status keys: **[done]** landed and verified · **[part]** partly landed, remainder
+named · **[blocked]** waiting on a decision or a source document · **[open]** not
+started.
+
+0.1 **[done]** Connect the two **Chase Sapphire Preferred** cards (P0-20).
+    Both are live: `·3627` (Elias, first Chase item) and `·8054` (Mariana, second
+    Chase item, connected 2026-08-22). The AC replacement is present and was
+    **split across the two cards** — $5,831.50 + $5,801.50 = **$11,633.00** on
+    2026-07-23, one purchase clearing both minimum spends at once. `household_
+    credit_cards` now carries three rows (two Sapphires + the Prime Visa keeper),
+    so the welcome-bonus and annual-fee alerting has real subjects. Both welcome
+    bonuses compute as **earned** from the ledger.
+0.2 **[done]** **Mark dead accounts dead** (P0-21, D22). `feed_status` /
+    `coverage_through` on `household_accounts`; Wells Fargo stays closed.
+0.3 **[part]** **Resolve account labels to accounts** (P1-24). The CMA, `9728`
+    and `4635` variants are merged and the test rows archived; 26 registry rows
+    are now 20 live. The two Sapphires arrived from Chase with the *identical*
+    label `Ultimate Rewards®` and no owner — the registry cannot separate them
+    because the provider genuinely reports one name for both. Named by operator
+    override (`identity_override`, reapplied after every evidence refresh) as
+    `Chase Sapphire Preferred ·3627` / `·8054` with owners.
+    **Remaining:** the Wells Fargo identity question (0.3a) below.
+0.3a **[blocked]** Wells Fargo is three rows — masks `7312`, `4222`, and a
+    no-mask export. One account or two? The Michael Wiley note payment appears
+    twice across them. Needs the household's answer before merging.
+0.4 **[part]** Both Fidelity 529s carry `asset_group: education` /
+    `account_type: 529`, pinned by classification override; CollegeAmerica/VCSP
+    and the stale "529 College Savings" rows are archived. Merrill holds
+    $3,395.57 + $3,397.60 as of 2026-05-28. **Remaining:** the Fidelity 529 pair
+    currently reports *no* balance at all, so education does not resolve to the
+    expected $36,651.61. The identical $14,363.57 figure was never verified —
+    the source PDF is still the blocker.
+0.5 **[done]** **Fix the duplicated-with-opposite-sign ingest** (P0-22).
+0.6 **[done]** **Stop the spend filters from eating income** (P0-23). Filters
+    classify and say why instead of deleting.
+0.7 **[done]** **Add `amount` to ledger search** (P1-25).
+0.8 **[done]** Purge the **"Codex archive smoke"** test account; resolve the
+    duplicate registry rows (P2-14).
+0.9 **[done]** Investigate the **63% `removed` rate** — **it is genuine dedupe.**
+    1,726 of 2,734 rows are removed. Matching every removed row against the live
+    set on amount within ±5 days leaves **11 orphans**, not 1,072: the same
+    charges arrive from the statement CSV, the activity export and Plaid with a
+    few days of posting drift, and the drift is why an exact date+amount match
+    looks like mass loss. Of the 11, nine are Plaid rows with `pending = true`
+    *and* `removed = true` — pending holds superseded by a posted charge at a
+    different amount (Avis $1,250, Compania Panamena $2,017.04, two cruise-line
+    holds). One is a soft charge, one a zero-dollar SnapTrade row. **No
+    identity-collision loss.** 0.3 and 0.5 were not causing it.
+0.10 **[blocked]** **Seed known pre-feed obligations** (D23). The manual-entry
+    path exists. The $2,144.48 property tax still needs its payment date and
+    whether the November 4% discount was taken.
+0.11 **[part]** The six `HARBOR HILLS PROPERTY` rows are already deduped to one
+    live row (2026-02-17, $104.13) — the P0-22 dedup fix caught them. It still
+    sits under `Bills` rather than housing, and **one occurrence in six months of
+    card coverage means the cadence is not monthly**; annual or quarterly, paid
+    from an account with no feed. Cadence needs confirming before it can be a
+    recurring commitment or a sinking-fund input.
+0.12 **[part]** Costco carries `membership_active` and a $5.42/mo membership
+    accrual with a $0 pickup fee. Aldi, Amazon, Publix and Walmart still have no
+    fee or threshold values — household-specific facts, not derivable.
+0.13 **[open]** Ingest the **13 staged receipts** (8 Walmart, 5 Costco) — depends
+    on the Costco parser work in Phase 4.2.
 
 **Exit test:** `liabilities_total` matches reality; every account carries an
 honest `feed_status` and coverage range; searching `2144.48` finds the property
@@ -1229,4 +1250,5 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Proposal | Published visual proposal artifact (IA + Review screen mockup on real July 2026 data + Prices subsystem + disposition table). Awaiting approval. |
 | 2026-08-22 | Grill Q5 + identity | D13 (phase-aware retirement block), D14 (sequencing: trust pipeline first, nothing dropped), D15 (family-wide capture; identity propagation). Four Gmail identities recorded. §7 restructured: new Phase 5.0 identity propagation ahead of 4.4 owner attribution; 5.6 rewritten for four-person capture; new Phase 6 shopping habits. Artifact republished with the family-capture section. Still nothing in the project changed. |
 | 2026-08-22 | Security | Emails were committed to this **public** repo, then redacted from the plan doc and the artifact. History rewritten: `0a4add8b9` + `94e7cdfc3` squashed into `4073f9168`, force-pushed, branch protection restored. GitHub still serves the orphaned SHA until Support GCs it — request drafted. Real addresses now live in `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, gitignored. |
+| 2026-08-22 | Phase 0 | Both Sapphire cards connected (P0-20 closed): `·3627` Elias, `·8054` Mariana on a second Chase item. The AC replacement is **split across both cards** — $5,831.50 + $5,801.50 on 2026-07-23 — clearing both $5,000 minimum spends with one purchase. `household_credit_cards` seeded with three rows; both welcome bonuses compute as `earned` from the ledger; the $95 annual fee posted 2026-08-02 on both, so the next one is 2027-08-02. Chase reports both cards as `Ultimate Rewards®`, so the registry gained an `identity_override` (label + owner) that survives evidence refresh, mirroring the classification override. The Cards tab had the same problem one level up — it rendered both Sapphires as the same row twice — so a card row now carries its account's owner and last four. MSR progress now excludes the issuer's own fees — the annual fee was counting as qualifying spend. The 63% `removed` rate was investigated and cleared: 11 true orphans, nine of them Plaid pending holds. |
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |

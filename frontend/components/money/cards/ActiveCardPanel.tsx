@@ -28,6 +28,20 @@ function roleBadge(card: HouseholdCreditCard) {
   return <Badge variant="outline">Rotating</Badge>
 }
 
+/**
+ * Whose card this is, and which one. Two cards of the same product render as the
+ * same row twice otherwise -- the issuer names both of them identically, so the
+ * owner and the last four digits are the only things that tell them apart.
+ */
+function cardIdentity(card: HouseholdCreditCard): string {
+  return [
+    card.accountOwner,
+    card.accountMask ? `····${card.accountMask}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
 function CardRow({
   card,
   onActivate,
@@ -53,6 +67,7 @@ function CardRow({
           <Badge variant="outline">{playerLabel(card.player)}</Badge>
         </div>
         <p className="text-xs text-text-muted">
+          {cardIdentity(card) ? `${cardIdentity(card)} · ` : ''}
           {product?.issuer ?? '—'} · Annual fee{' '}
           {formatCurrencyWhole(product?.annualFee ?? 0)} · Opened{' '}
           {formatShortDate(card.openedDate)}

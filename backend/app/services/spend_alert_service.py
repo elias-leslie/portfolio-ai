@@ -110,7 +110,15 @@ class SpendAlertService:
 
     def refresh_welcome_progress(self) -> int:
         """Recompute welcome_progress_amount from the linked account's ledger
-        rows since opened_date; advance welcome_status. Returns rows updated."""
+        rows since opened_date; advance welcome_status. Returns rows updated.
+
+        The issuer's own charges are not purchases and never count toward a
+        minimum spend requirement: the annual fee, interest, late fees and cash
+        advance fees all post to the card as expenses but earn nothing. Counting
+        them tells a household it has cleared an MSR it has not, which is how a
+        welcome bonus gets missed by exactly the fee that was mistaken for
+        progress.
+        """
         updated = 0
         with self._storage.connection() as conn:
             rows = conn.execute(
@@ -135,8 +143,11 @@ class SpendAlertService:
                     WHERE household_account_id = %s
                       AND flow_type = 'expense' AND removed = FALSE
                       AND transaction_date >= %s
+                      AND NOT (COALESCE(category, '') ILIKE 'bank fees%%')
+                      AND NOT (COALESCE(description, '') ILIKE %s)
+                      AND NOT (COALESCE(description, '') ILIKE %s)
                     """,
-                    [account_id, opened],
+                    [account_id, opened, "%annual%fee%", "%interest charge%"],
                 ).fetchone()
                 progress = float((spend_row[0] if spend_row else 0) or 0.0)
                 min_spend = float(raw_min_spend or 0.0)

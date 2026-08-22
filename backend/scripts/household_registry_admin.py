@@ -18,6 +18,7 @@ Usage:
     .venv/bin/python scripts/household_registry_admin.py feed-status <id> closed
     .venv/bin/python scripts/household_registry_admin.py archive <id> --reason test_fixture
     .venv/bin/python scripts/household_registry_admin.py merge --winner <id> --loser <id>
+    .venv/bin/python scripts/household_registry_admin.py label <id> --label NAME --owner WHO
     .venv/bin/python scripts/household_registry_admin.py restore <id>
     .venv/bin/python scripts/household_registry_admin.py refresh-coverage
 """
@@ -130,6 +131,14 @@ def main() -> int:
     classify_cmd.add_argument("--account-type", default=None)
     classify_cmd.add_argument("--reason", default=None)
 
+    label_cmd = sub.add_parser(
+        "label", help="Name an account, and whose it is, over the provider's own label"
+    )
+    label_cmd.add_argument("account_id")
+    label_cmd.add_argument("--label", default=None)
+    label_cmd.add_argument("--owner", default=None)
+    label_cmd.add_argument("--reason", default=None)
+
     sub.add_parser("refresh-coverage", help="Recompute coverage and status from transactions")
 
     args = parser.parse_args()
@@ -156,6 +165,13 @@ def main() -> int:
             account_id=args.account_id,
             asset_group=args.asset_group,
             account_type=args.account_type,
+            reason=args.reason,
+        ),
+        "label": lambda: registry.set_account_identity(
+            service,
+            account_id=args.account_id,
+            canonical_label=args.label,
+            owner_name=args.owner,
             reason=args.reason,
         ),
         "merge": lambda: registry.merge_accounts(

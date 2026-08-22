@@ -171,11 +171,40 @@ class CardManagementService:
             rows = conn.execute(
                 f"SELECT {_CARD_COLUMNS} FROM household_credit_cards ORDER BY is_primary_active DESC, created_at DESC",
             ).fetchall()
-        cards = [_row_to_card(row) for row in rows]
+            cards = [_row_to_card(row) for row in rows]
+            self._hydrate_accounts(conn, cards)
         products = {p.id: p for p in self._load_products()}
         for card in cards:
             card.product = products.get(card.product_id)
         return cards
+
+    def _hydrate_accounts(self, conn: Any, cards: list[HouseholdCreditCard]) -> None:
+        """Attach the linked account's name, mask and owner to each card.
+
+        Two Chase Sapphire Preferreds are one product and two cards. Rendered
+        from the product alone they are the same row twice, and a household
+        cannot tell whose card a charge or an annual fee belongs to. The account
+        carries the only facts that separate them.
+        """
+        account_ids = sorted({card.household_account_id for card in cards if card.household_account_id})
+        if not account_ids:
+            return
+        rows = conn.execute(
+            """
+            SELECT id, canonical_label, account_mask, owner_name
+            FROM household_accounts
+            WHERE id = ANY(%s)
+            """,
+            [account_ids],
+        ).fetchall()
+        by_id = {str(row[0]): row for row in rows}
+        for card in cards:
+            row = by_id.get(str(card.household_account_id or ""))
+            if row is None:
+                continue
+            card.account_label = str(row[1]) if row[1] else None
+            card.account_mask = str(row[2]) if row[2] else None
+            card.account_owner = str(row[3]) if row[3] else None
 
     def _get_card(self, conn: Any, card_id: str) -> HouseholdCreditCard:
         row = conn.execute(
@@ -184,7 +213,9 @@ class CardManagementService:
         ).fetchone()
         if row is None:
             raise KeyError(f"Credit card {card_id} not found.")
-        return _row_to_card(row)
+        card = _row_to_card(row)
+        self._hydrate_accounts(conn, [card])
+        return card
 
     def create_owned_card(self, req: CreditCardCreate) -> HouseholdCreditCard:
         card_id = str(uuid.uuid4())

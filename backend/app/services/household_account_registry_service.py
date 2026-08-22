@@ -335,6 +335,40 @@ def _apply_classification_override(
     )
 
 
+_IDENTITY_OVERRIDE_KEY = "identity_override"
+
+
+def _apply_identity_override(
+    account: HouseholdCanonicalAccount,
+) -> HouseholdCanonicalAccount:
+    """Let an operator name an account the provider cannot tell apart.
+
+    Chase reports both Sapphire Preferred cards as ``Ultimate Rewards®``, so two
+    different cards -- held by two different people, on two different logins --
+    arrive with one identical label and no owner. The registry has nothing to
+    distinguish them with: the name is genuinely the same. Only the household
+    knows whose card is whose, and a plain column write is undone by the next
+    sync, so the naming is stored as an override and reapplied afterwards.
+    """
+    override = account.metadata.get(_IDENTITY_OVERRIDE_KEY)
+    if not isinstance(override, dict):
+        return account
+    label = override.get("canonical_label")
+    owner = override.get("owner_name")
+    return HouseholdCanonicalAccount(
+        id=account.id,
+        primary_identity_key=account.primary_identity_key,
+        canonical_label=str(label) if isinstance(label, str) and label else account.canonical_label,
+        asset_group=account.asset_group,
+        account_type=account.account_type,
+        source_type=account.source_type,
+        institution_name=account.institution_name,
+        owner_name=str(owner) if isinstance(owner, str) and owner else account.owner_name,
+        account_mask=account.account_mask,
+        metadata=account.metadata,
+    )
+
+
 class HouseholdAccountRegistryService:
     """Own canonical household-account identities across evidence, settings, and ledger."""
 
@@ -629,6 +663,68 @@ class HouseholdAccountRegistryService:
             "account_id": account_id,
             "asset_group": next_asset_group,
             "account_type": next_account_type,
+        }
+
+    def set_account_identity(
+        self,
+        service: Any,
+        *,
+        account_id: str,
+        canonical_label: str | None = None,
+        owner_name: str | None = None,
+        reason: str | None = None,
+    ) -> dict[str, object]:
+        """Name an account, and say whose it is, over the provider's own label.
+
+        Two cards at one issuer can share a product name exactly; the registry
+        then has one label for two accounts and no way to tell a household which
+        of them a charge landed on. The distinction is knowledge only the
+        household holds, so it is recorded here rather than inferred.
+
+        Stored as an override for the same reason classification is: the label
+        is recomputed from evidence on every sync, and a bare column write would
+        survive until the next one.
+
+        Passing both values as ``None`` clears the override and returns the
+        account to its provider-reported identity.
+        """
+        with service.storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT metadata, canonical_label, owner_name FROM household_accounts WHERE id = %s",
+                [account_id],
+            ).fetchall()
+            if not rows:
+                raise ValueError(f"no household account with id {account_id!r}")
+            metadata = _load_json_object(rows[0][0])
+            if canonical_label is None and owner_name is None:
+                metadata.pop(_IDENTITY_OVERRIDE_KEY, None)
+                next_label = rows[0][1]
+                next_owner = rows[0][2]
+            else:
+                metadata[_IDENTITY_OVERRIDE_KEY] = {
+                    "canonical_label": canonical_label,
+                    "owner_name": owner_name,
+                    "reason": reason,
+                    "set_at": _now_iso(),
+                }
+                next_label = canonical_label or rows[0][1]
+                next_owner = owner_name or rows[0][2]
+            conn.execute(
+                """
+                UPDATE household_accounts
+                SET metadata = %s::jsonb,
+                    canonical_label = %s,
+                    owner_name = %s,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                [json.dumps(metadata), next_label, next_owner, _now_iso(), account_id],
+            )
+            conn.commit()
+        return {
+            "account_id": account_id,
+            "canonical_label": next_label,
+            "owner_name": next_owner,
         }
 
     def restore_account(self, service: Any, *, account_id: str) -> dict[str, object]:
@@ -1318,7 +1414,7 @@ class HouseholdAccountRegistryService:
             account_mask=next_mask or current.account_mask,
             metadata=_metadata_with_evidence_lifecycle(current.metadata, evidence.metadata),
         )
-        updated = _apply_classification_override(updated)
+        updated = _apply_identity_override(_apply_classification_override(updated))
         canonical_accounts[account_id] = updated
         conn.execute(
             """
@@ -1496,7 +1592,7 @@ class HouseholdAccountRegistryService:
                 account_mask=next_mask or current.account_mask,
                 metadata=next_metadata,
             )
-            updated = _apply_classification_override(updated)
+            updated = _apply_identity_override(_apply_classification_override(updated))
             canonical_accounts[account_id] = updated
             conn.execute(
                 """

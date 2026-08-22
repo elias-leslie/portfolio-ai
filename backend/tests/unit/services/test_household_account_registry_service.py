@@ -15,9 +15,11 @@ from app.services.household_account_identity import (
 )
 from app.services.household_account_registry_service import (
     _CLASSIFICATION_OVERRIDE_KEY,
+    _IDENTITY_OVERRIDE_KEY,
     HouseholdAccountRegistryService,
     HouseholdCanonicalAccount,
     _apply_classification_override,
+    _apply_identity_override,
     _evidence_mask_rank,
     _mask_identity_candidates,
     _registry_identity_candidates,
@@ -1362,6 +1364,66 @@ def test_classification_override_ignores_partial_and_malformed_values() -> None:
 
     assert corrected.account_type == "ira"
     assert corrected.asset_group == "retirement"
+
+
+def test_identity_override_names_two_cards_the_issuer_reports_identically() -> None:
+    """One product name for two cards leaves a household unable to read its own ledger.
+
+    Chase returns ``Ultimate Rewards®`` for every Sapphire Preferred, so a second
+    card arrives with the first one's label and no owner. Which card a charge
+    landed on is then unanswerable from the registry.
+    """
+    account = _canonical(
+        account_id="acct-sapphire-2",
+        label="Ultimate Rewards®",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="plaid",
+        institution_name="Chase",
+        account_mask="8054",
+    )
+    account.metadata[_IDENTITY_OVERRIDE_KEY] = {
+        "canonical_label": "Chase Sapphire Preferred ·8054",
+        "owner_name": "Demo Spouse",
+    }
+
+    named = _apply_identity_override(account)
+
+    assert named.canonical_label == "Chase Sapphire Preferred ·8054"
+    assert named.owner_name == "Demo Spouse"
+    # The provider stays authoritative about everything it can actually tell apart.
+    assert named.account_mask == "8054"
+    assert named.account_type == "credit_card"
+
+
+def test_identity_override_absent_leaves_account_untouched() -> None:
+    account = _canonical(
+        account_id="acct-plain",
+        label="Prime Visa",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="plaid",
+    )
+
+    assert _apply_identity_override(account) is account
+
+
+def test_identity_override_pins_only_the_field_it_names() -> None:
+    """Naming an account should not blank out an owner the provider did report."""
+    account = _canonical(
+        account_id="acct-partial-identity",
+        label="Ultimate Rewards®",
+        asset_group="credit",
+        account_type="credit_card",
+        source_type="plaid",
+        owner_name="Demo Holder",
+    )
+    account.metadata[_IDENTITY_OVERRIDE_KEY] = {"canonical_label": "Sapphire ·3627"}
+
+    named = _apply_identity_override(account)
+
+    assert named.canonical_label == "Sapphire ·3627"
+    assert named.owner_name == "Demo Holder"
 
 
 def test_archive_rejects_an_unknown_reason() -> None:
