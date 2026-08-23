@@ -11,7 +11,12 @@ from typing import Any
 from app.models.household_finance import HouseholdLedger, HouseholdLedgerEntry
 from app.services._household_finance_utils import iso_or_none
 from app.services._household_report_builder import collapse_report_rows_with_exclusions
-from app.services._household_spend_filters import classify_cash_movement
+from app.services._household_spend_filters import (
+    APPEALABLE_RULES,
+    classify_cash_movement,
+    matched_cash_movement_rule,
+    rule_label,
+)
 from app.services._household_time_windows import resolve_household_time_window
 from app.services.household_transaction_service import (
     _effective_transaction_classification,
@@ -350,7 +355,9 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
             t.pending,
             t.removed,
             t.transaction_rule_id,
-            t.balance_after
+            t.balance_after,
+            t.spend_override,
+            t.spend_override_reason
         FROM household_transactions t
         LEFT JOIN household_merchants m
           ON m.id = t.merchant_id
@@ -577,6 +584,20 @@ class HouseholdLedgerService:
                     str(_row_value(row, 21)) if _row_value(row, 21) is not None else None
                 ),
             )
+            spend_override = (
+                str(_row_value(row, 31)) if _row_value(row, 31) is not None else None
+            )
+            spend_override_reason = (
+                str(_row_value(row, 32)) if _row_value(row, 32) is not None else None
+            )
+            # The rule this row matches on its text alone, computed whether or
+            # not the household has overruled it: an appealed row still has to
+            # say what it was appealed from, or the override cannot be checked.
+            matched_rule = matched_cash_movement_rule(
+                category=effective_category,
+                description=str(row[7] or ""),
+                merchant=str(row[6] or row[7] or ""),
+            )
             exclusion_reason: str | None = None
             included_in_spend = False
             if effective_flow not in {"expense", "refund"}:
@@ -587,6 +608,7 @@ class HouseholdLedgerService:
                 category=effective_category,
                 description=str(row[7] or ""),
                 merchant=str(row[6] or row[7] or ""),
+                spend_override=spend_override,
             ):
                 # Name the rule that dropped the row rather than flattening every
                 # exclusion to "cash_movement": a person appealing a missing
@@ -643,6 +665,11 @@ class HouseholdLedgerService:
                 uploaded_at=iso_or_none(row[18]),
                 included_in_spend=included_in_spend,
                 exclusion_reason=exclusion_reason,
+                exclusion_rule=matched_rule,
+                exclusion_label=rule_label(matched_rule) if matched_rule else None,
+                exclusion_is_appealable=matched_rule in APPEALABLE_RULES,
+                spend_override=spend_override,
+                spend_override_reason=spend_override_reason,
             )
             entries.append(
                 (

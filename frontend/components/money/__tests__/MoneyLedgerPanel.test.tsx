@@ -12,6 +12,8 @@ const useTransactionPurchaseItemsMock = vi.hoisted(() => vi.fn())
 const categorizeItemMutateAsync = vi.hoisted(() => vi.fn())
 const setItemOwnerMutateAsync = vi.hoisted(() => vi.fn())
 
+const setSpendOverrideMutateAsync = vi.fn().mockResolvedValue({ ok: true })
+
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdLedger: useHouseholdLedgerMock,
   useHouseholdFacts: useHouseholdFactsMock,
@@ -21,6 +23,10 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   }),
   useSetHouseholdTransactionOwner: () => ({
     mutateAsync: setTransactionOwnerMutateAsync,
+    isPending: false,
+  }),
+  useSetHouseholdTransactionSpendOverride: () => ({
+    mutateAsync: setSpendOverrideMutateAsync,
     isPending: false,
   }),
 }))

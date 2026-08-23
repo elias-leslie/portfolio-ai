@@ -1228,6 +1228,32 @@ export interface HouseholdLedgerEntry {
   uploadedAt?: string | null
   includedInSpend: boolean
   exclusionReason?: string | null
+  exclusionRule?: string | null
+  exclusionLabel?: string | null
+  exclusionIsAppealable?: boolean
+  spendOverride?: string | null
+  spendOverrideReason?: string | null
+}
+
+export interface HouseholdSpendExclusionRule {
+  rule: string
+  label: string
+  transactionCount: number
+  totalAmount: number
+  appealable: boolean
+  restoredCount: number
+  restoredAmount: number
+  sampleMerchants: string[]
+}
+
+export interface HouseholdSpendExclusions {
+  excludedCount: number
+  excludedAmount: number
+  includedCount: number
+  includedAmount: number
+  overriddenCount: number
+  rules: HouseholdSpendExclusionRule[]
+  summary: string
 }
 
 export interface HouseholdLedger {
@@ -1464,6 +1490,7 @@ export interface HouseholdFinanceDashboard {
   recurringCommitments: HouseholdRecurringCommitment[]
   transactionDateIssues: HouseholdTransactionDateIssue[]
   sinkingFunds: HouseholdSinkingFund[]
+  spendExclusions: HouseholdSpendExclusions
   retirementContributionTracker: HouseholdRetirementContributionTracker
   retirementScenarios: HouseholdRetirementScenario[]
   portfolioContext?: PortfolioHouseholdContext | null

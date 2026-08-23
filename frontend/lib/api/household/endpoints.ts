@@ -336,3 +336,13 @@ export async function setHouseholdTransactionOwner(
     payload,
   )
 }
+
+export async function setHouseholdTransactionSpendOverride(
+  transactionId: string,
+  payload: { countsAsSpend: boolean | null; reason?: string | null },
+): Promise<{ ok: boolean }> {
+  return post<{ ok: boolean }>(
+    `/api/household/transactions/${transactionId}/spend-override`,
+    payload,
+  )
+}

@@ -54,19 +54,22 @@ contradicts another number on screen.
 ## 2a. Next actions (live queue — work top down)
 
 **Phase 0 is complete and its exit test passes** (the table is at the end of
-§7's Phase 0 block). **Phase 1 is in progress: 1.1–1.6 and 1.8 are done.**
+§7's Phase 0 block). **Phase 1 is in progress: 1.1–1.8 are done.** Only 1.9 and
+1.10 remain before the Phase 1 exit test can be run.
 
 Work top down through what is left of §7 Phase 1:
 
-1. **1.7 — make exclusions visible and appealable** (P1-6): a UI surface, a
-   total, and a per-row override for the hardcoded list in
-   `_household_spend_filters.py`.
-2. **1.10 — show the `mixed` bucket** so needs/wants sums to 100% (P1-8). 1.6
+1. **1.10 — show the `mixed` bucket** so needs/wants sums to 100% (P1-8). 1.6
    made this sharper rather than easier: Household is now a single honest
    `mixed` series and it is the **largest** category at 24.6% of spend, so the
    invisible bucket is a quarter of the money, not the $811 tail the ticket
    describes.
-3. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
+2. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
+   1.7 supplied one honest input for it: `spend_exclusions` now states how much
+   of the ledger reaches the spend totals (861 of 1,000 rows), which is a
+   coverage fact the score currently ignores.
+3. **Then run the Phase 1 exit test** — every window/surface agrees; July 2026
+   reports $5,025 spend and $2,755 income; recurring bills lists utilities.
 4. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
@@ -334,6 +337,57 @@ categories `{transfers, income, cash, debt payments}`.
 Zelle to a tutor, or an ATM withdrawal that became groceries, is real spend and
 vanishes with no UI affordance to see or override it. 138 of 996 ledger rows
 are "excluded" with no roll-up of what that cost.
+
+**RESOLVED in 1.7.** Three separate things were missing and only one of them was
+the string list. There was **no total** -- nothing anywhere said what exclusion
+cost. There was **no reason a person could read** -- the ledger said
+`cash_movement`, which names a category of decision rather than the decision.
+And there was **no way to disagree**, which is what made the other two matter:
+a number you cannot check and cannot appeal has to be trusted rather than
+believed.
+
+`spend_exclusions` on the dashboard now publishes the counterpart to every spend
+total: how many rows were held out, what they came to, grouped by the rule that
+held them, with the merchants under each rule named. Live it reads **139 of
+1,000 rows ($448,762)** -- which is the finding's own "138 of 996", arrived at
+independently.
+
+Getting that number right required widening the scope past the ticket. Rolling
+up only the literal string list gave **11 rows**, because most exclusions never
+reach the string list at all -- they are dropped earlier for flow type. Eleven
+would have answered "why is this Zelle payment missing?" while leaving "why is
+my spend total smaller than my transactions?" unanswered, and the second
+question is the one a person actually arrives with. Every reason a row leaves a
+total is now reported: flow type, non-positive amount, category, and the string
+patterns.
+
+The appeal is a nullable `spend_override` column (migration `b2c3d4e5f6a7`),
+three-valued on purpose -- `include` restores a dropped row, `exclude` drops a
+counted one, and clearing it hands the row back to the rules, because an appeal
+that cannot be withdrawn is a worse trap than the filter it corrects. It is a
+column rather than a metadata key because the spend predicate is built in SQL
+and evaluated in several queries; an override invisible to SQL would apply on
+the Ledger and not on the Dashboard, which is the exact defect class Phase 1
+exists to remove. `non_spend_sql_predicate` therefore applies it centrally
+rather than leaving each query to remember.
+
+Only rules that match on **wording** invite an appeal (`zelle to`, `atm
+withdrawal`, `online transfer`, `inst xfer`, category `cash`). A row excluded
+because it is income or a transfer is not a filter's guess about a string, and
+offering to overrule it would be offering the wrong argument.
+
+Verified live end to end: appealing the $400 ATM withdrawal of 2026-03-16 moved
+the roll-up to **138 rows / $448,362** -- exactly $400 -- reported it as *"1
+restored, $400.00"* under Cash withdrawals, and flipped the row's own SQL
+verdict from dropped to counted. Withdrawing the appeal restored 139 /
+$448,762. The test override was withdrawn; live data is as it was found.
+
+One presentation defect surfaced during verification and was fixed in the same
+task: "income" is reachable both as a flow type and as a category, so the card
+listed **"Money coming in" twice** -- the doubled legend of P1-7, reproduced one
+surface over. Rules are now grouped by what they mean rather than by which rule
+matched, and transfer in/out share one line, because the card answers "why is
+this not in my spend total?" and direction adds a row without adding a decision.
 
 ### P1-7 — Category taxonomy is doubled and polluted
 
@@ -1585,7 +1639,7 @@ Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
 1.6 ✅ **Fix the taxonomy** (P1-7). One essentiality per category; collapse the
     duplicate Transportation/Household/Travel series; map Plaid leakage
     ("General Services Storage/Insurance") into the curated set.
-1.7 **Make exclusions visible and appealable** (P1-6). The hardcoded string list in
+1.7 ✅ **Make exclusions visible and appealable** (P1-6). The hardcoded string list in
     `_household_spend_filters.py` ("zelle to", "atm withdrawal", …) gets a UI
     surface, a total, and per-row override.
 1.8 ✅ **Merchant normalisation for statement rows** (P1-12) — "DIRECT DEBIT
@@ -1782,3 +1836,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-23 | Phase 1.4 | **Safe to Spend became Free to spend, and it is now arithmetic on money.** The old figure was $1,283 and its binding constraint was `plan_residual` — monthly income *target* minus monthly plan *total* — so neither the $30,494.75 in the CMA nor the $17,287.71 owed across three Sapphires ever reached it, and a green **Safe** badge sat over a number the card disclaimed in the same breath. The check is now `cash − bills due − essentials still to come − sinking-fund balances − card balances`, shown as the full subtraction so the reader can check it: **30,494.75 − 88.38 − 1,290.32 − 0 − 17,287.71 = $11,828.34**. Four judgment calls are recorded in P0-2: the horizon is the rest of the month *or* the next fortnight, whichever reaches further (ask on the 30th and a pure month frame hides next week's bills); essentials still to come is the larger of what is left of the baseline and the remaining days at the baseline's own daily rate (August's $5,000 was already spent by the 23rd, and 'nothing left to buy' with eight days of groceries ahead is false); the result is **not floored at zero**, because a household that cannot cover what it owes needs the size of the hole; and inputs the system does not have are **named** rather than treated as zero — sinking-fund balances have no home until D7 lands in Phase 3, so the card says so. `plan_residual` and `discretionary_cap` are retired, `cash_after_commitments` is the only constraint left, and the status can be estimate, tight, hold or review — never *safe*. |
 | 2026-08-23 | Phase 1.5 | **Three green verdicts deleted, one cause between them.** `on_track` and `Configured` were both *fall-through* values — reached by not failing a check rather than by passing one. `budget_snapshot.status` said `on_track` in the same payload as `pace_status: partial_plan` and `actual_monthly_spend 10,085` against a `monthly_plan_total 5,000`; it now returns **`plan_incomplete`** and says why (*"the monthly plan has no discretionary target, so total spending of $10,085/mo cannot be judged against it"*), or **`above_plan`** when a complete plan is overrun on the total even though every lane is individually inside its cap. `budget_readiness` reported all three lanes **Configured** with 17/19 category caps unset, because "Configured" meant *any* resolved value — and Lifestyle's was an inferred $4,073.26, which is just the discretionary spending the household already does, handed back as a cap. Lanes now distinguish set from inferred (**"Inferred from spending"**, status `partially_configured`, summary naming the lane, label tinted by state). `retirement_contribution_tracker` stops reporting `on_track` from a $0 target against $0 contributions (D13's defect) — a zero target is unset or paused, and D17 makes `paused` first-class in Phase 3. All three verified live on the running backend. |
 | 2026-08-23 | Phase 1.6 | **The legend stopped showing the same category twice, because essentiality stopped being a field.** Transportation, Household, Travel and Home each appeared as two series, and the reason was structural rather than a bad row here and there: essentiality was stored as a *second free field* beside the category, so nothing obliged two "Transportation" rows to agree and each classifier decided independently. `_household_taxonomy.py` makes it a **function of the category** — one reading for each of the 23 curated categories, reachable only through `essentiality_for()`, and every classifier path now routes through it including Plaid's. Two of the four doublings turned out to be a single row each: **Home** held a $2,144.48 property tax and an HOA payment, its only "essential" rows, and those are what dragged the category between needs and wants depending which was read — `BILL_CONCEPTS` files property tax and HOA dues as **Bills**, after which Home is honestly discretionary. Raw Plaid labels are mapped instead of displayed ("General Services Insurance" → Insurance, "General Services Storage" → Household, "Bank Fees Other Bank Fees" → Bills). A category the household invented ("Girls") is **kept as written** and given a stable `mixed`, because flattening a real label into a fallback would be a worse lie than the doubling being fixed. Stored rows are repaired by `_canonicalize_stored_essentiality` inside `repair_transaction_system`, which rewrites essentiality only and never moves a transaction between categories. Live: **23 categories in 23 rows**, a second repair pass reports `essentiality_aligned = 0`, and `category_breakdown` returns six rows with no duplicate category and no Plaid leakage. It also sharpened 1.10 rather than easing it — Household is now one honest `mixed` series and the **largest** category at 24.6% of spend, so the bucket the needs/wants split hides is a quarter of the money. Gate green: 2457 backend tests. |
+| 2026-08-23 | Phase 1.7 | **Every spend total now publishes what it left out, and the household can argue with it.** Three things were missing and only one was the string list: there was no **total** (nothing said what exclusion cost), no **reason a person could read** (the ledger said `cash_movement`, which names a category of decision rather than the decision), and no **way to disagree** — which is what made the first two matter, because a number you can neither check nor appeal has to be trusted rather than believed. `spend_exclusions` now publishes the counterpart to every total: **139 of 1,000 rows ($448,762)**, grouped by the rule that held them, with the merchants under each rule named. That number required widening past the ticket: rolling up only the literal string list gave **11 rows**, because most exclusions never reach the string list — they are dropped earlier for flow type. Eleven answers "why is this Zelle payment missing?" and leaves "why is my spend total smaller than my transactions?" unanswered, and the second is the question people actually arrive with. The appeal is a nullable `spend_override` column (migration `b2c3d4e5f6a7`), three-valued on purpose — `include` restores, `exclude` drops, clearing hands the row back to the rules, because an appeal that cannot be withdrawn is a worse trap than the filter it corrects. It is a **column, not a metadata key**: the spend predicate is built in SQL across several queries, and an override invisible to SQL would apply on the Ledger and not the Dashboard — the exact defect class this phase exists to remove — so `non_spend_sql_predicate` applies it centrally rather than leaving each query to remember. Only rules that match on **wording** invite an appeal; a row excluded for being income is not a guess about a string, and offering to overrule it would be offering the wrong argument. Verified live end to end: appealing the $400 ATM withdrawal of 2026-03-16 moved the roll-up to **138 / $448,362** — exactly $400 — reported it as "1 restored, $400.00" under Cash withdrawals, and flipped that row's own SQL verdict from dropped to counted; withdrawing it restored 139 / $448,762, and the live data is as it was found. One defect surfaced during verification and was fixed in the same task: "income" is reachable both as a flow type and as a category, so the card listed **"Money coming in" twice** — P1-7's doubled legend, reproduced one surface over — so rules are now grouped by meaning rather than by which rule matched. Gate green: 2,468 backend tests, 269 frontend money tests, 0 console errors on the live page. |

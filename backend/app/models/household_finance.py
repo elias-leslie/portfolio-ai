@@ -73,6 +73,8 @@ from app.models.household_finance_types import (
     HouseholdShoppingListSuggestions,
     HouseholdSinkingFund,
     HouseholdSpendComparator,
+    HouseholdSpendExclusionRule,
+    HouseholdSpendExclusions,
     HouseholdSpendingCategory,
     HouseholdSpendingItemSplit,
     HouseholdSpendingSummary,
@@ -186,6 +188,9 @@ __all__ = [
     "HouseholdShoppingListsResponse",
     "HouseholdSinkingFund",
     "HouseholdSpendComparator",
+    "HouseholdSpendExclusionRule",
+    "HouseholdSpendExclusions",
+    "HouseholdSpendOverrideUpdate",
     "HouseholdSpendingCategory",
     "HouseholdSpendingItemSplit",
     "HouseholdSpendingSummary",
@@ -337,6 +342,19 @@ class HouseholdTransactionOwnerUpdate(BaseModel):
     apply_to_merchant: bool = False
 
 
+class HouseholdSpendOverrideUpdate(BaseModel):
+    """The household's verdict on whether one row is real spend.
+
+    ``counts_as_spend`` is deliberately three-valued: True restores a row the
+    filters dropped, False drops one they kept, and None withdraws the verdict
+    and hands the row back to the rules. Without the third state an appeal could
+    be made but never taken back.
+    """
+
+    counts_as_spend: bool | None = None
+    reason: str | None = None
+
+
 class HouseholdFinanceDashboard(BaseModel):
     generated_at: str
     overview: HouseholdOverview
@@ -352,6 +370,10 @@ class HouseholdFinanceDashboard(BaseModel):
     recurring_commitments: list[HouseholdRecurringCommitment] = Field(default_factory=list)
     transaction_date_issues: list[HouseholdTransactionDateIssue] = Field(default_factory=list)
     sinking_funds: list[HouseholdSinkingFund] = Field(default_factory=list)
+    # What the spend filters held out of every total above, and why.
+    spend_exclusions: HouseholdSpendExclusions = Field(
+        default_factory=HouseholdSpendExclusions
+    )
     retirement_contribution_tracker: HouseholdRetirementContributionTracker
     retirement_scenarios: list[HouseholdRetirementScenario] = Field(default_factory=list)
     import_center: ImportCenter

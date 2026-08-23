@@ -21,6 +21,7 @@ from app.models.household_finance import (
     HouseholdResolvedValue,
     HouseholdSpendingCategory,
     HouseholdSpendingView,
+    HouseholdSpendOverrideUpdate,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
@@ -317,6 +318,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def update_transaction_owner(self, transaction_id: str, payload: HouseholdTransactionOwnerUpdate) -> bool:
         return self.transaction_rule_service.update_transaction_owner(self, transaction_id, payload)
+
+    def update_spend_override(self, transaction_id: str, payload: HouseholdSpendOverrideUpdate) -> bool:
+        return self.transaction_rule_service.update_spend_override(self, transaction_id, payload)
 
     def repair_transaction_system(self, *, limit: int = 5000) -> dict[str, int]:
         return self.transaction_service.repair_transaction_system(limit=limit)

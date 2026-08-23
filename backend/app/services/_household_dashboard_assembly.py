@@ -69,6 +69,9 @@ from app.services._household_jenny_needs_builders import (
     _jenny_statement_needs,
     _jenny_transaction_date_quality_needs,
 )
+from app.services._household_spend_exclusion_rollup import (
+    fetch_current_window_spend_exclusions,
+)
 from app.services.household_account_control import build_household_account_control
 
 # ---------------------------------------------------------------------------
@@ -727,6 +730,7 @@ def assemble_finance_dashboard(
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
         transaction_date_issues=transaction_date_issues,
         sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
+        spend_exclusions=fetch_current_window_spend_exclusions(storage),
         retirement_contribution_tracker=build_retirement_contribution_tracker(
             profile=profile, estimated_monthly_contributions=fetch_monthly_retirement_contributions(storage),
         ),

@@ -34,6 +34,7 @@ from app.models.household_finance import (
     HouseholdQuestionAnswer,
     HouseholdQuestionList,
     HouseholdSpendingView,
+    HouseholdSpendOverrideUpdate,
     HouseholdTrackedAccount,
     HouseholdTrackedAccountInput,
     HouseholdTransactionCategoryUpdate,
@@ -380,6 +381,18 @@ async def categorize_household_transaction(
 ) -> dict[str, bool]:
     """Confirm category and essentiality for a household transaction."""
     updated = await run_in_threadpool(_service().update_transaction_category, transaction_id, payload)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+    return {"ok": True}
+
+
+@router.post("/transactions/{transaction_id}/spend-override")
+async def set_household_transaction_spend_override(
+    transaction_id: str,
+    payload: HouseholdSpendOverrideUpdate,
+) -> dict[str, bool]:
+    """Appeal the spend filters on one row, or withdraw an earlier appeal."""
+    updated = await run_in_threadpool(_service().update_spend_override, transaction_id, payload)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
     return {"ok": True}

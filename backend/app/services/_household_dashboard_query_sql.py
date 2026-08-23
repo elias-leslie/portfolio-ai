@@ -17,6 +17,7 @@ def current_transaction_date_predicate(alias: str | None = None) -> str:
 _NON_SPEND_TRANSACTION_SQL = non_spend_sql_predicate(
     text_expressions=["t.description", "t.raw_merchant"],
     category_expression="t.category",
+    override_expression="t.spend_override",
 )
 _INVESTMENT_ACTIVITY_SQL = investment_activity_sql_predicate(
     text_expressions=["description", "raw_merchant"],

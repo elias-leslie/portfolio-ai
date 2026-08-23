@@ -105,6 +105,15 @@ export function buildHouseholdDashboard() {
     recurringCommitments: [],
     transactionDateIssues: [],
     sinkingFunds: [],
+    spendExclusions: {
+      excludedCount: 0,
+      excludedAmount: 0,
+      includedCount: 0,
+      includedAmount: 0,
+      overriddenCount: 0,
+      rules: [],
+      summary: '',
+    },
     retirementContributionTracker: {
       status: 'gap',
       monthlyTarget: 2000,

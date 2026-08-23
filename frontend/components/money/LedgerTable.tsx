@@ -39,6 +39,11 @@ interface LedgerTableProps {
     category: string,
     options?: InlineComboboxCommitOptions,
   ) => void
+  spendOverridePending?: boolean
+  onSetSpendOverride?: (
+    entry: HouseholdLedgerEntry,
+    countsAsSpend: boolean | null,
+  ) => void
 }
 
 export function LedgerTable({
@@ -66,6 +71,8 @@ export function LedgerTable({
   categoryOptions,
   categorizePending,
   onCommitCategory,
+  spendOverridePending = false,
+  onSetSpendOverride,
 }: LedgerTableProps) {
   return (
     <div className="mt-5 overflow-hidden rounded-2xl border border-border/40 bg-surface/45">
@@ -185,6 +192,13 @@ export function LedgerTable({
                       categorizable
                         ? (category, options) =>
                             onCommitCategory(entry, category, options)
+                        : undefined
+                    }
+                    spendOverridePending={spendOverridePending}
+                    onSetSpendOverride={
+                      categorizable && onSetSpendOverride
+                        ? (countsAsSpend) =>
+                            onSetSpendOverride(entry, countsAsSpend)
                         : undefined
                     }
                   />

@@ -1397,7 +1397,8 @@ class HouseholdTransactionService:
                     t.source_system,
                     t.external_transaction_id,
                     t.transaction_rule_id,
-                    t.pending
+                    t.pending,
+                    t.spend_override
                 FROM household_transactions t
                 LEFT JOIN household_merchants m ON m.id = t.merchant_id
                 LEFT JOIN household_accounts a ON a.id = t.household_account_id
@@ -1482,11 +1483,15 @@ class HouseholdTransactionService:
                 effective_essentiality = UNKNOWN_ESSENTIALITY
             if str(row[0]) in reversed_ids:
                 continue
+            spend_override = (
+                str(_row_value(row, 25)) if _row_value(row, 25) is not None else None
+            )
             if not is_budget_driving_expense(
                 flow_type=effective_flow,
                 category=effective_category,
                 description=str(row[3]),
                 merchant=str(row[11] or row[4] or row[3]),
+                spend_override=spend_override,
             ):
                 continue
             report_rows.append(

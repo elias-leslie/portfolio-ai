@@ -17,6 +17,7 @@ import {
 import {
   useCategorizeHouseholdTransaction,
   useHouseholdLedger,
+  useSetHouseholdTransactionSpendOverride,
 } from '@/lib/hooks/useHousehold'
 import { buildCategoryOptions } from './category-options'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
@@ -45,6 +46,7 @@ export function MoneyLedgerPanel() {
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedAuditRow, setExpandedAuditRow] = useState<string | null>(null)
   const categorizeTransaction = useCategorizeHouseholdTransaction()
+  const spendOverride = useSetHouseholdTransactionSpendOverride()
   const deferredQuery = useDeferredValue(query.trim())
   const offset = (currentPage - 1) * LEDGER_PAGE_SIZE
   const {
@@ -358,6 +360,13 @@ export function MoneyLedgerPanel() {
         categorizePending={categorizeTransaction.isPending}
         onCommitCategory={(entry, category, options) =>
           void saveCategory(entry, category, options)
+        }
+        spendOverridePending={spendOverride.isPending}
+        onSetSpendOverride={(entry, countsAsSpend) =>
+          void spendOverride.mutateAsync({
+            transactionId: entry.id,
+            countsAsSpend,
+          })
         }
         onPreviousPage={() => setCurrentPage((page) => Math.max(1, page - 1))}
         onNextPage={() =>

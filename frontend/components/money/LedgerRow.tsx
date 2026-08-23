@@ -28,6 +28,9 @@ interface LedgerRowProps {
     category: string,
     options?: InlineComboboxCommitOptions,
   ) => void
+  spendOverridePending?: boolean
+  /** Appeal the spend filters on this row. `null` withdraws an earlier appeal. */
+  onSetSpendOverride?: (countsAsSpend: boolean | null) => void
 }
 
 /** Enum label with the "api" word kept as the acronym ("api_sync" → "API sync"). */
@@ -42,6 +45,8 @@ export function LedgerRow({
   categoryOptions,
   categorizePending,
   onCommitCategory,
+  spendOverridePending = false,
+  onSetSpendOverride,
 }: LedgerRowProps) {
   const [applyToMerchant, setApplyToMerchant] = useState<boolean | null>(null)
   const hasMerchantRule =
@@ -54,6 +59,14 @@ export function LedgerRow({
     effectiveDateKey != null &&
     effectiveDateKey > new Date().toISOString().slice(0, 10)
   const rowKey = ledgerRowKey(entry)
+  // Only rules that match on wording invite an appeal: a row excluded because
+  // it is income or a transfer is not a filter's guess about a string, and
+  // offering to overrule it would be offering the wrong argument.
+  const canAppeal =
+    entry.kind === 'transaction' &&
+    (entry.exclusionIsAppealable === true ||
+      entry.spendOverride != null ||
+      entry.includedInSpend)
   const evidenceLabel = entry.sourceDocumentId
     ? 'Evidence linked'
     : 'No evidence'
@@ -165,10 +178,36 @@ export function LedgerRow({
             </Badge>
           </div>
           <div className="mt-1 text-xs text-text-muted">
-            {entry.exclusionReason
-              ? formatEnumLabel(entry.exclusionReason)
-              : 'Included in canonical spend'}
+            {entry.spendOverride
+              ? entry.spendOverride === 'include'
+                ? 'You said this counts as spend'
+                : 'You said this is not spend'
+              : entry.exclusionLabel
+                ? entry.exclusionLabel
+                : entry.exclusionReason
+                  ? formatEnumLabel(entry.exclusionReason)
+                  : 'Included in canonical spend'}
           </div>
+          {onSetSpendOverride && canAppeal ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={spendOverridePending}
+              className="mt-1 h-auto px-0 text-xs text-primary hover:bg-transparent hover:underline"
+              onClick={() =>
+                onSetSpendOverride(
+                  entry.spendOverride ? null : !entry.includedInSpend,
+                )
+              }
+            >
+              {entry.spendOverride
+                ? 'Undo — let the rules decide'
+                : entry.includedInSpend
+                  ? "Don't count this"
+                  : 'Count this as spend'}
+            </Button>
+          ) : null}
         </td>
         <td className="border-b border-border/20 px-3 py-2.5 align-top">
           <div className="flex flex-wrap items-center gap-2">

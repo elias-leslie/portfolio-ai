@@ -39,6 +39,7 @@ import {
   replaceHouseholdAccountHoldings,
   reReviewHouseholdDocument,
   setHouseholdTransactionOwner,
+  setHouseholdTransactionSpendOverride,
   updateHouseholdPlanning,
   updateHouseholdProfile,
   updateHouseholdTrackedAccount,
@@ -715,6 +716,48 @@ export function useCategorizeHouseholdTransaction() {
         error instanceof Error
           ? error.message
           : 'Failed to categorize transaction',
+      )
+    },
+  })
+}
+
+/**
+ * Appeal the spend filters on one row, or withdraw an earlier appeal.
+ *
+ * The filters match literal strings -- "zelle to", "atm withdrawal" -- and a
+ * string cannot tell rent from a tutor. Passing `countsAsSpend: null` hands the
+ * row back to the rules.
+ */
+export function useSetHouseholdTransactionSpendOverride() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      transactionId,
+      countsAsSpend,
+      reason,
+    }: {
+      transactionId: string
+      countsAsSpend: boolean | null
+      reason?: string | null
+    }) =>
+      setHouseholdTransactionSpendOverride(transactionId, {
+        countsAsSpend,
+        reason,
+      }),
+    onSuccess: async (_result, variables) => {
+      await refreshHouseholdQueries(queryClient)
+      toast.success(
+        variables.countsAsSpend === null
+          ? 'Spend filters decide this row again.'
+          : variables.countsAsSpend
+            ? 'Counted as spend.'
+            : 'Left out of spend.',
+      )
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to update this row',
       )
     },
   })

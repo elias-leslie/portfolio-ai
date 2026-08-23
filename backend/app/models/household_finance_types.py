@@ -245,6 +245,47 @@ class HouseholdLedgerEntry(BaseModel):
     uploaded_at: str | None = None
     included_in_spend: bool = False
     exclusion_reason: str | None = None
+    # The rule that would drop this row, stated in a person's words, and whether
+    # the household has already overruled it. A row can only be appealed by
+    # someone who can see what it was accused of.
+    exclusion_rule: str | None = None
+    exclusion_label: str | None = None
+    exclusion_is_appealable: bool = False
+    spend_override: str | None = None
+    spend_override_reason: str | None = None
+
+
+class HouseholdSpendExclusionRule(BaseModel):
+    """One exclusion rule, and what it costs the household to leave it alone."""
+
+    rule: str
+    label: str
+    transaction_count: int
+    total_amount: float
+    appealable: bool
+    # Rows under this rule the household has already restored to spend.
+    restored_count: int = 0
+    restored_amount: float = 0.0
+    sample_merchants: list[str] = Field(default_factory=list)
+
+
+class HouseholdSpendExclusions(BaseModel):
+    """What the spend filters left out of every total, and what it came to.
+
+    The filters used to be a silent list of literal strings. Publishing the
+    roll-up is the difference between a number that can be checked and one that
+    has to be trusted.
+    """
+
+    excluded_count: int = 0
+    excluded_amount: float = 0.0
+    included_count: int = 0
+    included_amount: float = 0.0
+    # Rows a person restored or removed by hand, counted separately so the
+    # household can see its own corrections rather than only the rules'.
+    overridden_count: int = 0
+    rules: list[HouseholdSpendExclusionRule] = Field(default_factory=list)
+    summary: str = ""
 
 
 class HouseholdLedger(BaseModel):

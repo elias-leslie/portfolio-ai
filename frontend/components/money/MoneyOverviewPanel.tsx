@@ -13,6 +13,7 @@ import { formatRelativeTime } from '@/lib/utils'
 import { AllocationCard } from './AllocationCard'
 import { BudgetPulseCard } from './BudgetPulseCard'
 import { DecisionBoard } from './DecisionBoard'
+import { ExcludedFromSpendCard } from './ExcludedFromSpendCard'
 import type { MoneyOverviewSection } from './overview-helpers'
 import { RecurringBillsCard } from './RecurringBillsCard'
 import { SavingsLeversCard } from './SavingsLeversCard'
@@ -204,6 +205,10 @@ export function MoneyOverviewPanel({
             />
           ) : null}
         </div>
+      ) : null}
+
+      {showCategories ? (
+        <ExcludedFromSpendCard exclusions={dashboard.spendExclusions} />
       ) : null}
     </div>
   )

@@ -8,10 +8,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import (
+    HouseholdSpendOverrideUpdate,
     HouseholdTransactionCategoryUpdate,
     HouseholdTransactionOwnerUpdate,
 )
 from app.services._household_report_builder import _merchant_aliases
+from app.services._household_spend_filters import EXCLUDE, INCLUDE
 
 
 def _normalize_owner_name(value: str | None) -> str | None:
@@ -228,6 +230,48 @@ class HouseholdTransactionRuleService:
                 )
             conn.commit()
         return row is not None
+
+    def update_spend_override(
+        self,
+        service: Any,
+        transaction_id: str,
+        payload: HouseholdSpendOverrideUpdate,
+    ) -> bool:
+        """Record that a person disagrees with the spend filters about one row.
+
+        The filters match literal strings -- "zelle to", "atm withdrawal" -- and
+        a string cannot tell rent from a tutor. This is the appeal: it outranks
+        every rule, and passing ``counts_as_spend=None`` withdraws it so the
+        rules decide again.
+        """
+        if payload.counts_as_spend is None:
+            verdict: str | None = None
+        else:
+            verdict = INCLUDE if payload.counts_as_spend else EXCLUDE
+        reason = (payload.reason or "").strip() or None
+        with service.storage.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE household_transactions
+                SET spend_override = %s,
+                    spend_override_reason = %s,
+                    spend_override_at = %s,
+                    updated_at = %s
+                WHERE id = %s
+                RETURNING id
+                """,
+                [
+                    verdict,
+                    reason if verdict is not None else None,
+                    datetime.now(UTC) if verdict is not None else None,
+                    datetime.now(UTC),
+                    transaction_id,
+                ],
+            ).fetchone()
+            if row is None:
+                return False
+            conn.commit()
+        return True
 
     def update_transaction_owner(
         self,
