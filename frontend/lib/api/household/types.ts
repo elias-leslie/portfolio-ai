@@ -307,13 +307,23 @@ export interface HouseholdBudgetSnapshot {
   remainingCashAfterPlan: number | null
   discretionaryHeadroom: number | null
   safeToSpend: number | null
-  safeToSpendConstraint:
-    | 'cash_after_cushion'
-    | 'plan_residual'
-    | 'discretionary_cap'
-    | null
+  safeToSpendConstraint: 'cash_after_commitments' | null
   dueSoonBillsTotal: number | null
   operatingCushion: number
+  affordability: HouseholdAffordability | null
+}
+
+/** Cash minus everything already spoken for. No targets in it anywhere. */
+export interface HouseholdAffordability {
+  freeToSpend: number
+  cashOnHand: number
+  billsDue: number
+  billsDueThrough: string
+  remainingEssentials: number
+  essentialsBasis: string
+  committedFunds: number
+  cardBalances: number
+  missingInputs: string[]
 }
 
 export interface HouseholdCategorizationCandidate {

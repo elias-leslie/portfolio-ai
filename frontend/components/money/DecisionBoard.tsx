@@ -12,6 +12,7 @@ import {
 import {
   decisionBadgeVariant,
   formatCategoryPreview,
+  shortDate,
   signedCurrency,
   trustBadgeVariant,
   trustCardValue,
@@ -35,11 +36,11 @@ export function DecisionBoard({
   monthGap,
   safeSpendStatus,
   safeSpendSummary,
-  safeSpendBindingLabel,
   safeSpendRepairItems,
   weekendSpendAllowance,
   operatingCushion,
   dueSoonTotal,
+  affordability,
   needsAmount,
   wantsAmount,
   needsShare,
@@ -65,11 +66,11 @@ export function DecisionBoard({
   | 'monthGap'
   | 'safeSpendStatus'
   | 'safeSpendSummary'
-  | 'safeSpendBindingLabel'
   | 'safeSpendRepairItems'
   | 'weekendSpendAllowance'
   | 'operatingCushion'
   | 'dueSoonTotal'
+  | 'affordability'
   | 'needsAmount'
   | 'wantsAmount'
   | 'needsShare'
@@ -151,7 +152,7 @@ export function DecisionBoard({
 
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-text">Safe to Spend</p>
+            <p className="text-sm font-semibold text-text">Free to spend</p>
             <div className="flex flex-wrap items-center gap-2">
               {spendTrustDegraded ? (
                 <InfoBadge
@@ -175,31 +176,54 @@ export function DecisionBoard({
             )}
           </p>
           <p className="mt-1 text-sm text-text-muted">{safeSpendSummary}</p>
-          <div className="mt-3 space-y-2 text-xs text-text-muted">
-            <p>
-              Operating cushion: {formatCurrencyWhole(operatingCushion)}
-              {dashboard.profile.monthlyEssentialTarget != null
-                ? ' (essentials target, not actual)'
-                : ''}
-            </p>
-            <p>Due in 14 days: {formatCurrencyWhole(dueSoonTotal)}</p>
-            <p>
-              Remaining after plan:{' '}
-              {formatCurrencyWhole(
-                dashboard.budgetSnapshot.remainingCashAfterPlan,
-                { nullDisplay: 'Not set' },
-              )}
-            </p>
-            <p>
-              Monthly plan source:{' '}
-              {dashboard.budgetSnapshot.monthlyPlanSourceLabel}
-            </p>
-            {safeSpendBindingLabel ? (
-              <p className="text-text-muted/80">
-                Limited by {safeSpendBindingLabel}.
+          {affordability ? (
+            <div className="mt-3 space-y-1 text-xs text-text-muted">
+              <p>
+                Cash on hand: {formatCurrencyWhole(affordability.cashOnHand)}
               </p>
-            ) : null}
-          </div>
+              <p>
+                Less bills due through{' '}
+                {shortDate(affordability.billsDueThrough)}:{' '}
+                {formatCurrencyWhole(affordability.billsDue)}
+              </p>
+              <p>
+                Less essentials still to come:{' '}
+                {formatCurrencyWhole(affordability.remainingEssentials)}
+              </p>
+              <p className="text-text-muted/80">
+                {affordability.essentialsBasis}
+              </p>
+              <p>
+                Less owed on cards:{' '}
+                {formatCurrencyWhole(affordability.cardBalances)}
+              </p>
+              {affordability.committedFunds > 0 ? (
+                <p>
+                  Less committed to sinking funds:{' '}
+                  {formatCurrencyWhole(affordability.committedFunds)}
+                </p>
+              ) : null}
+              {affordability.missingInputs.length > 0 ? (
+                <p className="text-text-muted/80">
+                  Not yet counted:{' '}
+                  {affordability.missingInputs
+                    .map((input) => formatEnumLabel(input).toLowerCase())
+                    .join(', ')}
+                  .
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2 text-xs text-text-muted">
+              <p>Due in 14 days: {formatCurrencyWhole(dueSoonTotal)}</p>
+              <p>
+                Operating cushion: {formatCurrencyWhole(operatingCushion)}
+                {dashboard.profile.monthlyEssentialTarget != null
+                  ? ' (essentials target, not actual)'
+                  : ''}
+              </p>
+            </div>
+          )}
           {spendTrustDegraded && safeSpendRepairItems.length > 0 ? (
             <div className="mt-3 space-y-2 border-t border-border/30 pt-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">

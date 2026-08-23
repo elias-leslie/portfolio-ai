@@ -118,9 +118,21 @@ const dashboard = {
     // Deliberately NOT derivable from the raw fixture inputs above — the
     // backend owns these numbers and the UI must render them verbatim.
     safeToSpend: 240,
-    safeToSpendConstraint: 'cash_after_cushion' as const,
+    safeToSpendConstraint: 'cash_after_commitments' as const,
     dueSoonBillsTotal: 245,
     operatingCushion: 5200,
+    affordability: {
+      freeToSpend: 240,
+      cashOnHand: 8000,
+      billsDue: 245,
+      billsDueThrough: '2026-09-06',
+      remainingEssentials: 1515,
+      essentialsBasis:
+        '3,685 of the 5,200 essentials baseline is covered so far in August.',
+      committedFunds: 0,
+      cardBalances: 6000,
+      missingInputs: ['sinking_fund_balances'],
+    },
   },
   retirementPreparedness: {
     status: 'baseline_visible',
@@ -343,24 +355,27 @@ describe('MoneyOverviewPanel', () => {
 
     expect(screen.getByText('Decision Board')).toBeInTheDocument()
     expect(screen.getByText('Budget Pace')).toBeInTheDocument()
-    expect(screen.getByText('Safe to Spend')).toBeInTheDocument()
+    expect(screen.getByText('Free to spend')).toBeInTheDocument()
     expect(screen.getByText('Want vs need')).toBeInTheDocument()
     expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
     expect(screen.getByText('+$500')).toBeInTheDocument()
     // Backend-owned numbers render verbatim: none of these are derivable from
     // the raw accounts/commitments/profile values in the fixture.
     expect(screen.getByText('$240')).toBeInTheDocument()
-    expect(screen.getByText(/due in 14 days: \$245/i)).toBeInTheDocument()
+    // Free-to-spend shows the whole subtraction, so the reader can check the
+    // figure rather than take a green badge's word for it.
+    expect(screen.getByText(/cash on hand: \$8,000/i)).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'Limited by visible cash after cushion and bills due in 14 days.',
-      ),
+      screen.getByText(/less bills due through sep 6: \$245/i),
     ).toBeInTheDocument()
+    expect(
+      screen.getByText(/less essentials still to come: \$1,515/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/less owed on cards: \$6,000/i)).toBeInTheDocument()
     expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
     expect(
       screen.getByText('Wants are $400 above the current cap.'),
     ).toBeInTheDocument()
-    expect(screen.getByText(/operating cushion: \$5,200/i)).toBeInTheDocument()
     expect(
       screen.getByText(/merchant to attack first: amazon/i),
     ).toBeInTheDocument()

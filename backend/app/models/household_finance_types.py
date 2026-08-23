@@ -452,6 +452,29 @@ class HouseholdReports(BaseModel):
     recent_transactions: list[HouseholdRecentTransaction] = Field(default_factory=list)
 
 
+class HouseholdAffordability(BaseModel):
+    """Can the household actually afford this, out of cash it can see.
+
+    Every figure here is money that exists or money that is owed. Nothing in it
+    is a target: the old Safe-to-Spend was usually bound by
+    ``monthly_income_target - monthly_plan_total``, arithmetic on two
+    assumptions that never touched the $30k sitting in the CMA.
+    """
+
+    free_to_spend: float
+    cash_on_hand: float
+    bills_due: float
+    # The horizon the bills were counted over, so the figure names its own frame.
+    bills_due_through: str
+    remaining_essentials: float
+    essentials_basis: str
+    committed_funds: float
+    card_balances: float
+    # Inputs the household has not given the system yet. An affordability check
+    # that quietly treats an unknown as zero is the same lie in a new place.
+    missing_inputs: list[str] = Field(default_factory=list)
+
+
 class HouseholdBudgetSnapshot(BaseModel):
     status: str
     summary: str
@@ -485,6 +508,7 @@ class HouseholdBudgetSnapshot(BaseModel):
     # camelizes trailing digits unpredictably, e.g. _14d -> 14D).
     due_soon_bills_total: float | None = None
     operating_cushion: float | None = None
+    affordability: HouseholdAffordability | None = None
 
 
 class HouseholdCategorizationCandidate(BaseModel):

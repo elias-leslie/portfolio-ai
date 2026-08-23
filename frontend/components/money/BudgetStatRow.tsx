@@ -2,6 +2,7 @@
 
 import { formatCurrencyWhole, formatPercent } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
+import { shortDate } from './overview-helpers'
 
 export interface BudgetStatRowProps {
   averageMonthlySpend: number | null | undefined
@@ -27,17 +28,6 @@ export interface BudgetStatRowProps {
   observedMonthlyDetail: string
   /** The reported month, e.g. "July 2026", so every figure names its month. */
   monthLabel: string
-}
-
-function shortDate(value: string | null) {
-  if (!value) return 'today'
-  const parsed = new Date(`${value}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  })
 }
 
 export function BudgetStatRow({

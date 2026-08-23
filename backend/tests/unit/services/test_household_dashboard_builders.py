@@ -227,12 +227,22 @@ def _commitment(*, average_amount: float, days_until_due: int | None) -> Househo
     )
 
 
-def test_budget_snapshot_safe_to_spend_picks_binding_constraint() -> None:
+def test_free_to_spend_is_cash_minus_what_is_already_owed() -> None:
+    """The figure is arithmetic on money, not on two targets.
+
+    The old Safe-to-Spend was usually bound by ``plan_residual`` -- monthly
+    income target minus monthly plan total -- so it read $1,283 while $30,494.75
+    sat in the CMA and $17,287.71 was owed on three cards. Neither number
+    reached it.
+    """
     snapshot = build_budget_snapshot(
         profile=_profile_for_pace(essential=5000, discretionary=1500, savings=None),
         reports=_reports_for_pace(),
-        month_to_date_spend=3000,
-        cash_reserve=10000.0,
+        month_to_date_spend=7342.12,
+        month_to_date_essential_spend=5748.61,
+        cash_reserve=30494.75,
+        card_balances=17287.71,
+        today=date(2026, 8, 23),
         recurring_commitments=[
             _commitment(average_amount=300.0, days_until_due=10),
             _commitment(average_amount=400.0, days_until_due=20),
@@ -240,30 +250,64 @@ def test_budget_snapshot_safe_to_spend_picks_binding_constraint() -> None:
         ],
     )
 
-    # Only the bill inside 14 days counts toward due-soon.
-    assert snapshot.due_soon_bills_total == 300.0
-    assert snapshot.operating_cushion == 5000.0
-    # Candidates: cash 10000-5000-300=4700, plan residual 9000-6500=2500,
-    # discretionary headroom 1500-1300=200 -> headroom binds.
-    assert snapshot.safe_to_spend == 200.0
-    assert snapshot.safe_to_spend_constraint == "discretionary_cap"
+    affordability = snapshot.affordability
+    assert affordability is not None
+    assert affordability.cash_on_hand == 30494.75
+    # Aug 31 is 8 days away, so the horizon is the further of the two: Sep 6.
+    assert affordability.bills_due_through == "2026-09-06"
+    assert affordability.bills_due == 300.0
+    # August's 5,000 essentials baseline is already spent, so what remains is
+    # the eight days still to come at the same rate, not nothing.
+    assert affordability.remaining_essentials == 1290.32
+    assert affordability.card_balances == 17287.71
+    assert affordability.free_to_spend == 11616.72
+    assert snapshot.safe_to_spend == 11616.72
+    assert snapshot.safe_to_spend_constraint == "cash_after_commitments"
 
 
-def test_budget_snapshot_safe_to_spend_floors_at_zero_and_falls_back_to_essentials() -> None:
+def test_free_to_spend_names_the_inputs_the_household_has_not_given_yet() -> None:
+    """Treating an unknown as zero is the same lie in a new place."""
+    snapshot = build_budget_snapshot(
+        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=None),
+        reports=_reports_for_pace(),
+        month_to_date_spend=3000,
+        cash_reserve=10000.0,
+        today=date(2026, 8, 23),
+        recurring_commitments=[_commitment(average_amount=300.0, days_until_due=10)],
+    )
+
+    affordability = snapshot.affordability
+    assert affordability is not None
+    assert affordability.missing_inputs == [
+        "essential_spend_to_date",
+        "sinking_fund_balances",
+        "card_balances",
+    ]
+    # Nothing is known to be spent yet, so the whole baseline is still ahead.
+    assert affordability.remaining_essentials == 5000.0
+
+
+def test_free_to_spend_says_how_big_the_hole_is_rather_than_showing_zero() -> None:
+    """A household that cannot cover what it owes needs the size of the gap.
+
+    The old figure floored at zero, which reads as "spend nothing more" when it
+    actually means "you are already short".
+    """
     snapshot = build_budget_snapshot(
         profile=_profile_for_pace(essential=None, discretionary=None, savings=None),
         reports=_reports_for_pace(),
         month_to_date_spend=3000,
+        month_to_date_essential_spend=0.0,
         cash_reserve=2000.0,
+        card_balances=17287.71,
+        today=date(2026, 8, 23),
         recurring_commitments=[_commitment(average_amount=600.0, days_until_due=3)],
     )
 
-    # No essential target -> cushion falls back to observed average essentials.
+    # No essential target -> the baseline falls back to observed average essentials.
     assert snapshot.operating_cushion == 4500.0
-    # Cash path 2000-4500-600 is negative; figure floors at zero but still
-    # names the cash path as the binding constraint.
-    assert snapshot.safe_to_spend == 0.0
-    assert snapshot.safe_to_spend_constraint == "cash_after_cushion"
+    assert snapshot.safe_to_spend == 2000.0 - 600.0 - 4500.0 - 17287.71
+    assert snapshot.safe_to_spend_constraint == "cash_after_commitments"
 
 
 def test_budget_snapshot_safe_to_spend_null_without_cash_context() -> None:

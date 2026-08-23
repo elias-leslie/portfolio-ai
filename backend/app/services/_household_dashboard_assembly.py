@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, cast
 
 from app.models.household_finance import (
@@ -40,6 +40,7 @@ from app.services._household_dashboard_profile_inference import (
     infer_profile_from_transactions,
 )
 from app.services._household_dashboard_queries import (
+    fetch_current_month_essential_spend,
     fetch_current_month_spend,
     fetch_inferred_value_rows,
     fetch_monthly_retirement_contributions,
@@ -640,6 +641,24 @@ def resolve_dashboard_values(service: Any, *, profile: Any, reports: Any, questi
     return resolved_values, visible_questions
 
 
+def _card_balances_outstanding(account_summaries: list[Any]) -> float | None:
+    """What the household still owes on its cards.
+
+    Cash that is already promised to a card statement is not spendable, and
+    leaving it out is how $17,287.71 across three Sapphires stayed invisible to
+    an affordability check built on a $30k cash balance.
+    """
+    card_accounts = [
+        account
+        for account in account_summaries
+        if getattr(account, "asset_group", None) == "credit"
+        and getattr(account, "current_value", None) is not None
+    ]
+    if not card_accounts:
+        return None
+    return round(sum(abs(float(account.current_value or 0.0)) for account in card_accounts), 2)
+
+
 def assemble_finance_dashboard(
     *, d: dict[str, Any], service: Any, overview: HouseholdOverview,
     resolved_values: list[HouseholdResolvedValue], visible_questions: list[Any],
@@ -661,7 +680,10 @@ def assemble_finance_dashboard(
         budget_snapshot=build_budget_snapshot(
             profile=profile, reports=reports,
             month_to_date_spend=fetch_current_month_spend(storage),
+            month_to_date_essential_spend=fetch_current_month_essential_spend(storage),
             cash_reserve=cash_reserve, recurring_commitments=recurring_commitments,
+            card_balances=_card_balances_outstanding(account_summaries),
+            today=date.today(),
         ),
         retirement_preparedness=build_retirement_preparedness(
             resolved_values=resolved_values, documents=documents,

@@ -120,7 +120,7 @@ export function MoneyOverviewPanel({
           monthGap={board.monthGap}
           safeSpendStatus={board.safeSpendStatus}
           safeSpendSummary={board.safeSpendSummary}
-          safeSpendBindingLabel={board.safeSpendBindingLabel}
+          affordability={board.affordability}
           safeSpendRepairItems={board.safeSpendRepairItems}
           weekendSpendAllowance={board.weekendSpendAllowance}
           operatingCushion={board.operatingCushion}

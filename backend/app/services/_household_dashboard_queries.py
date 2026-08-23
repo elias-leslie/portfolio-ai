@@ -288,6 +288,17 @@ def fetch_current_month_spend(storage: Any) -> float:
     )
 
 
+def fetch_current_month_essential_spend(storage: Any) -> float:
+    """Essential spend already covered this month, for the affordability check."""
+    transaction_service = HouseholdTransactionService()
+    transaction_service.storage = storage
+    today = date.today()
+    return transaction_service.essential_spend_total_between(
+        start_date=today.replace(day=1),
+        end_date=today,
+    )
+
+
 def _latest_transaction_dates(storage: Any, column: str) -> dict[str, date]:
     with storage.connection() as conn:
         rows = conn.execute(LATEST_TRANSACTION_DATE_SQL[column]).fetchall()

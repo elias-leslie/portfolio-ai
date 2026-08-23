@@ -96,6 +96,7 @@ describe('HouseholdPlanningPanels', () => {
             safeToSpendConstraint: null,
             dueSoonBillsTotal: null,
             operatingCushion: 0,
+            affordability: null,
           },
           retirementPreparedness: {
             status: 'baseline_visible',
@@ -290,9 +291,10 @@ describe('HouseholdPlanningPanels', () => {
             remainingCashAfterPlan: 200,
             discretionaryHeadroom: 50,
             safeToSpend: 50,
-            safeToSpendConstraint: 'discretionary_cap',
+            safeToSpendConstraint: 'cash_after_commitments',
             dueSoonBillsTotal: 0,
             operatingCushion: 4000,
+            affordability: null,
           },
           retirementPreparedness: {
             status: 'on_track',

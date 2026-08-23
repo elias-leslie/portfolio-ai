@@ -841,6 +841,31 @@ class HouseholdTransactionService:
             2,
         )
 
+    def essential_spend_total_between(
+        self,
+        *,
+        start_date: date | None,
+        end_date: date,
+    ) -> float:
+        """Sum only the spend the household classified as essential.
+
+        The affordability check needs what is already covered this month so it
+        can subtract only what is still to come; charging the full monthly
+        essentials run-rate against cash on the 28th would understate what is
+        actually available by most of a month's groceries.
+        """
+        return round(
+            sum(
+                float(row.get("signed_amount", row["amount"]))
+                for row in self._spend_rows_between(
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                if str(row.get("essentiality") or "") == "essential"
+            ),
+            2,
+        )
+
     def _income_total_between(
         self,
         *,

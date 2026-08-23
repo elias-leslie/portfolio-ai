@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 from app.models.household_finance import (
+    HouseholdAffordability,
     HouseholdBudgetSnapshot,
     HouseholdProfile,
     HouseholdRecurringCommitment,
@@ -294,6 +295,111 @@ def _budget_analysis(
     return month_to_date_plan, pace_status, pace_detail, status, summary
 
 
+# An affordability answer is worthless if it only looks as far as the end of the
+# month: ask on the 30th and next week's bills are invisible. The horizon is the
+# rest of the calendar month or the next fortnight, whichever reaches further,
+# so the figure never counts fewer obligations than either frame alone.
+MIN_AFFORDABILITY_HORIZON_DAYS = 14
+
+
+def build_affordability(
+    *,
+    cash_reserve: float,
+    recurring_commitments: list[HouseholdRecurringCommitment],
+    essentials_baseline: float,
+    month_to_date_essential_spend: float | None,
+    card_balances: float | None,
+    committed_fund_balances: float | None,
+    today: date,
+) -> HouseholdAffordability:
+    """Cash, minus everything already spoken for. No targets, no assumptions."""
+    month_end = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+    horizon = max(month_end, today + timedelta(days=MIN_AFFORDABILITY_HORIZON_DAYS))
+    horizon_days = (horizon - today).days
+
+    bills_due = round(
+        sum(
+            commitment.average_amount
+            for commitment in recurring_commitments
+            if commitment.commitment_type in _OBLIGATION_TYPES
+            and commitment.days_until_due is not None
+            and commitment.days_until_due <= horizon_days
+        ),
+        2,
+    )
+
+    missing_inputs: list[str] = []
+    remaining_essentials, essentials_basis = _remaining_essentials(
+        baseline=essentials_baseline,
+        spent_to_date=month_to_date_essential_spend,
+        today=today,
+        month_end=month_end,
+    )
+    if month_to_date_essential_spend is None:
+        missing_inputs.append("essential_spend_to_date")
+    if committed_fund_balances is None:
+        missing_inputs.append("sinking_fund_balances")
+    if card_balances is None:
+        missing_inputs.append("card_balances")
+
+    committed = committed_fund_balances or 0.0
+    cards = card_balances or 0.0
+    free_to_spend = cash_reserve - bills_due - remaining_essentials - committed - cards
+    return HouseholdAffordability(
+        # Deliberately not floored at zero. A household that cannot cover what it
+        # already owes needs to be told the size of the hole, not shown a $0 that
+        # reads like "spend nothing more" when it means "you are already short".
+        free_to_spend=round(free_to_spend, 2),
+        cash_on_hand=round(cash_reserve, 2),
+        bills_due=bills_due,
+        bills_due_through=horizon.isoformat(),
+        remaining_essentials=remaining_essentials,
+        essentials_basis=essentials_basis,
+        committed_funds=round(committed, 2),
+        card_balances=round(cards, 2),
+        missing_inputs=missing_inputs,
+    )
+
+
+def _remaining_essentials(
+    *,
+    baseline: float,
+    spent_to_date: float | None,
+    today: date,
+    month_end: date,
+) -> tuple[float, str]:
+    """Essentials still to come this month, and the sentence explaining it.
+
+    Two readings, and the larger wins. Usually the household is part-way through
+    its essentials and the remainder is what is left of the baseline. But once
+    the baseline is already spent, "nothing left to buy" is plainly false with a
+    week of groceries and fuel still ahead, so the days that remain are charged
+    at the baseline's own daily rate.
+    """
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    days_remaining = (month_end - today).days
+    if spent_to_date is None:
+        return round(max(baseline, 0.0), 2), (
+            f"No essential spend recorded for {today:%B} yet, so the whole "
+            f"{baseline:,.0f} baseline is still ahead."
+        )
+    left_of_baseline = baseline - spent_to_date
+    pace_of_remaining_days = baseline * days_remaining / days_in_month
+    remaining = round(max(left_of_baseline, pace_of_remaining_days, 0.0), 2)
+    if left_of_baseline >= pace_of_remaining_days:
+        detail = (
+            f"{spent_to_date:,.0f} of the {baseline:,.0f} essentials baseline "
+            f"is covered so far in {today:%B}."
+        )
+    else:
+        detail = (
+            f"{today:%B}'s {baseline:,.0f} essentials baseline is already spent "
+            f"({spent_to_date:,.0f}); this is {days_remaining} more day"
+            f"{'' if days_remaining == 1 else 's'} at the same rate."
+        )
+    return remaining, detail
+
+
 def build_budget_snapshot(
     *,
     profile: HouseholdProfile,
@@ -301,6 +407,10 @@ def build_budget_snapshot(
     month_to_date_spend: float,
     cash_reserve: float | None = None,
     recurring_commitments: list[HouseholdRecurringCommitment] | None = None,
+    month_to_date_essential_spend: float | None = None,
+    card_balances: float | None = None,
+    committed_fund_balances: float | None = None,
+    today: date | None = None,
 ) -> HouseholdBudgetSnapshot:
     plan_components = (
         ("essentials", profile.monthly_essential_target),
@@ -338,28 +448,20 @@ def build_budget_snapshot(
     due_soon_bills_total: float | None = None
     safe_to_spend: float | None = None
     safe_to_spend_constraint: str | None = None
+    affordability: HouseholdAffordability | None = None
     if cash_reserve is not None and recurring_commitments is not None:
-        due_soon_bills_total = round(
-            sum(
-                commitment.average_amount
-                for commitment in recurring_commitments
-                if commitment.commitment_type in _OBLIGATION_TYPES
-                and commitment.days_until_due is not None
-                and commitment.days_until_due <= 14
-            ),
-            2,
+        affordability = build_affordability(
+            cash_reserve=cash_reserve,
+            recurring_commitments=recurring_commitments,
+            essentials_baseline=operating_cushion,
+            month_to_date_essential_spend=month_to_date_essential_spend,
+            card_balances=card_balances,
+            committed_fund_balances=committed_fund_balances,
+            today=today or date.today(),
         )
-        # min() keeps the first candidate on ties, so the cash path wins
-        # ambiguous ties — the most conservative reading for the user.
-        candidates: list[tuple[float, str]] = [
-            (cash_reserve - operating_cushion - due_soon_bills_total, "cash_after_cushion"),
-        ]
-        if remaining_cash_after_plan is not None:
-            candidates.append((remaining_cash_after_plan, "plan_residual"))
-        if discretionary_headroom is not None:
-            candidates.append((discretionary_headroom, "discretionary_cap"))
-        binding_value, safe_to_spend_constraint = min(candidates, key=lambda item: item[0])
-        safe_to_spend = round(max(binding_value, 0.0), 2)
+        due_soon_bills_total = affordability.bills_due
+        safe_to_spend = affordability.free_to_spend
+        safe_to_spend_constraint = "cash_after_commitments"
     return HouseholdBudgetSnapshot(
         status=status,
         summary=summary,
@@ -387,4 +489,5 @@ def build_budget_snapshot(
         safe_to_spend_constraint=safe_to_spend_constraint,
         due_soon_bills_total=due_soon_bills_total,
         operating_cushion=round(operating_cushion, 2),
+        affordability=affordability,
     )

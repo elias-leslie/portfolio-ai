@@ -177,6 +177,7 @@ const dashboard = {
     safeToSpendConstraint: null,
     dueSoonBillsTotal: null,
     operatingCushion: 0,
+    affordability: null,
   },
   retirementPreparedness: {
     status: 'scenario_ready',

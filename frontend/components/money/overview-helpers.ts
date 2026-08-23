@@ -22,6 +22,17 @@ export type MoneyOverviewSection =
   | 'commitments'
   | 'levers'
 
+export function shortDate(value: string | null) {
+  if (!value) return 'today'
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 export function formatMonthLabel(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {

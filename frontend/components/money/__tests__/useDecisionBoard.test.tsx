@@ -76,9 +76,21 @@ const dashboard = {
     remainingCashAfterPlan: 12,
     discretionaryHeadroom: 34,
     safeToSpend: 321,
-    safeToSpendConstraint: 'plan_residual' as const,
+    safeToSpendConstraint: 'cash_after_commitments' as const,
     dueSoonBillsTotal: 222,
     operatingCushion: 4321,
+    affordability: {
+      freeToSpend: 321,
+      cashOnHand: 9000,
+      billsDue: 222,
+      billsDueThrough: '2026-09-06',
+      remainingEssentials: 2457,
+      essentialsBasis:
+        '1,864 of the 4,321 essentials baseline is covered so far in August.',
+      committedFunds: 0,
+      cardBalances: 6000,
+      missingInputs: [],
+    },
   },
   // Raw account would put 99999 of cash in play; allocation must ignore it.
   accounts: [
@@ -171,12 +183,12 @@ describe('useDecisionBoard', () => {
     expect(result.current.dueSoonTotal).toBe(222)
     expect(result.current.operatingCushion).toBe(4321)
     expect(result.current.weekendSpendAllowance).toBe(321)
-    expect(result.current.safeSpendStatus).toBe('safe')
+    // Never "safe". The figure is an estimate about a month that has not
+    // finished, and a green badge over a number the card itself disclaims was
+    // the most dangerous element on the page.
+    expect(result.current.safeSpendStatus).toBe('estimate')
     expect(result.current.safeSpendBindingLabel).toBe(
-      'income minus your monthly plan (a target, not cash on hand)',
-    )
-    expect(result.current.safeSpendSummary).toBe(
-      'Discretionary spend room against visible cash, bills due in 14 days, and the current plan.',
+      'visible cash after bills due, the rest of the month\u2019s essentials and card balances',
     )
   })
 
@@ -223,7 +235,10 @@ describe('useDecisionBoard', () => {
     ).toEqual(['account-2'])
   })
 
-  it('maps each backend constraint code to its label', () => {
+  it('words the one constraint the figure can have, and nothing else', () => {
+    // There used to be three, and the one that usually won was `plan_residual`:
+    // monthly income target minus monthly plan total, which is arithmetic on two
+    // assumptions rather than on cash. It is gone.
     const withConstraint = (
       constraint: HouseholdFinanceDashboard['budgetSnapshot']['safeToSpendConstraint'],
     ) =>
@@ -236,16 +251,10 @@ describe('useDecisionBoard', () => {
       }) as HouseholdFinanceDashboard
 
     const cash = renderHook(() =>
-      useDecisionBoard(withConstraint('cash_after_cushion')),
+      useDecisionBoard(withConstraint('cash_after_commitments')),
     )
     expect(cash.result.current.safeSpendBindingLabel).toBe(
-      'visible cash after cushion and bills due in 14 days',
-    )
-    const cap = renderHook(() =>
-      useDecisionBoard(withConstraint('discretionary_cap')),
-    )
-    expect(cap.result.current.safeSpendBindingLabel).toBe(
-      'remaining discretionary cap for the month',
+      'visible cash after bills due, the rest of the month\u2019s essentials and card balances',
     )
     const none = renderHook(() => useDecisionBoard(withConstraint(null)))
     expect(none.result.current.safeSpendBindingLabel).toBeNull()

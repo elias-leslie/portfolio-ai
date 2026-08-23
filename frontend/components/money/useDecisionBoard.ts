@@ -6,6 +6,7 @@ import {
   formatMonthLabel,
   normalizeTrustStatus,
   priceInsightBadgeLabel,
+  shortDate,
   signedCurrency,
 } from './overview-helpers'
 
@@ -16,9 +17,8 @@ const safeSpendConstraintLabels: Record<
   >,
   string
 > = {
-  cash_after_cushion: 'visible cash after cushion and bills due in 14 days',
-  plan_residual: 'income minus your monthly plan (a target, not cash on hand)',
-  discretionary_cap: 'remaining discretionary cap for the month',
+  cash_after_commitments:
+    'visible cash after bills due, the rest of the month\u2019s essentials and card balances',
 }
 
 /**
@@ -97,6 +97,10 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
   const spendTrustUnavailable = spendTrustStatus === 'unavailable'
   const spendTrustDegraded = spendTrustStatus !== 'current'
   const weekendSpendAllowance = dashboard.budgetSnapshot.safeToSpend
+  const affordability = dashboard.budgetSnapshot.affordability
+  // No "safe" state. The figure is an estimate about the rest of a month that has
+  // not happened yet, and a green badge over it was the most dangerous element on
+  // the page -- the card disclaimed the number in the same breath as approving it.
   const safeSpendStatus = spendTrustDegraded
     ? 'review'
     : weekendSpendAllowance == null
@@ -105,7 +109,7 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
         ? 'hold'
         : weekendSpendAllowance < 150
           ? 'tight'
-          : 'safe'
+          : 'estimate'
   const safeSpendRepairItems = dashboard.inbox
     .filter((item) => item.affects.includes('safe_to_spend'))
     .slice(0, 2)
@@ -121,7 +125,9 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
       : null
   const safeSpendSummary = spendTrustDegraded
     ? 'Stale account data; refresh before relying on this.'
-    : 'Discretionary spend room against visible cash, bills due in 14 days, and the current plan.'
+    : affordability != null
+      ? `Cash on hand less bills due through ${shortDate(affordability.billsDueThrough)}, the rest of this month\u2019s essentials, and what is owed on cards.`
+      : 'Not enough cash and commitment data to answer this yet.'
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
   const trackedMonthlySpend = dashboard.reports.executive.averageMonthlySpend
@@ -237,6 +243,7 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
     priceInsights,
     dueSoonTotal,
     operatingCushion,
+    affordability,
     spendTrustStatus,
     netWorthTrustStatus,
     spendTrustDetail,
