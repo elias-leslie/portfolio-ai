@@ -636,6 +636,46 @@ def mark_document_source_missing(
     )
 
 
+def settle_document_without_changes(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    now: str,
+) -> None:
+    """Take a review that proposes nothing out of the approval queue.
+
+    Approval already refuses a proposal with no money-data changes -- there is
+    nothing in it to approve, so the only decision the household can record is
+    Reject, and rejecting changes exactly as much as approving would. Holding it
+    therefore asks for a decision whose two outcomes are identical, and the
+    document sits in the queue until someone goes and clears it by hand.
+
+    The review's questions are inserted whether or not the document is held, so
+    anything the review genuinely wants to know still gets asked -- it just stops
+    pinning a document that has nothing left to do.
+    """
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET status = 'parsed', review_status = 'complete', parsed_at = %s,
+            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+        WHERE id = %s
+        """,
+        [
+            now,
+            json.dumps(
+                {
+                    "settled_without_changes": {
+                        "at": now,
+                        "reason": "review_proposed_no_money_data_changes",
+                    }
+                }
+            ),
+            document_id,
+        ],
+    )
+
+
 def dismiss_open_document_questions(
     conn: DatabaseConnection,
     *,

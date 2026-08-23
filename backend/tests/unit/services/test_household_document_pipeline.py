@@ -2159,3 +2159,91 @@ def test_receipt_unmatched_discount_still_counts_against_total() -> None:
     # Reconciles on 17.99 - 4.50, and the unmatched markdown is not a product.
     assert [r["Product Name"] for r in rows] == ["RXBAR VTY"]
     assert rows[0]["Total Amount"] == "17.99"
+
+
+def test_a_proposal_with_no_money_data_changes_is_recognised_as_changing_nothing() -> None:
+    """An Amazon export whose 3,056 rows are all already imported proposes nothing.
+
+    ``imports`` is still present in the preview -- the file was read, and the
+    row counts are worth showing -- but every one of its rows is known, so
+    ``proposed_changes`` is empty. That emptiness is the same field the approval
+    path refuses on, which is what makes holding the document pointless.
+    """
+    proposal = {
+        "proposed_changes": [],
+        "preview": {
+            "accounts": [],
+            "transactions": [],
+            "holdings": [],
+            "planning": [],
+            "inferences": [],
+            "imports": [
+                {
+                    "dataset_type": "amazon_order_history",
+                    "label": "Amazon order history",
+                    "rows_in_file": 3056,
+                    "new_rows": 0,
+                    "known_rows": 3051,
+                    "unreadable_rows": 0,
+                }
+            ],
+        },
+    }
+
+    assert HouseholdDocumentPipeline._proposal_changes_nothing(proposal) is True
+
+
+def test_a_proposal_that_would_import_rows_is_still_held_for_approval() -> None:
+    proposal = {
+        "proposed_changes": [
+            {"kind": "imports", "label": "Imported rows", "count": 5}
+        ],
+    }
+
+    assert HouseholdDocumentPipeline._proposal_changes_nothing(proposal) is False
+
+
+def test_settling_a_no_change_review_takes_the_document_out_of_the_queue() -> None:
+    pipeline = HouseholdDocumentPipeline()
+    connection = MagicMock()
+    context_manager = MagicMock()
+    context_manager.__enter__.return_value = connection
+    context_manager.__exit__.return_value = None
+    service = SimpleNamespace(
+        storage=SimpleNamespace(connection=Mock(return_value=context_manager))
+    )
+    document = HouseholdDocument(
+        id="doc-no-change",
+        filename="Order History.csv",
+        source_type="receipt",
+        document_type="receipt",
+        status="needs_review",
+        content_type="text/csv",
+        file_size_bytes=10,
+        classification_confidence=0.98,
+        uploaded_at="2026-08-22T00:00:00+00:00",
+        metadata={},
+    )
+
+    application_summary, reconciliation_summary, review_proposal = (
+        pipeline._no_change_review_state(
+            service,
+            document=document,
+            reviewed={"_review_strategy": "agent"},
+            now="2026-08-23T00:00:00+00:00",
+        )
+    )
+
+    update = connection.execute.call_args.args[0]
+    assert "status = 'parsed'" in update
+    assert "review_status = 'complete'" in update
+    assert '"review_proposed_no_money_data_changes"' in connection.execute.call_args.args[1][1]
+    assert connection.commit.called
+    # Nothing was applied, and the summaries must not claim otherwise.
+    assert application_summary["no_change"] is True
+    assert application_summary["impacts"] == []
+    assert application_summary["needs_follow_up"] is False
+    assert reconciliation_summary["status"] == "clear"
+    assert reconciliation_summary["ambiguity_remaining"] is False
+    # No decision is bound, because there is no decision to make.
+    assert review_proposal["status"] == "not_required"

@@ -72,6 +72,7 @@ from app.services._household_document_pipeline_db import (
     record_document_review_application_phase,
     release_document_review_executor,
     save_upload_to_disk,
+    settle_document_without_changes,
     try_acquire_document_review_executor,
     update_bound_document_review_state,
     update_document_and_log_review,
@@ -391,6 +392,66 @@ class HouseholdDocumentPipeline:
         )
 
     @staticmethod
+    def _proposal_changes_nothing(proposal: dict[str, object]) -> bool:
+        """Return whether this proposal would change no money data at all.
+
+        This is the same emptiness the approval path already refuses, read from
+        the same field, so a proposal can never be both un-approvable and held
+        open waiting for approval.
+        """
+        proposed_changes = proposal.get("proposed_changes")
+        return not (isinstance(proposed_changes, list) and proposed_changes)
+
+    @staticmethod
+    def _no_change_review_state(
+        service: HouseholdFinanceService,
+        *,
+        document: HouseholdDocument,
+        reviewed: dict[str, object],
+        now: str,
+    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+        """Close a document whose review read it fine and found nothing to do."""
+        with service.storage.connection() as conn:
+            settle_document_without_changes(conn, document_id=document.id, now=now)
+            conn.commit()
+        application_summary: dict[str, object] = {
+            "status": "applied",
+            "impacts": [],
+            "imports": {"inserted": 0, "duplicates": 0},
+            "transactions": {"inserted": 0, "updated": 0, "held_for_date_review": 0},
+            "evidence_accounts": 0,
+            "portfolio_positions": {},
+            "portfolio_transactions": {},
+            "planning_items": 0,
+            "planning_items_skipped": 0,
+            "planning_error": None,
+            "inferred_values": 0,
+            "no_change": True,
+            "needs_follow_up": False,
+        }
+        reconciliation_summary: dict[str, object] = {
+            "status": "clear",
+            "retry_recommended": False,
+            "review_strategy": str(reviewed.get("_review_strategy") or "unknown"),
+            "ambiguity_remaining": False,
+            "issues": [],
+            "expected_account_count": 0,
+            "evidence_account_count": 0,
+            "transaction_changes": 0,
+            "import_changes": 0,
+        }
+        review_proposal: dict[str, object] = {
+            "schema_version": 2,
+            "status": "not_required",
+            "no_change": True,
+        }
+        logger.info(
+            "household_document_settled_without_changes",
+            document_id=document.id,
+        )
+        return application_summary, reconciliation_summary, review_proposal
+
+    @staticmethod
     def _bind_review_proposal(
         service: HouseholdFinanceService,
         *,
@@ -651,6 +712,15 @@ class HouseholdDocumentPipeline:
                     stored_path=stored_file,
                     service=service,
                 )
+                if self._proposal_changes_nothing(review_proposal):
+                    (
+                        application_summary,
+                        reconciliation_summary,
+                        review_proposal,
+                    ) = self._no_change_review_state(
+                        service, document=document, reviewed=reviewed, now=now
+                    )
+                    break
                 self._bind_review_proposal(
                     service,
                     proposal=review_proposal,
@@ -714,11 +784,23 @@ class HouseholdDocumentPipeline:
                 blocker=str(application_summary.get("review_blocker") or "Review required."),
                 service=service,
             )
-            self._bind_review_proposal(
-                service,
-                proposal=review_proposal,
-                now=datetime.now(UTC).isoformat(),
-            )
+            if self._proposal_changes_nothing(review_proposal):
+                (
+                    application_summary,
+                    reconciliation_summary,
+                    review_proposal,
+                ) = self._no_change_review_state(
+                    service,
+                    document=document,
+                    reviewed=reviewed,
+                    now=datetime.now(UTC).isoformat(),
+                )
+            else:
+                self._bind_review_proposal(
+                    service,
+                    proposal=review_proposal,
+                    now=datetime.now(UTC).isoformat(),
+                )
         else:
             review_proposal = {"schema_version": 2, "status": "not_required"}
             application_summary = self.apply_review_outputs(
