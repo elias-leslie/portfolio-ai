@@ -25,7 +25,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
     mutateAsync: setTransactionOwnerMutateAsync,
     isPending: false,
   }),
-  useHouseholdSpending: (params?: { window?: string }) =>
+  useHouseholdSpending: (params?: { month?: string }) =>
     useHouseholdSpendingMock(params),
   useHouseholdFacts: () => useHouseholdFactsMock(),
   useConfirmFact: () => ({
@@ -94,12 +94,22 @@ function mockSpending(
     data: {
       generatedAt: '2026-04-24T00:00:00Z',
       summary: {
-        timeframeKey: '3m',
-        timeframeLabel: '3 months',
+        month: '2026-04',
+        monthLabel: 'April 2026',
+        isMonthToDate: false,
+        daysElapsed: 30,
+        daysInMonth: 30,
+        basisLabel: 'full month',
         totalSpend: 15099,
         averageMonthlySpend: 5033,
         transactionCount: 62,
         coverageMonths,
+        coverageMonthKeys: ['2026-01', '2026-02', '2026-03'].slice(
+          0,
+          coverageMonths,
+        ),
+        everydaySpend: 15099,
+        oneTimeSpend: 0,
         accountCount: 2,
         averageMonthlyIncome: 8000,
         netCashFlow: 8901,
@@ -118,6 +128,22 @@ function mockSpending(
         foundOverBudgetCount: hasBudgetRollup ? 3 : 0,
         confirmedOverBudgetCount: hasBudgetRollup ? 1 : 0,
       },
+      availableMonths: ['2026-01', '2026-02', '2026-03', '2026-04'],
+      comparators: [
+        {
+          key: 'prior_month',
+          label: 'March 2026',
+          basis: 'full_month',
+          basisLabel: 'full month',
+          monthsUsed: ['2026-03'],
+          totalSpend: 4000,
+          totalIncome: 8000,
+          netCashFlow: 4000,
+          spendChange: 11099,
+          spendChangePct: 2.77,
+        },
+      ],
+      oneTimePurchases: [],
       // Thin coverage: the server returns no suggested cap, so neither does the mock.
       categories:
         coverageMonths < 2
@@ -322,14 +348,16 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getByText('Savings rate')).toBeInTheDocument()
     expect(screen.getByText('37%')).toBeInTheDocument()
     expect(screen.getByText('Net cash flow')).toBeInTheDocument()
-    // The subtitle names the selected window (default 3M) so the number
-    // cannot be misread as a monthly figure.
+    // The subtitle names the reported month so the number cannot be misread as
+    // a run-rate.
     expect(
-      screen.getByText('Income minus tracked spend over this 3M window.'),
+      screen.getByText('Income minus tracked spend in April 2026.'),
     ).toBeInTheDocument()
     expect(screen.getByText('Connected MTD spend')).toBeInTheDocument()
-    expect(screen.getByText('12M')).toBeInTheDocument()
-    expect(screen.getByText('All')).toBeInTheDocument()
+    // The month selector replaced the 1M/3M/6M/12M chips (D3).
+    expect(screen.getByLabelText('Month')).toBeInTheDocument()
+    expect(screen.queryByText('12M')).not.toBeInTheDocument()
+    expect(screen.getByText('vs March 2026')).toBeInTheDocument()
     // Default fixture has discretionary categories with suggested (unconfirmed) caps.
     expect(
       screen.getByRole('button', { name: /Accept all .* suggested cap/i }),

@@ -72,9 +72,10 @@ class CardRewardsService:
     """Stateless valuation engine. Construct once and reuse."""
 
     def build_spend_profile(self, view: HouseholdSpendingView) -> SpendProfile:
-        """Derive a reward-bucket spend profile from real transactions (3-month
-        window recommended). Falls back to a representative default when there is
-        no data."""
+        """Derive a reward-bucket spend profile from real transactions.
+
+        Reads each category's monthly run-rate across every complete covered
+        month. Falls back to a representative default when there is no data."""
         by_bucket: dict[str, float] = dict.fromkeys(REWARD_BUCKETS, 0.0)
         for category in view.categories:
             if category.category in EXCLUDED_CATEGORIES:
@@ -92,7 +93,7 @@ class CardRewardsService:
         return SpendProfile(
             monthly_total=total,
             by_bucket={bucket: round(value, 2) for bucket, value in by_bucket.items() if value > 0},
-            source="transactions_3m",
+            source="transactions_run_rate",
         )
 
     def apply_overrides(

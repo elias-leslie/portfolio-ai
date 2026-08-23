@@ -339,16 +339,63 @@ class HouseholdCategoryMonthlyTrendPoint(BaseModel):
     transaction_count: int
 
 
+class HouseholdSpendComparator(BaseModel):
+    """One of the two fixed comparisons a reported month is read against.
+
+    Sliding windows are gone (D3). A month is compared to the month before it and
+    to the average of every complete month on record -- and both comparisons name
+    the months they used, so a reader can check the arithmetic instead of
+    trusting a chip.
+    """
+
+    key: str
+    label: str
+    # "full_month", or "through_day_N" when the reported month is still running
+    # and the comparator had to be sliced to the same day to compare like for like.
+    basis: str
+    basis_label: str
+    months_used: list[str] = Field(default_factory=list)
+    total_spend: float = 0.0
+    total_income: float = 0.0
+    net_cash_flow: float = 0.0
+    spend_change: float = 0.0
+    spend_change_pct: float | None = None
+
+
+class HouseholdOneTimePurchase(BaseModel):
+    """A purchase large enough to be the month, rather than part of it."""
+
+    transaction_id: str
+    date: str
+    merchant: str
+    category: str
+    amount: float
+    share_of_month: float
+    reason: str
+
+
 class HouseholdSpendingSummary(BaseModel):
-    timeframe_key: str
-    timeframe_label: str
+    # The reported calendar month, e.g. "2026-07" / "July 2026". Replaces the
+    # 1M/3M/6M/12M timeframe chips that gave one question four answers (P0-1).
+    month: str
+    month_label: str
+    is_month_to_date: bool = False
+    days_elapsed: int = 0
+    days_in_month: int = 0
+    basis_label: str = "full month"
     start_date: str | None = None
     end_date: str | None = None
     total_spend: float = 0.0
     average_monthly_spend: float = 0.0
     transaction_count: int = 0
     coverage_months: int = 0
+    # The months behind `average_monthly_spend`, named so the average can be checked.
+    coverage_month_keys: list[str] = Field(default_factory=list)
     account_count: int = 0
+    # Spend with one-time purchases set aside, and the total that was set aside,
+    # so "we were over because of this one thing" is answerable from the payload.
+    everyday_spend: float = 0.0
+    one_time_spend: float = 0.0
     # Gross expense before refund credits, the refund credits themselves, and the
     # income/savings view so the Budget tab can show cash-flow rather than just spend.
     gross_spend: float = 0.0
@@ -371,6 +418,12 @@ class HouseholdSpendingSummary(BaseModel):
 class HouseholdSpendingView(BaseModel):
     generated_at: str
     summary: HouseholdSpendingSummary
+    # Every calendar month the household has lived through with a ledger, newest
+    # last. Months with no rows are included: a selector that skipped them would
+    # quietly redefine "last month".
+    available_months: list[str] = Field(default_factory=list)
+    comparators: list[HouseholdSpendComparator] = Field(default_factory=list)
+    one_time_purchases: list[HouseholdOneTimePurchase] = Field(default_factory=list)
     categories: list[HouseholdSpendingCategory] = Field(default_factory=list)
     monthly_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
     category_monthly_trend: list[HouseholdCategoryMonthlyTrendPoint] = Field(default_factory=list)

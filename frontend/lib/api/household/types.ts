@@ -1317,16 +1317,49 @@ export interface HouseholdCategoryMonthlyTrendPoint {
   transactionCount: number
 }
 
+export interface HouseholdSpendComparator {
+  key: 'prior_month' | 'all_month_average' | string
+  label: string
+  /** 'full_month', or 'through_day_N' when the reported month is still running. */
+  basis: string
+  basisLabel: string
+  monthsUsed: string[]
+  totalSpend: number
+  totalIncome: number
+  netCashFlow: number
+  spendChange: number
+  spendChangePct?: number | null
+}
+
+export interface HouseholdOneTimePurchase {
+  transactionId: string
+  date: string
+  merchant: string
+  category: string
+  amount: number
+  shareOfMonth: number
+  reason: string
+}
+
 export interface HouseholdSpendingSummary {
-  timeframeKey: string
-  timeframeLabel: string
+  /** Reported calendar month, e.g. '2026-07'. */
+  month: string
+  monthLabel: string
+  isMonthToDate: boolean
+  daysElapsed: number
+  daysInMonth: number
+  basisLabel: string
   startDate?: string | null
   endDate?: string | null
   totalSpend: number
   averageMonthlySpend: number
   transactionCount: number
   coverageMonths: number
+  /** The months behind averageMonthlySpend, so the average can be checked. */
+  coverageMonthKeys: string[]
   accountCount: number
+  everydaySpend: number
+  oneTimeSpend: number
   grossSpend?: number
   refundTotal?: number
   totalIncome?: number
@@ -1348,6 +1381,9 @@ export interface HouseholdSpendingSummary {
 export interface HouseholdSpendingView {
   generatedAt: string
   summary: HouseholdSpendingSummary
+  availableMonths: string[]
+  comparators: HouseholdSpendComparator[]
+  oneTimePurchases: HouseholdOneTimePurchase[]
   categories: HouseholdSpendingCategory[]
   monthlyTrend: HouseholdMonthlyTrendPoint[]
   categoryMonthlyTrend: HouseholdCategoryMonthlyTrendPoint[]

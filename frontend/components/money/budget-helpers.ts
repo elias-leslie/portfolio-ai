@@ -1,24 +1,6 @@
 import type { TooltipProps, TooltipValueType } from 'recharts'
 import { formatCurrency } from '@/lib/formatters'
 
-export type BudgetWindow = '1m' | '3m' | '6m' | '12m' | 'all'
-
-export const budgetWindows: Array<{ value: BudgetWindow; label: string }> = [
-  { value: '1m', label: '1M' },
-  { value: '3m', label: '3M' },
-  { value: '6m', label: '6M' },
-  { value: '12m', label: '12M' },
-  { value: 'all', label: 'All' },
-]
-
-export const budgetWindowMonths: Record<BudgetWindow, number | null> = {
-  '1m': 1,
-  '3m': 3,
-  '6m': 6,
-  '12m': 12,
-  all: null,
-}
-
 export const trendColors = [
   'var(--color-chart-1)',
   'var(--color-chart-2)',
@@ -80,6 +62,18 @@ export function formatMonthLabel(value: string) {
   return date.toLocaleString('en-US', {
     month: 'short',
     year: '2-digit',
+  })
+}
+
+/** '2026-07' -> 'July 2026' — the way a person says a month out loud. */
+export function formatFullMonthLabel(value: string) {
+  const date = new Date(`${value}-01T00:00:00`)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleString('en-US', {
+    month: 'long',
+    year: 'numeric',
   })
 }
 

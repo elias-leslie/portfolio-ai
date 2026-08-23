@@ -16,7 +16,9 @@ from typing import Any
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.household_finance import (
+    HouseholdOneTimePurchase,
     HouseholdReports,
+    HouseholdSpendComparator,
     HouseholdSpendingCategory,
     HouseholdSpendingSummary,
     HouseholdSpendingTransaction,
@@ -33,17 +35,32 @@ from app.services._household_merchants import (
     _effective_transaction_classification,
     _effective_transaction_flow,
 )
+from app.services._household_month_coverage import (
+    MIN_ROWS_PER_COVERED_MONTH,
+    month_key,
+)
+from app.services._household_one_time_purchases import find_one_time_purchases
 from app.services._household_report_builder import (
     _merchant_aliases,
     _merchant_root,
     build_household_reports,
     collapse_report_rows,
 )
+from app.services._household_reversal_pairs import (
+    ReversalPair,
+    find_reversal_pairs,
+    reversal_reasons_by_id,
+)
 from app.services._household_spend_filters import (
     investment_activity_sql_predicate,
     is_budget_driving_expense,
 )
-from app.services._household_time_windows import resolve_household_time_window
+from app.services._household_spend_periods import (
+    comparator_months,
+    month_label,
+    months_between,
+    resolve_spend_period,
+)
 from app.services._household_transaction_parsers import (
     _parse_date_value,
     extract_transactions,
@@ -228,6 +245,7 @@ class HouseholdTransactionService:
 
     def __init__(self) -> None:
         self.storage = get_storage()
+        self._reversal_pairs: list[ReversalPair] | None = None
 
     def import_document_transactions(
         self,
@@ -688,6 +706,91 @@ class HouseholdTransactionService:
             item_splits=self._load_item_splits(),
         )
 
+    def reversal_pairs(self) -> list[ReversalPair]:
+        """Charge/credit pairs that cancelled each other out.
+
+        Computed once per service instance: a single read builds the spending
+        view, the executive report and the ledger, and all three have to agree
+        on which rows never really moved money.
+        """
+        if self._reversal_pairs is None:
+            self._reversal_pairs = find_reversal_pairs(self._reversal_candidate_rows())
+        return self._reversal_pairs
+
+    def reversal_reasons(self) -> dict[str, str]:
+        """Transaction id -> the sentence explaining why it nets to nothing."""
+        return reversal_reasons_by_id(self.reversal_pairs())
+
+    def _reversal_candidate_rows(self) -> list[dict[str, Any]]:
+        """Only rows that actually reach a total can form a reversal pair.
+
+        A reversal spans the income/expense boundary -- the deposit is an income
+        row and its clawback is an expense row -- so pairing cannot run on the
+        spend rows alone. It must not run on *every* row either: the household's
+        own transfers between its own accounts are same-amount opposite-direction
+        twins by construction, and calling those reversals would fill the audit
+        trail with a dozen non-events that change no number. Netting only matters
+        where something was being counted.
+        """
+        candidates: list[dict[str, Any]] = [
+            {
+                "id": row["id"],
+                "date": row["date"],
+                "amount": row["amount"],
+                "flow_type": row["flow_type"],
+                "merchant": row["merchant"],
+                "description": row["description"],
+            }
+            for row in self._load_report_rows(include_reversals=True)
+            if row.get("source_kind") == "transaction"
+        ]
+        candidates.extend(self._income_rows())
+        return candidates
+
+    def _income_rows(self) -> list[dict[str, Any]]:
+        """Live income rows, on the same terms `_income_total_between` sums them."""
+        investment_predicate = investment_activity_sql_predicate(
+            text_expressions=["t.description", "t.raw_merchant"],
+        )
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    t.id,
+                    t.transaction_date,
+                    t.amount,
+                    COALESCE(m.canonical_name, t.raw_merchant, t.description) AS merchant,
+                    t.description
+                FROM household_transactions t
+                LEFT JOIN household_merchants m ON m.id = t.merchant_id
+                WHERE t.flow_type = 'income'
+                  AND t.removed IS NOT TRUE
+                  AND t.amount IS NOT NULL
+                  AND NOT {investment_predicate}
+                """
+            ).fetchall()
+
+        income_rows: list[dict[str, Any]] = []
+        for row in rows:
+            transaction_date = row[1]
+            if not isinstance(transaction_date, datetime):
+                continue
+            try:
+                amount = float(row[2])
+            except (TypeError, ValueError):
+                continue
+            income_rows.append(
+                {
+                    "id": str(row[0]),
+                    "date": transaction_date.date(),
+                    "amount": amount,
+                    "flow_type": "income",
+                    "merchant": str(row[3] or row[4] or ""),
+                    "description": str(row[4] or ""),
+                }
+            )
+        return income_rows
+
     def _load_item_splits(self) -> dict[str, list[dict[str, Any]]]:
         with self.storage.connection() as conn:
             return load_item_splits(conn)
@@ -743,6 +846,12 @@ class HouseholdTransactionService:
         if start_date is not None:
             where.append("t.transaction_date >= %s")
             params.append(start_date)
+        # A deposit that was clawed back days later is not income, however
+        # convincingly it posted (P0-1's July paycheque).
+        reversed_ids = sorted(self.reversal_reasons())
+        if reversed_ids:
+            where.append("t.id <> ALL(%s::uuid[])")
+            params.append(reversed_ids)
         investment_predicate = investment_activity_sql_predicate(
             text_expressions=["t.description", "t.raw_merchant"],
         )
@@ -756,145 +865,362 @@ class HouseholdTransactionService:
             result = conn.execute(sql, params).fetchone()
         return float(result[0]) if result and result[0] is not None else 0.0
 
-    def build_spending_view(self, *, window: str = "1m") -> HouseholdSpendingView:
-        timeframe = resolve_household_time_window(window)
-        spend_rows = self._spend_rows_between(
-            start_date=timeframe.start_date,
-            end_date=timeframe.end_date,
-        )
-        item_splits = self._load_item_splits()
+    def _income_totals_by_month(self, *, end_date: date) -> dict[str, float]:
+        """Household income per calendar month, on the same terms as the totals.
 
-        if not spend_rows:
-            return HouseholdSpendingView(
-                generated_at=datetime.now(UTC).isoformat(),
-                summary=HouseholdSpendingSummary(
-                    timeframe_key=timeframe.key,
-                    timeframe_label=timeframe.label,
-                    start_date=timeframe.start_date.isoformat() if timeframe.start_date else None,
-                    end_date=timeframe.end_date.isoformat(),
-                ),
-            )
+        One grouped query rather than one query per comparator month, so the
+        prior month and the all-month average cannot drift apart from the
+        reported month by being fetched differently.
+        """
+        investment_predicate = investment_activity_sql_predicate(
+            text_expressions=["t.description", "t.raw_merchant"],
+        )
+        params: list[Any] = [end_date]
+        where = [
+            "t.flow_type = 'income'",
+            "t.removed IS NOT TRUE",
+            "t.transaction_date <= %s",
+        ]
+        reversed_ids = sorted(self.reversal_reasons())
+        if reversed_ids:
+            where.append("t.id <> ALL(%s::uuid[])")
+            params.append(reversed_ids)
+        sql = f"""
+            SELECT
+                to_char(t.transaction_date, 'YYYY-MM') AS month,
+                COALESCE(SUM(CAST(t.amount AS DOUBLE PRECISION)), 0)
+            FROM household_transactions t
+            WHERE {" AND ".join(where)}
+              AND NOT {investment_predicate}
+            GROUP BY 1
+        """
+        with self.storage.connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return {str(row[0]): float(row[1] or 0.0) for row in rows}
+
+    def build_spending_view(self, *, month: str | None = None) -> HouseholdSpendingView:
+        """Report one calendar month, against the month before it and the average.
+
+        The sliding windows this replaced each divided by their own coverage and
+        admitted their own account set, so the same ledger answered "what did we
+        spend" four different ways (P0-1). Here every figure -- the reported
+        month, both comparators, every category run-rate -- comes out of a single
+        collapse pass over the whole ledger, bucketed by calendar month. Two
+        surfaces reading this cannot disagree, because there is nothing left for
+        them to disagree about.
+        """
+        today = date.today()
+        item_splits = self._load_item_splits()
+        all_rows = self._spend_rows_between(start_date=None, end_date=today)
+        income_by_month = self._income_totals_by_month(end_date=today)
 
         monthly_totals: dict[str, float] = {}
         monthly_counts: dict[str, int] = {}
-        category_totals: dict[tuple[str, str], float] = {}
-        category_gross: dict[tuple[str, str], float] = {}
-        category_refund: dict[tuple[str, str], float] = {}
-        category_transaction_ids: dict[tuple[str, str], set[str]] = {}
-        category_monthly_totals: dict[tuple[str, str, str], float] = {}
-        category_monthly_gross: dict[tuple[str, str, str], float] = {}
-        category_monthly_transaction_ids: dict[tuple[str, str, str], set[str]] = {}
+        monthly_day_totals: dict[tuple[str, int], float] = {}
+        for row in all_rows:
+            key = month_key(row["date"])
+            signed_amount = float(row.get("signed_amount", row["amount"]))
+            monthly_totals[key] = monthly_totals.get(key, 0.0) + signed_amount
+            monthly_counts[key] = monthly_counts.get(key, 0) + 1
+            monthly_day_totals[(key, row["date"].day)] = (
+                monthly_day_totals.get((key, row["date"].day), 0.0) + signed_amount
+            )
+
+        ledger_months = sorted(set(monthly_totals) | set(income_by_month))
+        current_month = month_key(today)
+        # A month only joins the average once it is both finished and actually
+        # covered: three stray receipts in a month the household was not yet
+        # tracking would otherwise drag the run-rate down by a whole month.
+        covered_months = sorted(
+            key
+            for key in monthly_totals
+            if key < current_month
+            and monthly_counts.get(key, 0) >= MIN_ROWS_PER_COVERED_MONTH
+        )
+        # The selector starts where tracking started, not where the oldest stray
+        # receipt sits. Offering August 2025 -- one row, $40.59 -- as a month to
+        # review would be offering a month the household has no ledger for.
+        earliest_month = (
+            covered_months[0]
+            if covered_months
+            else (min(ledger_months) if ledger_months else current_month)
+        )
+        available_months = months_between(
+            earliest_month, max(*ledger_months, current_month)
+        ) if ledger_months else [current_month]
+        period = resolve_spend_period(
+            month, available_months=available_months, today=today
+        )
+        spend_rows = [
+            row
+            for row in all_rows
+            if period.start_date <= row["date"] <= period.end_date
+        ]
+
+        def spend_through_day(month_key_value: str, through_day: int | None) -> float:
+            if through_day is None:
+                return monthly_totals.get(month_key_value, 0.0)
+            return sum(
+                amount
+                for (key, day), amount in monthly_day_totals.items()
+                if key == month_key_value and day <= through_day
+            )
+
+        prior_month_key, average_month_keys = comparator_months(
+            period, covered_months=covered_months
+        )
+        # With no complete month behind it -- a household in its first month of
+        # tracking -- the run-rate falls back to the reported month rather than
+        # reporting zero. `coverage_month_keys` says which months were used, so a
+        # fallback is visible instead of implied.
+        average_basis_keys = average_month_keys or [period.key]
+        coverage_months = len(average_basis_keys)
+
         account_labels = {
             str(row["account_label"]).strip()
             for row in spend_rows
             if row.get("account_label")
-        }
-        current_month_key = timeframe.end_date.strftime("%Y-%m")
-
-        for row in spend_rows:
-            month_key = row["date"].strftime("%Y-%m")
-            signed_amount = float(row.get("signed_amount", row["amount"]))
-            monthly_totals[month_key] = monthly_totals.get(month_key, 0.0) + signed_amount
-            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
-
-        # Itemized transactions split across their item categories here and only
-        # here; monthly/total spend above stays un-expanded so overall figures
-        # are byte-identical whether or not purchase items exist.
-        for row in expand_rows_with_item_splits(spend_rows, item_splits):
-            month_key = row["date"].strftime("%Y-%m")
-            signed_amount = float(row.get("signed_amount", row["amount"]))
-            # A refund posts as a negative signed_amount; keep gross spend and refund
-            # credits apart so caps key off gross, not net.
-            gross = max(signed_amount, 0.0)
-            refund = max(-signed_amount, 0.0)
-            category_key = (str(row["category"]), str(row["essentiality"]))
-            category_totals[category_key] = category_totals.get(category_key, 0.0) + signed_amount
-            category_gross[category_key] = category_gross.get(category_key, 0.0) + gross
-            category_refund[category_key] = category_refund.get(category_key, 0.0) + refund
-            category_transaction_ids.setdefault(category_key, set()).add(split_identity(row))
-            category_month_key = (month_key, str(row["category"]), str(row["essentiality"]))
-            category_monthly_totals[category_month_key] = (
-                category_monthly_totals.get(category_month_key, 0.0) + signed_amount
-            )
-            category_monthly_gross[category_month_key] = (
-                category_monthly_gross.get(category_month_key, 0.0) + gross
-            )
-            category_monthly_transaction_ids.setdefault(category_month_key, set()).add(
-                split_identity(row)
-            )
-        # Split copies of one transaction count it once per category.
-        category_counts = {
-            key: len(ids) for key, ids in category_transaction_ids.items()
-        }
-        category_monthly_counts = {
-            key: len(ids) for key, ids in category_monthly_transaction_ids.items()
         }
 
         total_spend = round(
             sum(float(row.get("signed_amount", row["amount"])) for row in spend_rows),
             2,
         )
-        observed_coverage_months = max(len(monthly_totals), 1)
-        coverage_months = (
-            min(timeframe.window_months, observed_coverage_months)
-            if timeframe.window_months is not None
-            else observed_coverage_months
+        one_time_purchases = find_one_time_purchases(
+            spend_rows,
+            history_rows=all_rows,
+            month_total=total_spend,
         )
-        gross_spend = round(sum(category_gross.values()), 2)
-        refund_total = round(sum(category_refund.values()), 2)
-        month_to_date_spend = round(monthly_totals.get(current_month_key, 0.0), 2)
-        total_income = self._income_total_between(
-            start_date=timeframe.start_date,
-            end_date=timeframe.end_date,
-        )
-        average_monthly_income = round(total_income / coverage_months, 2)
+        one_time_spend = round(sum(item.amount for item in one_time_purchases), 2)
+        total_income = round(income_by_month.get(period.key, 0.0), 2)
+        if period.is_month_to_date:
+            total_income = round(
+                self._income_total_between(
+                    start_date=period.start_date, end_date=period.end_date
+                ),
+                2,
+            )
         net_cash_flow = round(total_income - total_spend, 2)
         savings_rate = (
             round(net_cash_flow / total_income, 4) if total_income > 0 else None
+        )
+        month_to_date_spend = round(
+            spend_through_day(current_month, today.day)
+            if current_month in monthly_totals
+            else 0.0,
+            2,
+        )
+        average_monthly_spend = round(
+            sum(monthly_totals.get(key, 0.0) for key in average_basis_keys)
+            / coverage_months,
+            2,
+        )
+        average_monthly_income = round(
+            sum(
+                (
+                    total_income
+                    if key == period.key
+                    else income_by_month.get(key, 0.0)
+                )
+                for key in average_basis_keys
+            )
+            / coverage_months,
+            2,
+        )
+        through_day = period.days_elapsed if period.is_month_to_date else None
+
+        comparators: list[HouseholdSpendComparator] = []
+        if prior_month_key is not None:
+            prior_spend = round(spend_through_day(prior_month_key, through_day), 2)
+            prior_income = round(income_by_month.get(prior_month_key, 0.0), 2)
+            comparators.append(
+                HouseholdSpendComparator(
+                    key="prior_month",
+                    label=month_label(prior_month_key),
+                    basis=period.basis,
+                    basis_label=period.basis_label,
+                    months_used=[prior_month_key],
+                    total_spend=prior_spend,
+                    total_income=prior_income,
+                    net_cash_flow=round(prior_income - prior_spend, 2),
+                    spend_change=round(total_spend - prior_spend, 2),
+                    spend_change_pct=(
+                        round((total_spend - prior_spend) / prior_spend, 4)
+                        if prior_spend > 0
+                        else None
+                    ),
+                )
+            )
+        if average_month_keys:
+            average_spend = round(
+                sum(
+                    spend_through_day(key, through_day) for key in average_month_keys
+                )
+                / len(average_month_keys),
+                2,
+            )
+            average_income = round(
+                sum(income_by_month.get(key, 0.0) for key in average_month_keys)
+                / len(average_month_keys),
+                2,
+            )
+            comparators.append(
+                HouseholdSpendComparator(
+                    key="all_month_average",
+                    label=(
+                        f"Average of {len(average_month_keys)} complete month"
+                        f"{'s' if len(average_month_keys) != 1 else ''}"
+                    ),
+                    basis=period.basis,
+                    basis_label=period.basis_label,
+                    months_used=average_month_keys,
+                    total_spend=average_spend,
+                    total_income=average_income,
+                    net_cash_flow=round(average_income - average_spend, 2),
+                    spend_change=round(total_spend - average_spend, 2),
+                    spend_change_pct=(
+                        round((total_spend - average_spend) / average_spend, 4)
+                        if average_spend > 0
+                        else None
+                    ),
+                )
+            )
+
+        category_totals: dict[tuple[str, str], float] = {}
+        category_gross: dict[tuple[str, str], float] = {}
+        category_refund: dict[tuple[str, str], float] = {}
+        category_transaction_ids: dict[tuple[str, str], set[str]] = {}
+        category_average_totals: dict[tuple[str, str], float] = {}
+        category_average_gross: dict[tuple[str, str], float] = {}
+        category_monthly_totals: dict[tuple[str, str, str], float] = {}
+        category_monthly_transaction_ids: dict[tuple[str, str, str], set[str]] = {}
+
+        # Itemized transactions split across their item categories here and only
+        # here; monthly and overall spend above stays un-expanded so the headline
+        # figures are byte-identical whether or not purchase items exist.
+        average_month_set = set(average_basis_keys)
+        for row in expand_rows_with_item_splits(all_rows, item_splits):
+            row_month = month_key(row["date"])
+            signed_amount = float(row.get("signed_amount", row["amount"]))
+            # A refund posts as a negative signed_amount; keep gross spend and
+            # refund credits apart so caps key off gross, not net.
+            gross = max(signed_amount, 0.0)
+            refund = max(-signed_amount, 0.0)
+            category_key = (str(row["category"]), str(row["essentiality"]))
+            category_month_key = (row_month, *category_key)
+            category_monthly_totals[category_month_key] = (
+                category_monthly_totals.get(category_month_key, 0.0) + signed_amount
+            )
+            category_monthly_transaction_ids.setdefault(category_month_key, set()).add(
+                split_identity(row)
+            )
+            if row_month in average_month_set:
+                category_average_totals[category_key] = (
+                    category_average_totals.get(category_key, 0.0) + signed_amount
+                )
+                category_average_gross[category_key] = (
+                    category_average_gross.get(category_key, 0.0) + gross
+                )
+            if row_month != period.key or row["date"] > period.end_date:
+                continue
+            category_totals[category_key] = (
+                category_totals.get(category_key, 0.0) + signed_amount
+            )
+            category_gross[category_key] = category_gross.get(category_key, 0.0) + gross
+            category_refund[category_key] = (
+                category_refund.get(category_key, 0.0) + refund
+            )
+            category_transaction_ids.setdefault(category_key, set()).add(
+                split_identity(row)
+            )
+
+        # Split copies of one transaction count it once per category.
+        category_counts = {key: len(ids) for key, ids in category_transaction_ids.items()}
+        category_monthly_counts = {
+            key: len(ids) for key, ids in category_monthly_transaction_ids.items()
+        }
+        gross_spend = round(sum(category_gross.values()), 2)
+        refund_total = round(sum(category_refund.values()), 2)
+        # Every category the household has ever spent in appears, so a category
+        # that was over every month and is $0 this month does not vanish from the
+        # comparison the moment it improves.
+        reported_category_keys = sorted(
+            set(category_totals) | set(category_average_totals),
+            key=lambda key: category_totals.get(key, 0.0),
+            reverse=True,
         )
 
         return HouseholdSpendingView(
             generated_at=datetime.now(UTC).isoformat(),
             summary=HouseholdSpendingSummary(
-                timeframe_key=timeframe.key,
-                timeframe_label=timeframe.label,
-                start_date=timeframe.start_date.isoformat() if timeframe.start_date else None,
-                end_date=timeframe.end_date.isoformat(),
+                month=period.key,
+                month_label=period.label,
+                is_month_to_date=period.is_month_to_date,
+                days_elapsed=period.days_elapsed,
+                days_in_month=period.days_in_month,
+                basis_label=period.basis_label,
+                start_date=period.start_date.isoformat(),
+                end_date=period.end_date.isoformat(),
                 total_spend=total_spend,
-                average_monthly_spend=round(total_spend / coverage_months, 2),
+                average_monthly_spend=average_monthly_spend,
                 transaction_count=len(spend_rows),
                 coverage_months=coverage_months,
+                coverage_month_keys=average_basis_keys,
                 account_count=len(account_labels),
+                everyday_spend=round(total_spend - one_time_spend, 2),
+                one_time_spend=one_time_spend,
                 gross_spend=gross_spend,
                 refund_total=refund_total,
-                total_income=round(total_income, 2),
+                total_income=total_income,
                 average_monthly_income=average_monthly_income,
                 net_cash_flow=net_cash_flow,
                 savings_rate=savings_rate,
                 month_to_date_spend=month_to_date_spend,
             ),
+            available_months=available_months,
+            comparators=comparators,
+            one_time_purchases=[
+                HouseholdOneTimePurchase(
+                    transaction_id=item.transaction_id,
+                    date=item.date.isoformat(),
+                    merchant=item.merchant,
+                    category=item.category,
+                    amount=item.amount,
+                    share_of_month=item.share_of_month,
+                    reason=item.reason,
+                )
+                for item in one_time_purchases
+            ],
             categories=[
                 HouseholdSpendingCategory(
                     category=category,
                     essentiality=essentiality,
-                    total_spend=round(amount, 2),
+                    total_spend=round(category_totals.get((category, essentiality), 0.0), 2),
+                    # The run-rate across every complete covered month, not this
+                    # month divided by itself -- a cap suggested from one month is
+                    # a cap suggested from one shopping trip.
                     average_monthly_spend=round(
-                        amount / coverage_months,
+                        category_average_totals.get((category, essentiality), 0.0)
+                        / coverage_months,
                         2,
                     ),
-                    share_of_spend=round(amount / total_spend if total_spend > 0 else 0.0, 4),
-                    transaction_count=category_counts[(category, essentiality)],
+                    share_of_spend=round(
+                        category_totals.get((category, essentiality), 0.0) / total_spend
+                        if total_spend > 0
+                        else 0.0,
+                        4,
+                    ),
+                    transaction_count=category_counts.get((category, essentiality), 0),
                     gross_monthly_spend=round(
-                        category_gross[(category, essentiality)] / coverage_months,
+                        category_average_gross.get((category, essentiality), 0.0)
+                        / coverage_months,
                         2,
                     ),
-                    refund_total=round(category_refund[(category, essentiality)], 2),
+                    refund_total=round(
+                        category_refund.get((category, essentiality), 0.0), 2
+                    ),
                 )
-                for (category, essentiality), amount in sorted(
-                    category_totals.items(),
-                    key=lambda item: item[1],
-                    reverse=True,
-                )
+                for (category, essentiality) in reported_category_keys
             ],
             monthly_trend=[
                 {
@@ -999,7 +1325,15 @@ class HouseholdTransactionService:
             ],
         )
 
-    def _load_report_rows(self) -> list[dict[str, Any]]:
+    def _load_report_rows(self, *, include_reversals: bool = False) -> list[dict[str, Any]]:
+        """Spend rows, with reversed charges already netted out.
+
+        Dropping the pairs here rather than in each caller is what keeps the
+        spending view, the executive report and the ledger telling one story.
+        `include_reversals` exists for the pairing pass itself, which has to see
+        the rows before they are removed.
+        """
+        reversed_ids: set[str] = set() if include_reversals else set(self.reversal_reasons())
         with self.storage.connection() as conn:
             expense_rows = conn.execute(
                 """
@@ -1111,6 +1445,8 @@ class HouseholdTransactionService:
             if needs_category_review:
                 effective_category = UNKNOWN_CATEGORY
                 effective_essentiality = UNKNOWN_ESSENTIALITY
+            if str(row[0]) in reversed_ids:
+                continue
             if not is_budget_driving_expense(
                 flow_type=effective_flow,
                 category=effective_category,

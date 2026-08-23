@@ -114,9 +114,13 @@ async def get_household_ledger(
 
 
 @router.get("/spending", response_model=HouseholdSpendingView)
-async def get_household_spending(window: str = "1m") -> HouseholdSpendingView:
-    """Return timeframe-aware household spending analytics."""
-    return await run_in_threadpool(_service().get_spending, window=window)
+async def get_household_spending(month: str | None = None) -> HouseholdSpendingView:
+    """Return one calendar month of spending, with its two fixed comparators.
+
+    `month` is a `YYYY-MM` key; omitted or unparseable falls back to the month
+    the household is currently living in.
+    """
+    return await run_in_threadpool(_service().get_spending, month=month)
 
 
 @router.get("/profile", response_model=HouseholdProfile)

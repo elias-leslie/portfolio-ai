@@ -12,7 +12,7 @@ const useHouseholdProductsMock = vi.fn()
 const triggerPriceCheckMock = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
-  useHouseholdSpending: (params?: { window?: string }) =>
+  useHouseholdSpending: (params?: { month?: string }) =>
     useHouseholdSpendingMock(params),
 }))
 
@@ -90,8 +90,11 @@ function mockSpending() {
     data: {
       generatedAt: '2026-04-24T00:00:00Z',
       summary: {
-        timeframeKey: '3m',
-        timeframeLabel: '3 months',
+        month: '2026-04',
+        monthLabel: 'April 2026',
+        isMonthToDate: false,
+        basisLabel: 'full month',
+        coverageMonthKeys: ['2026-01', '2026-02', '2026-03'],
         totalSpend: 6000,
         averageMonthlySpend: 2000,
         transactionCount: 5,
@@ -288,8 +291,11 @@ describe('MoneyLeversPanel', () => {
       data: {
         generatedAt: '2026-04-24T00:00:00Z',
         summary: {
-          timeframeKey: '3m',
-          timeframeLabel: '3 months',
+          month: '2026-04',
+          monthLabel: 'April 2026',
+          isMonthToDate: false,
+          basisLabel: 'full month',
+          coverageMonthKeys: ['2026-01', '2026-02', '2026-03'],
           totalSpend: 0,
           averageMonthlySpend: 0,
           transactionCount: 0,

@@ -25,8 +25,8 @@ export interface BudgetStatRowProps {
   evidenceMonthToDateSpend: number
   monthToDateAsOfDate: string | null
   observedMonthlyDetail: string
-  /** Selected budget window label (1M/3M/6M) so net cash flow names its window. */
-  windowLabel: string
+  /** The reported month, e.g. "July 2026", so every figure names its month. */
+  monthLabel: string
 }
 
 function shortDate(value: string | null) {
@@ -62,14 +62,14 @@ export function BudgetStatRow({
   evidenceMonthToDateSpend,
   monthToDateAsOfDate,
   observedMonthlyDetail,
-  windowLabel,
+  monthLabel,
 }: BudgetStatRowProps) {
   return (
     <>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-            Observed monthly spend
+            Monthly run-rate
           </p>
           <p className="mt-3 text-2xl font-semibold text-text">
             {formatCurrencyWhole(averageMonthlySpend)}
@@ -147,7 +147,7 @@ export function BudgetStatRow({
             {formatCurrencyWhole(averageMonthlyIncome)}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            Tracked inflow, averaged.
+            Tracked inflow, averaged over the same complete months.
           </p>
         </div>
         <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
@@ -163,7 +163,7 @@ export function BudgetStatRow({
             {formatCurrencyWhole(netCashFlow)}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            Income minus tracked spend over this {windowLabel} window.
+            Income minus tracked spend in {monthLabel}.
           </p>
         </div>
         <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">

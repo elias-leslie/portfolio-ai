@@ -20,9 +20,9 @@ def test_get_spending_reconciles_found_and_confirmed_budget_rollups() -> None:
     service.transaction_service.build_spending_view.return_value = HouseholdSpendingView(
         generated_at="2026-04-24T00:00:00Z",
         summary=HouseholdSpendingSummary(
-            timeframe_key="3m",
-            timeframe_label="3 months",
-            total_spend=15099,
+            month="2026-04",
+            month_label="April 2026",
+            total_spend=5033,
             average_monthly_spend=5033,
             transaction_count=62,
             coverage_months=3,
@@ -32,7 +32,7 @@ def test_get_spending_reconciles_found_and_confirmed_budget_rollups() -> None:
             HouseholdSpendingCategory(
                 category="Household",
                 essentiality="mixed",
-                total_spend=4446,
+                total_spend=1482,
                 average_monthly_spend=1482,
                 share_of_spend=0.4,
                 transaction_count=30,
@@ -40,7 +40,7 @@ def test_get_spending_reconciles_found_and_confirmed_budget_rollups() -> None:
             HouseholdSpendingCategory(
                 category="Retail",
                 essentiality="discretionary",
-                total_spend=3861,
+                total_spend=1287,
                 average_monthly_spend=1287,
                 share_of_spend=0.35,
                 transaction_count=22,
@@ -48,7 +48,7 @@ def test_get_spending_reconciles_found_and_confirmed_budget_rollups() -> None:
             HouseholdSpendingCategory(
                 category="Groceries",
                 essentiality="essential",
-                total_spend=738,
+                total_spend=246,
                 average_monthly_spend=246,
                 share_of_spend=0.08,
                 transaction_count=10,
@@ -71,9 +71,11 @@ def test_get_spending_reconciles_found_and_confirmed_budget_rollups() -> None:
         ),
     )
 
-    spending = service.get_spending(window="3m")
+    spending = service.get_spending(month="2026-04")
 
-    service.transaction_service.build_spending_view.assert_called_once_with(window="3m")
+    service.transaction_service.build_spending_view.assert_called_once_with(
+        month="2026-04"
+    )
     assert spending.summary.found_budget_total == 1650
     assert spending.summary.confirmed_budget_total == 1200
     assert spending.summary.budgeted_category_count == 3

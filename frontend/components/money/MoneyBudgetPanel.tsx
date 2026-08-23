@@ -20,14 +20,12 @@ import {
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
-import {
-  type BudgetWindow,
-  budgetWindowMonths,
-  budgetWindows,
-} from './budget-helpers'
+import { formatFullMonthLabel } from './budget-helpers'
 import { CategoryTrendChart } from './CategoryTrendChart'
 import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
+import { MonthComparatorRow } from './MonthComparatorRow'
+import { MonthSelector } from './MonthSelector'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
   type BudgetRowEntry,
@@ -36,7 +34,9 @@ import {
 } from './useBudgetRows'
 
 export function MoneyBudgetPanel() {
-  const [window, setWindow] = useState<BudgetWindow>('3m')
+  // null means "whatever month the household is living in" -- the server
+  // decides that, so a stale tab cannot pin the panel to a month that has ended.
+  const [month, setMonth] = useState<string | null>(null)
   const [selectedCategory, setSelectedCategory] =
     useState<HouseholdSpendingCategory | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
@@ -51,8 +51,7 @@ export function MoneyBudgetPanel() {
     refetch,
     isFetching,
     isLoading,
-  } = useHouseholdSpending({ window })
-  const connectedTrendQuery = useHouseholdSpending({ window: '12m' })
+  } = useHouseholdSpending(month ? { month } : undefined)
   const { data: facts = [] } = useHouseholdFacts()
   const confirmFact = useConfirmFact()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
@@ -117,18 +116,19 @@ export function MoneyBudgetPanel() {
     spending?.summary.monthToDateSpend,
     spending?.transactions,
   ])
-  const requestedCoverageMonths = budgetWindowMonths[window]
+  const coverageMonthKeys = spending?.summary.coverageMonthKeys ?? []
   const averageCoverageMonths = spending?.summary.coverageMonths ?? 0
-  const hasShortCoverage =
-    requestedCoverageMonths != null &&
-    averageCoverageMonths > 0 &&
-    averageCoverageMonths < requestedCoverageMonths
+  const isRunRateThisMonthOnly =
+    coverageMonthKeys.length === 1 &&
+    coverageMonthKeys[0] === spending?.summary.month
   const observedMonthlyDetail =
-    averageCoverageMonths > 0
-      ? hasShortCoverage
-        ? `${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'} with data; not divided by ${requestedCoverageMonths}.`
-        : `Selected-window run-rate over ${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'}.`
-      : 'No covered month yet.'
+    averageCoverageMonths === 0
+      ? 'No covered month yet.'
+      : isRunRateThisMonthOnly
+        ? 'No complete month yet — this month standing in for the average.'
+        : `Run-rate across ${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'}: ${coverageMonthKeys
+            .map(formatFullMonthLabel)
+            .join(', ')}.`
 
   async function acceptAllSuggestedCaps() {
     for (const entry of foundBudgetRows) {
@@ -314,59 +314,63 @@ export function MoneyBudgetPanel() {
         title="Budget"
         description="Set category caps where they matter. Suggested caps stay separate until you accept them or replace them yourself."
         actions={
-          <div className="flex flex-wrap gap-2">
-            {budgetWindows.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                size="sm"
-                variant={window === option.value ? 'default' : 'outline'}
-                onClick={() => setWindow(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </div>
+          <MonthSelector
+            availableMonths={spending?.availableMonths ?? []}
+            month={month ?? spending?.summary.month ?? null}
+            onChange={setMonth}
+            isMonthToDate={spending?.summary.isMonthToDate ?? false}
+            basisLabel={spending?.summary.basisLabel}
+            disabled={isLoading}
+          />
         }
       >
-        <BudgetStatRow
-          averageMonthlySpend={spending?.summary.averageMonthlySpend}
-          foundBudgetTotal={foundBudgetTotal}
-          foundBudgetCategoryCount={foundBudgetCategoryCount}
-          confirmedBudgetTotal={confirmedBudgetTotal}
-          unknownTransactionCount={unknownTransactions.length}
-          unknownSpend={unknownSpend}
-          budgetedCategoryCount={budgetedCategoryCount}
-          confirmedBudgetCategoryCount={confirmedBudgetCategoryCount}
-          overBudgetCount={overBudgetCount}
-          foundOverBudgetCount={foundOverBudgetCount}
-          confirmedOverBudgetCount={confirmedOverBudgetCount}
-          averageMonthlyIncome={spending?.summary.averageMonthlyIncome}
+        <MonthComparatorRow
+          monthLabel={spending?.summary.monthLabel ?? '—'}
+          totalSpend={spending?.summary.totalSpend}
+          totalIncome={spending?.summary.totalIncome}
           netCashFlow={spending?.summary.netCashFlow}
-          savingsRate={spending?.summary.savingsRate}
-          monthToDateSpend={spending?.summary.monthToDateSpend}
-          connectedMonthToDateSpend={
-            connectedMonthStats.connectedMonthToDateSpend
-          }
-          connectedPendingCount={connectedMonthStats.pendingCount}
-          connectedPendingSpend={connectedMonthStats.pendingSpend}
-          evidenceMonthToDateSpend={connectedMonthStats.evidenceSpend}
-          monthToDateAsOfDate={connectedMonthStats.asOfDate}
-          observedMonthlyDetail={observedMonthlyDetail}
-          windowLabel={
-            budgetWindows.find((option) => option.value === window)?.label ??
-            window
-          }
+          oneTimeSpend={spending?.summary.oneTimeSpend}
+          everydaySpend={spending?.summary.everydaySpend}
+          comparators={spending?.comparators ?? []}
+          coverageMonthKeys={coverageMonthKeys}
         />
+        <div className="mt-3">
+          <BudgetStatRow
+            averageMonthlySpend={spending?.summary.averageMonthlySpend}
+            foundBudgetTotal={foundBudgetTotal}
+            foundBudgetCategoryCount={foundBudgetCategoryCount}
+            confirmedBudgetTotal={confirmedBudgetTotal}
+            unknownTransactionCount={unknownTransactions.length}
+            unknownSpend={unknownSpend}
+            budgetedCategoryCount={budgetedCategoryCount}
+            confirmedBudgetCategoryCount={confirmedBudgetCategoryCount}
+            overBudgetCount={overBudgetCount}
+            foundOverBudgetCount={foundOverBudgetCount}
+            confirmedOverBudgetCount={confirmedOverBudgetCount}
+            averageMonthlyIncome={spending?.summary.averageMonthlyIncome}
+            netCashFlow={spending?.summary.netCashFlow}
+            savingsRate={spending?.summary.savingsRate}
+            monthToDateSpend={spending?.summary.monthToDateSpend}
+            connectedMonthToDateSpend={
+              connectedMonthStats.connectedMonthToDateSpend
+            }
+            connectedPendingCount={connectedMonthStats.pendingCount}
+            connectedPendingSpend={connectedMonthStats.pendingSpend}
+            evidenceMonthToDateSpend={connectedMonthStats.evidenceSpend}
+            monthToDateAsOfDate={connectedMonthStats.asOfDate}
+            observedMonthlyDetail={observedMonthlyDetail}
+            monthLabel={spending?.summary.monthLabel ?? '—'}
+          />
+        </div>
       </SectionCard>
 
       <ConnectedSpendTrendChart
-        transactions={connectedTrendQuery.data?.transactions ?? []}
-        isLoading={connectedTrendQuery.isLoading}
+        transactions={spending?.transactions ?? []}
+        isLoading={isLoading}
       />
 
       <CategoryTrendChart
-        timeframeLabel={spending?.summary.timeframeLabel}
+        timeframeLabel={spending?.summary.monthLabel}
         trendData={trendMeta.data}
         trendCategories={trendMeta.categories}
         chartCategories={chartCategories}
@@ -377,7 +381,7 @@ export function MoneyBudgetPanel() {
       />
 
       <OwnerSpendInsightsCard
-        timeframeLabel={spending?.summary.timeframeLabel}
+        timeframeLabel={spending?.summary.monthLabel}
         ownerSpendRows={ownerSpendRows}
       />
 

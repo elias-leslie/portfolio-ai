@@ -121,11 +121,11 @@ export async function fetchHouseholdLedger(
 }
 
 export async function fetchHouseholdSpending(
-  params?: { window?: string },
+  params?: { month?: string },
   options: RequestInit = {},
 ): Promise<HouseholdSpendingView> {
   const search = new URLSearchParams()
-  if (params?.window) search.set('window', params.window)
+  if (params?.month) search.set('month', params.month)
   const query = search.toString()
   return get<HouseholdSpendingView>(
     query ? `/api/household/spending?${query}` : '/api/household/spending',

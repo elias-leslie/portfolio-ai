@@ -128,7 +128,7 @@ class SpendProfile(BaseModel):
 
     monthly_total: float
     by_bucket: dict[str, float] = Field(default_factory=dict)
-    source: str = "transactions_3m"  # transactions_3m | user_override | default
+    source: str = "transactions_run_rate"  # transactions_run_rate | user_override | default
 
 
 class CategoryContribution(BaseModel):

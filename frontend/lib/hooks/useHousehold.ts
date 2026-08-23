@@ -165,7 +165,7 @@ export function useHouseholdLedger(params?: HouseholdLedgerParams) {
   })
 }
 
-export function useHouseholdSpending(params?: { window?: string }) {
+export function useHouseholdSpending(params?: { month?: string }) {
   return useQuery({
     queryKey: ['household', 'spending', params ?? {}],
     queryFn: ({ signal }) => fetchHouseholdSpending(params, { signal }),

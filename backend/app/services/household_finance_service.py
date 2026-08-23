@@ -128,30 +128,29 @@ def _with_budget_rollup(
         disabled = bool((meta or {}).get("disabled") is True)
         found_budget = _recommended_category_budget(category, coverage_months)
         confirmed_budget = _confirmed_budget_from_meta(meta)
+        # A cap is suggested from the run-rate across every covered month, but
+        # "over budget" is judged on the month being reported. The household says
+        # "we overspent on groceries" about a month it lived through, not about a
+        # six-month average that no single month resembles.
+        actual = category.total_spend
         if disabled:
             budget_source = "disabled"
             budget_status = "disabled"
         elif confirmed_budget is not None:
             budget_source = "confirmed"
-            budget_status = (
-                "over_budget"
-                if category.average_monthly_spend > confirmed_budget
-                else "confirmed"
-            )
+            budget_status = "over_budget" if actual > confirmed_budget else "confirmed"
             confirmed_budget_total += confirmed_budget
             confirmed_budget_category_count += 1
-            if category.average_monthly_spend > confirmed_budget:
+            if actual > confirmed_budget:
                 confirmed_over_budget_count += 1
         elif found_budget is not None:
             budget_source = "found_unconfirmed"
             budget_status = (
-                "found_over_budget"
-                if category.average_monthly_spend > found_budget
-                else "found_unconfirmed"
+                "found_over_budget" if actual > found_budget else "found_unconfirmed"
             )
             found_budget_total += found_budget
             found_budget_category_count += 1
-            if category.average_monthly_spend > found_budget:
+            if actual > found_budget:
                 found_over_budget_count += 1
         else:
             budget_source = "no_budget"
@@ -265,9 +264,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
             offset=offset,
         )
 
-    def get_spending(self, *, window: str = "1m") -> HouseholdSpendingView:
+    def get_spending(self, *, month: str | None = None) -> HouseholdSpendingView:
         return _with_budget_rollup(
-            self.transaction_service.build_spending_view(window=window),
+            self.transaction_service.build_spending_view(month=month),
             self.list_confirmed_facts(),
         )
 

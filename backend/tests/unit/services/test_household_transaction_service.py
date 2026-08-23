@@ -12,6 +12,7 @@ from typing import Any
 from app.services._household_merchants import _effective_transaction_classification
 from app.services._household_report_builder import _merchant_aliases
 from app.services._household_spend_filters import is_budget_driving_expense
+from app.services._household_spend_periods import month_label
 from app.services._household_transaction_parsers import (
     extract_transactions,
     parse_chase_statement,
@@ -53,16 +54,45 @@ class _FakeStorage:
 
 
 class _SequenceConnection:
+    """Serve canned result sets by query shape rather than by call order.
+
+    The spending pipeline reads expense rows, import rows, item splits and
+    income, and reads some of them more than once -- reversal pairing has to see
+    the rows before they are netted out, so it asks for them again. Keying on the
+    shape of the query lets a fixture describe the household's data instead of
+    the order the service happens to ask for it.
+
+    Fixtures stay positional: expense rows, import rows, item splits, income.
+    Income rows are ``(month_key, amount)``.
+    """
+
     def __init__(self, responses: list[list[tuple[Any, ...]]]) -> None:
-        self._responses = responses
+        padded = list(responses) + [[] for _ in range(4 - len(responses))]
+        self.expense_rows = padded[0]
+        self.import_rows = padded[1]
+        self.item_split_rows = padded[2]
+        self.income_rows = padded[3]
+
+    def _rows_for(self, sql: str) -> list[tuple[Any, ...]]:
+        if "FROM household_import_rows" in sql:
+            return self.import_rows
+        if "FROM household_purchase_items" in sql:
+            return self.item_split_rows
+        if "t.flow_type = 'income'" in sql:
+            if "GROUP BY" in sql:
+                return self.income_rows
+            if "SUM(" in sql:
+                return [(sum(float(row[1]) for row in self.income_rows),)]
+            return []
+        return self.expense_rows
 
     def execute(
         self,
         sql: str,
         params: list[Any] | None = None,
     ) -> SimpleNamespace:
-        del sql, params
-        rows = self._responses.pop(0) if self._responses else []
+        del params
+        rows = self._rows_for(sql)
         return SimpleNamespace(
             fetchall=lambda: rows,
             fetchone=lambda: rows[0] if rows else None,
@@ -700,7 +730,7 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     assert spending.summary.total_spend == 207.51
     assert spending.summary.transaction_count == 2
@@ -815,7 +845,7 @@ def test_build_spending_view_excludes_loan_payments_from_spend() -> None:
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     assert spending.summary.total_spend == 12.50
     assert spending.summary.transaction_count == 1
@@ -872,11 +902,11 @@ def test_build_spending_view_separates_refund_gross_and_income() -> None:
             ],
             [],
             [],  # item splits (none persisted)
-            [(2000.0,)],
+            [(today.strftime("%Y-%m"), 2000.0)],
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     retail = next(c for c in spending.categories if c.category == "Retail")
     # Net spend is refund-reduced, but gross (the cap basis) and the refund stay visible.
@@ -888,9 +918,11 @@ def test_build_spending_view_separates_refund_gross_and_income() -> None:
     assert spending.summary.savings_rate == 0.965
 
 
-def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() -> None:
+def test_build_spending_view_reports_one_month_and_leaves_the_others_to_the_trend() -> None:
     today = date.today()
-    grocery_date = today - timedelta(days=5)
+    # Anchored inside the current month rather than offset by days, so the test
+    # does not change meaning depending on which day of the month it runs.
+    grocery_date = today.replace(day=1)
     service = HouseholdTransactionService()
     service.storage = _SequenceStorage(
         [
@@ -936,7 +968,11 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
                 (
                     "txn-old",
                     None,
-                    datetime.combine(today - timedelta(days=75), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(
+                        today.replace(day=1) - timedelta(days=20),
+                        datetime.min.time(),
+                        tzinfo=UTC,
+                    ),
                     "OLD GROCERY",
                     "OLD GROCERY",
                     Decimal("75.00"),
@@ -970,13 +1006,15 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view(month=today.strftime("%Y-%m"))
 
-    assert spending.summary.timeframe_key == "1m"
+    assert spending.summary.month == today.strftime("%Y-%m")
+    assert spending.summary.is_month_to_date is True
     assert spending.summary.transaction_count == 2
     assert round(spending.summary.total_spend, 2) == 197.56
-    assert spending.summary.coverage_months == 1
-    assert spending.summary.average_monthly_spend == 197.56
+    # The prior month's grocery row is not in the reported month, but it is still
+    # in the trend and still names its own month.
+    assert spending.summary.transaction_count == 2
     assert [category.category for category in spending.categories] == [
         "Household",
         "Retail",
@@ -988,100 +1026,21 @@ def test_build_spending_view_uses_selected_timeframe_and_full_filtered_rows() ->
     ]
     assert [row.id for row in spending.transactions] == ["txn-amazon", "txn-grocery"]
     assert all(row.source_kind == "transaction" for row in spending.transactions)
+    assert (
+        today.replace(day=1) - timedelta(days=20)
+    ).strftime("%Y-%m") in {point.month for point in spending.category_monthly_trend}
     assert [
         (point.month, point.category, point.total_spend)
         for point in spending.category_monthly_trend
+        if point.month == today.strftime("%Y-%m")
     ] == [
-        (grocery_date.strftime("%Y-%m"), "Household", 155.75),
+        (today.strftime("%Y-%m"), "Household", 155.75),
         (today.strftime("%Y-%m"), "Retail", 41.81),
     ]
+    assert spending.summary.month_label.endswith(str(today.year))
 
 
-def test_build_spending_view_uses_observed_months_when_window_exceeds_data_coverage() -> None:
-    today = date.today()
-
-    def month_date(months_ago: int) -> date:
-        month_index = today.year * 12 + today.month - 1 - months_ago
-        return date(month_index // 12, month_index % 12 + 1, min(today.day, 28))
-
-    rows = [
-        (
-            "txn-current",
-            None,
-            datetime.combine(month_date(0), datetime.min.time(), tzinfo=UTC),
-            "AMAZON MKTPL CURRENT",
-            "AMAZON MKTPL CURRENT",
-            Decimal("300.00"),
-            "Retail",
-            "discretionary",
-            "expense",
-            "Checking",
-            "doc-current",
-            "Amazon",
-            "statement",
-            "credit_card",
-            "current.csv",
-            "hash-current",
-            {},
-        ),
-        (
-            "txn-two-months",
-            None,
-            datetime.combine(month_date(2), datetime.min.time(), tzinfo=UTC),
-            "AMAZON MKTPL TWO MONTH",
-            "AMAZON MKTPL TWO MONTH",
-            Decimal("600.00"),
-            "Retail",
-            "discretionary",
-            "expense",
-            "Checking",
-            "doc-two-months",
-            "Amazon",
-            "statement",
-            "credit_card",
-            "two-months.csv",
-            "hash-two-months",
-            {},
-        ),
-        (
-            "txn-eight-months",
-            None,
-            datetime.combine(month_date(8), datetime.min.time(), tzinfo=UTC),
-            "AMAZON MKTPL EIGHT MONTH",
-            "AMAZON MKTPL EIGHT MONTH",
-            Decimal("900.00"),
-            "Retail",
-            "discretionary",
-            "expense",
-            "Checking",
-            "doc-eight-months",
-            "Amazon",
-            "statement",
-            "credit_card",
-            "eight-months.csv",
-            "hash-eight-months",
-            {},
-        ),
-    ]
-
-    def spending_for_window(window: str) -> Any:
-        service = HouseholdTransactionService()
-        service.storage = _SequenceStorage([rows, []])
-        return service.build_spending_view(window=window)
-
-    spending = spending_for_window("12m")
-    all_dates = spending_for_window("all")
-
-    assert spending.summary.total_spend == 1800.0
-    assert spending.summary.coverage_months == 3
-    assert spending.summary.average_monthly_spend == 600.0
-    assert spending.categories[0].average_monthly_spend == 600.0
-    assert all_dates.summary.total_spend == spending.summary.total_spend
-    assert all_dates.summary.coverage_months == spending.summary.coverage_months
-    assert all_dates.summary.average_monthly_spend == spending.summary.average_monthly_spend
-
-
-def test_build_spending_view_monthly_run_rate_uses_selected_window_rows() -> None:
+def test_a_month_the_household_was_not_yet_tracking_stays_out_of_the_average() -> None:
     today = date.today()
 
     def month_date(months_ago: int) -> date:
@@ -1109,31 +1068,113 @@ def test_build_spending_view_monthly_run_rate_uses_selected_window_rows() -> Non
             {},
         )
 
-    complete_month_rows = [
-        row(f"month-1-{index}", month_date(1), "10.00") for index in range(25)
-    ] + [row(f"month-2-{index}", month_date(2), "20.00") for index in range(25)]
-    sparse_history = [row("sparse-old", month_date(8), "900.00")]
-    current_partial = [
-        row(f"current-{index}", today, "1000.00") for index in range(10)
+    # Two properly covered months, and one month eight months back holding a
+    # single stray receipt from before the household was tracking anything.
+    covered = [row(f"m1-{index}", month_date(1), "10.00") for index in range(25)] + [
+        row(f"m2-{index}", month_date(2), "20.00") for index in range(25)
     ]
+    stray = [row("stray", month_date(8), "900.00")]
 
     service = HouseholdTransactionService()
-    service.storage = _SequenceStorage(
-        [
-            complete_month_rows + sparse_history + current_partial,
-            [],
-            [],
-            [(7500.0,)],
-        ]
-    )
+    service.storage = _SequenceStorage([covered + stray, []])
 
-    spending = service.build_spending_view(window="12m")
+    spending = service.build_spending_view(month=month_date(1).strftime("%Y-%m"))
 
-    assert spending.summary.total_spend == 11650.0
-    assert spending.summary.coverage_months == 4
-    assert spending.summary.average_monthly_spend == 2912.5
-    assert spending.categories[0].average_monthly_spend == 2912.5
-    assert spending.summary.average_monthly_income == 1875.0
+    assert spending.summary.coverage_month_keys == [month_date(2).strftime("%Y-%m")]
+    assert spending.summary.coverage_months == 1
+    assert spending.summary.average_monthly_spend == 500.0
+    assert spending.summary.total_spend == 250.0
+
+
+def test_the_prior_month_comparator_names_the_month_it_used() -> None:
+    today = date.today()
+
+    def month_date(months_ago: int) -> date:
+        month_index = today.year * 12 + today.month - 1 - months_ago
+        return date(month_index // 12, month_index % 12 + 1, 15)
+
+    def row(row_id: str, row_date: date, amount: str) -> tuple[Any, ...]:
+        return (
+            row_id,
+            None,
+            datetime.combine(row_date, datetime.min.time(), tzinfo=UTC),
+            "AMAZON MKTPL COMPARATOR",
+            "AMAZON MKTPL COMPARATOR",
+            Decimal(amount),
+            "Retail",
+            "discretionary",
+            "expense",
+            "Checking",
+            f"doc-{row_id}",
+            "Amazon",
+            "statement",
+            "credit_card",
+            "comparator.csv",
+            f"hash-{row_id}",
+            {},
+        )
+
+    rows = [row(f"m1-{index}", month_date(1), "10.00") for index in range(25)] + [
+        row(f"m2-{index}", month_date(2), "20.00") for index in range(25)
+    ]
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage([rows, []])
+
+    spending = service.build_spending_view(month=month_date(1).strftime("%Y-%m"))
+    prior = next(c for c in spending.comparators if c.key == "prior_month")
+
+    assert prior.months_used == [month_date(2).strftime("%Y-%m")]
+    assert prior.label == month_label(month_date(2).strftime("%Y-%m"))
+    assert prior.total_spend == 500.0
+    assert prior.spend_change == -250.0
+    assert prior.spend_change_pct == -0.5
+    assert prior.basis == "full_month"
+
+
+def test_the_running_month_is_paced_against_the_same_day_of_the_month_before() -> None:
+    today = date.today()
+    if today.day < 3:
+        return
+
+    def row(row_id: str, row_date: date, amount: str) -> tuple[Any, ...]:
+        return (
+            row_id,
+            None,
+            datetime.combine(row_date, datetime.min.time(), tzinfo=UTC),
+            "AMAZON MKTPL PACE",
+            "AMAZON MKTPL PACE",
+            Decimal(amount),
+            "Retail",
+            "discretionary",
+            "expense",
+            "Checking",
+            f"doc-{row_id}",
+            "Amazon",
+            "statement",
+            "credit_card",
+            "pace.csv",
+            f"hash-{row_id}",
+            {},
+        )
+
+    prior_month_start = today.replace(day=1) - timedelta(days=1)
+    # 25 rows early in the prior month so it counts as covered, plus one late row
+    # that a same-day pacing comparison has to leave out.
+    prior_rows = [
+        row(f"prior-{index}", prior_month_start.replace(day=1), "10.00")
+        for index in range(25)
+    ] + [row("prior-late", prior_month_start, "500.00")]
+    current_rows = [row("current", today.replace(day=1), "60.00")]
+
+    service = HouseholdTransactionService()
+    service.storage = _SequenceStorage([prior_rows + current_rows, []])
+
+    spending = service.build_spending_view()
+    prior = next(c for c in spending.comparators if c.key == "prior_month")
+
+    assert spending.summary.is_month_to_date is True
+    assert prior.basis == f"through_day_{today.day}"
+    assert prior.total_spend == 250.0
 
 
 def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
@@ -1185,7 +1226,7 @@ def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     assert spending.summary.transaction_count == 2
     assert spending.summary.total_spend == 49.16
@@ -1227,7 +1268,7 @@ def test_build_spending_view_surfaces_unknown_category_for_review_rows() -> None
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     assert spending.categories[0].category == "Unknown"
     assert spending.categories[0].transaction_count == 1
@@ -1290,7 +1331,7 @@ def test_build_spending_view_keeps_statement_and_activity_rows_for_db_dedup() ->
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     assert spending.summary.transaction_count == 2
     assert spending.summary.total_spend == 53.52
@@ -1347,7 +1388,7 @@ def test_build_spending_view_keeps_phone_and_location_variant_rows_for_db_dedup(
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     assert spending.summary.transaction_count == 2
     assert spending.summary.total_spend == 43.16
@@ -1404,7 +1445,7 @@ def test_build_spending_view_reclassifies_obvious_household_miscategorizations()
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     categories = {tx.description: tx.category for tx in spending.transactions}
     assert categories["THAI BAY & SUSHI RESTAURA | Sale"] == "Dining"
@@ -1479,7 +1520,7 @@ def test_build_spending_view_treats_mixed_big_box_merchants_conservatively() -> 
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     categories = {tx.description: tx.category for tx in spending.transactions}
     assert categories["WM SUPERCENTER #5831 | Sale"] == "Household"
@@ -1555,7 +1596,7 @@ def test_build_spending_view_reclassifies_auto_and_airport_merchants() -> None:
         ]
     )
 
-    spending = service.build_spending_view(window="1m")
+    spending = service.build_spending_view()
 
     categories = {tx.description: tx.category for tx in spending.transactions}
     assert categories["JIFFY LUBE #886 | Sale"] == "Transportation"
@@ -1623,7 +1664,7 @@ def test_build_spending_view_item_splits_move_category_mix_not_totals() -> None:
         service._spend_rows_between = lambda **_kwargs: [dict(row) for row in rows]  # type: ignore[method-assign]
         service._income_total_between = lambda **_kwargs: 0.0  # type: ignore[method-assign]
         service._load_item_splits = lambda: item_splits  # type: ignore[method-assign]
-        return service.build_spending_view(window="1m")
+        return service.build_spending_view()
 
     baseline = _view({})
     split = _view(splits)

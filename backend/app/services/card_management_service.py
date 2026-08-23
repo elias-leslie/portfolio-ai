@@ -352,7 +352,10 @@ class CardManagementService:
         self, *, monthly_total: float | None, by_bucket: dict[str, float] | None
     ) -> SpendProfile:
         try:
-            view = self.transaction_service.build_spending_view(window="3m")
+            # Reward buckets need the run-rate, not one month: the view's
+            # per-category `gross_monthly_spend` is already the average across
+            # every complete covered month.
+            view = self.transaction_service.build_spending_view()
             profile = self._rewards.build_spend_profile(view)
             if profile.source != "default":
                 # Carve merchant-matched Amazon spend out of the buckets the

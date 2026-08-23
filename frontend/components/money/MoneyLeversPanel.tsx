@@ -12,6 +12,7 @@ import {
   topTrendSeries,
 } from '@/components/money/levers-action-model'
 import { MerchantDragTable } from '@/components/money/MerchantDragTable'
+import { MonthSelector } from '@/components/money/MonthSelector'
 import { aggregateMerchants } from '@/components/money/merchant-aggregation'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -26,24 +27,6 @@ import {
   usePriceCheckStatus,
   useTriggerPriceCheck,
 } from '@/lib/hooks/useHouseholdPurchases'
-
-type LeverWindow = '1m' | '3m' | '6m' | '12m' | 'all'
-
-const leverWindows: Array<{ value: LeverWindow; label: string }> = [
-  { value: '1m', label: '1M' },
-  { value: '3m', label: '3M' },
-  { value: '6m', label: '6M' },
-  { value: '12m', label: '12M' },
-  { value: 'all', label: 'All' },
-]
-
-const leverWindowMonths: Record<LeverWindow, number | null> = {
-  '1m': 1,
-  '3m': 3,
-  '6m': 6,
-  '12m': 12,
-  all: null,
-}
 
 const actionLanes: Array<{
   key: SavingsActionKind
@@ -137,7 +120,7 @@ interface MoneyLeversPanelProps {
 }
 
 export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
-  const [window, setWindow] = useState<LeverWindow>('3m')
+  const [month, setMonth] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const {
     data: spending,
@@ -145,7 +128,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
     error,
     refetch,
     isFetching,
-  } = useHouseholdSpending({ window })
+  } = useHouseholdSpending(month ? { month } : undefined)
   const { data: priceCheck } = usePriceCheckStatus()
   const { data: productsData } = useHouseholdProducts({
     sort: 'frequency',
@@ -156,16 +139,10 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
   const totalSpend = spending?.summary.totalSpend ?? 0
   const averageMonthlySpend = spending?.summary.averageMonthlySpend ?? 0
   const averageCoverageMonths = spending?.summary.coverageMonths ?? 0
-  const requestedCoverageMonths = leverWindowMonths[window]
-  const hasShortCoverage =
-    requestedCoverageMonths != null &&
-    averageCoverageMonths > 0 &&
-    averageCoverageMonths < requestedCoverageMonths
+  const coverageMonthKeys = spending?.summary.coverageMonthKeys ?? []
   const averageMonthlyDetail =
     averageCoverageMonths > 0
-      ? hasShortCoverage
-        ? `${averageCoverageMonths} month${averageCoverageMonths === 1 ? '' : 's'} with data`
-        : 'Selected-window run-rate'
+      ? `Run-rate across ${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'}`
       : 'No spend coverage'
   const categoryRows = useMemo(
     () =>
@@ -367,17 +344,14 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
         description="Canonical spend rows first. Modeled trims are explicit rules of thumb, not fake certainty."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {leverWindows.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                size="sm"
-                variant={window === option.value ? 'default' : 'outline'}
-                onClick={() => setWindow(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
+            <MonthSelector
+              availableMonths={spending?.availableMonths ?? []}
+              month={month ?? spending?.summary.month ?? null}
+              onChange={setMonth}
+              isMonthToDate={spending?.summary.isMonthToDate ?? false}
+              basisLabel={spending?.summary.basisLabel}
+              disabled={isLoading}
+            />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -408,7 +382,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
               {formatCurrency(totalSpend, { decimals: 0 })}
             </p>
             <p className="mt-1 text-xs text-text-muted">
-              {spending?.summary.timeframeLabel ?? 'Selected timeframe'}
+              {spending?.summary.monthLabel ?? 'Selected month'}
             </p>
           </div>
           <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
@@ -454,17 +428,16 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
             <p className="mt-1 text-xs text-text-muted">
               {search.trim()
                 ? 'Spend categories matching search'
-                : 'Spend categories in this window'}
+                : 'Spend categories this month'}
             </p>
           </div>
         </div>
-        {hasShortCoverage ? (
+        {averageCoverageMonths > 0 &&
+        coverageMonthKeys.length > 0 &&
+        coverageMonthKeys[0] === spending?.summary.month ? (
           <p className="mt-3 rounded-xl border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-text">
-            This household does not have {requestedCoverageMonths} complete
-            months of spend data in the selected window. Monthly averages and
-            modeled trims use the {averageCoverageMonths} complete covered month
-            {averageCoverageMonths === 1 ? '' : 's'} instead of dividing by{' '}
-            {requestedCoverageMonths}.
+            No complete month has been covered yet, so monthly averages and
+            modeled trims stand on {spending?.summary.monthLabel} alone.
           </p>
         ) : null}
       </SectionCard>
@@ -578,7 +551,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       <SectionCard
         variant="surface"
         title="Category Pressure"
-        description={`Where monthly spend is actually hardening inside ${spending?.summary.timeframeLabel ?? 'this window'}.`}
+        description={`Where monthly spend is actually hardening inside ${spending?.summary.monthLabel ?? 'this month'}.`}
       >
         <CategoryPressureTable
           rows={visibleCategoryRows}
@@ -590,7 +563,7 @@ export function MoneyLeversPanel({ priceInsights }: MoneyLeversPanelProps) {
       <SectionCard
         variant="surface"
         title="Merchant Drag"
-        description={`Top merchants from ${spending?.summary.timeframeLabel ?? 'the selected timeframe'}. Same canonical spend math as the Spending tab.`}
+        description={`Top merchants from ${spending?.summary.monthLabel ?? 'the selected month'}. Same canonical spend math as the Budget tab.`}
       >
         <MerchantDragTable
           rows={merchantRows}
