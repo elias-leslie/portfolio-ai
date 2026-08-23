@@ -502,6 +502,32 @@ Classification is fixed; **label and mask are not** — that is 0.3's remainder.
 
 ---
 
+### P0-30 — An account the household spends *from* could never be discovered
+
+`detect_unknown_accounts` only read transfer and payment **descriptions** — it
+finds accounts money was sent *to*. A card is never a transfer description, so a
+card the household actually spends on, named on five Walmart receipts, was
+invisible to it.
+
+The signal was sitting in plain view: those transactions carry an
+`account_label` that resolved to no registry account. Five rows named a Visa
+ending 4635 across 2025-08-27 to 2026-04-27 and nothing ever asked about it, so
+the money sat outside every account total while the ledger filter split it into
+three.
+
+Detection now also reads unresolved transaction labels, grouped by trailing
+mask — the only part of a merchant's spelling that identifies anything — and
+skips any mask already on file. The inbox item reads: *"5 transactions were spent
+from an account ending 4635 between 2025-08-27 and 2026-04-27, and it matches no
+account on file. The source spells it 3 different ways… Until it is identified
+these rows sit outside every account total."*
+
+**Still open, and it is the household's to answer:** what is the ·4635 card?
+Confirming it links those five receipts to a real account. Until then the ledger
+shows them under one honest, unidentified name.
+
+---
+
 ## 4. Diagnosis in one line
 
 The Money section is a **data-engineering console wearing a dashboard's
@@ -1142,27 +1168,29 @@ started.
     bonuses compute as **earned** from the ledger.
 0.2 **[done]** **Mark dead accounts dead** (P0-21, D22). `feed_status` /
     `coverage_through` on `household_accounts`; Wells Fargo stays closed.
-0.3 **[part]** **Resolve account labels to accounts** (P1-24). The CMA, `9728`
+0.3 **[done]** **Resolve account labels to accounts** (P1-24). The CMA, `9728`
     and `4635` variants are merged and the test rows archived; 26 registry rows
     are now 20 live. The two Sapphires arrived from Chase with the *identical*
     label `Ultimate Rewards®` and no owner — the registry cannot separate them
     because the provider genuinely reports one name for both. Named by operator
     override (`identity_override`, reapplied after every evidence refresh) as
-    `Chase Sapphire Preferred ·3627` / `·8054` with owners.
-    **Remaining — the same defect P0-29 named, one field over.** The identity
-    override is written but not honoured by every read path:
-    - The ledger's account filter still offers `Visa Credit ****4635`,
-      `Visa credit ending 4635` and `Visa ending 4635` as three separate
-      accounts. `account_options` is built from raw `account_label` on the
-      transaction rows, not from the registry.
-    - Account summaries for provider-only accounts show the provider's label and
-      no mask (`Individual - 529`) instead of the registry's
-      `Fidelity - Individual - 529 *6273`.
-
-    Fix has the shape already proven in P0-29: thread the overridden identity
-    (label, mask, owner) the same way the classification now travels, and resolve
-    ledger `account_options` through the registry instead of raw labels. Do the
-    ledger one first — it is what the household sees when it filters.
+    `Chase Sapphire Preferred ·3627` / `·8054` with owners, and the two Fidelity
+    529s the same way (`Fidelity 529 ·6273` / `·6277` — Fidelity also reports one
+    name for both; owners are still unknown and the inbox can ask).
+    **The override now reaches the surfaces that render it** (P0-29): account
+    summaries, the money inbox — which said *"Refresh transactions for Chase ·
+    Ultimate Rewards®"* and now names the card — and every panel built from
+    summaries.
+    The ledger's account filter offered one card three times. Those five rows are
+    Walmart receipts naming a card the registry has never heard of, and the
+    merchant spells it three ways (`Visa Credit ****4635`, `Visa credit ending
+    4635`, `Visa ending 4635`), so each option hid two thirds of its own rows.
+    A raw label only survives when it resolved to no registry account, so
+    unresolved labels sharing a trailing mask now collapse to one deterministic
+    spelling — filter options 10 → 8, and filtering on it returns all five rows.
+    That is a display repair, not an identification, so the account is **also**
+    surfaced for identification (P0-30): the inbox now carries *"Confirm possible
+    account: Visa Credit ****4635"*.
 0.3a **[done]** Wells Fargo is three rows — masks `7312`, `4222`, and a no-mask
     export. **The household confirmed `7312` and `4222` are two genuinely
     different checking accounts, both now closed.** They are not merged. The

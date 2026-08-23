@@ -163,7 +163,11 @@ def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for
         [
             [
                 ("DIRECT DEBIT CHASE CREDIT CEPAY (Cash)", "transfer_out", 1),
-            ]
+            ],
+            # Detection now also reads the registry's masks and the transaction
+            # labels that resolved to no account; neither has anything to add here.
+            [],
+            [],
         ]
     )
     documents = [

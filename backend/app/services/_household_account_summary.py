@@ -204,6 +204,7 @@ class _MatchResolution:
     effective_account_type: str
     effective_money_role: str
     has_live_pricing: bool
+    registry_override: dict[str, str]
 
 
 # ---------------------------------------------------------------------------
@@ -363,8 +364,10 @@ def _assemble_evidence_summary(
     source_account_value: dict[str, Any] | None,
     source_owned: bool,
     has_live_pricing: bool,
+    registry_override: dict[str, str] | None = None,
 ) -> HouseholdAccountSummary:
     """Construct the HouseholdAccountSummary from resolved values."""
+    registry_override = registry_override or {}
     source_current_value = _source_account_float(source_account_value, "current_value")
     has_source_balance = source_owned and source_current_value is not None
     source_account_mask = (
@@ -390,11 +393,18 @@ def _assemble_evidence_summary(
         match_key=tracked_account.match_key if tracked_account is not None else group_key,
         institution_name=sel.display.institution_name,
         owner_name=(
-            tracked_account.owner_name
-            if tracked_account is not None and tracked_account.owner_name is not None
-            else sel.display.owner_name
+            registry_override.get("owner_name")
+            or (
+                tracked_account.owner_name
+                if tracked_account is not None and tracked_account.owner_name is not None
+                else sel.display.owner_name
+            )
         ),
-        account_mask=source_account_mask or sel.display.account_mask,
+        account_mask=(
+            registry_override.get("account_mask")
+            or source_account_mask
+            or sel.display.account_mask
+        ),
         notes=tracked_account.notes if tracked_account is not None else None,
         currency=sel.balance.currency or sel.display.currency,
         current_value=effective_current,
@@ -447,6 +457,7 @@ def _resolve_evidence_matches(
     account_valuations: dict[str, Any],
     source_owned_household_account_ids: set[str],
     source_owned_account_values: dict[str, dict[str, Any]],
+    registry_account_overrides: dict[str, dict[str, str]] | None = None,
     linked_portfolio_ids: set[str],
     linked_tracked_ids: set[str],
 ) -> _MatchResolution:
@@ -491,13 +502,21 @@ def _resolve_evidence_matches(
         if household_account_id is not None
         else None
     )
-    effective_asset_group = sel.display.asset_group
-    effective_label = (
+    # The registry override is the household's correction of a provider that is
+    # wrong on every sync, so it outranks the provider, the portfolio account and
+    # the tracked account alike.
+    override = (
+        (registry_account_overrides or {}).get(str(household_account_id))
+        if household_account_id is not None
+        else None
+    ) or {}
+    effective_asset_group = str(override.get("asset_group") or "") or sel.display.asset_group
+    effective_label = str(override.get("label") or "") or (
         _portfolio_label(portfolio_account) if portfolio_account is not None
         else _tracked_label(tracked_account) if tracked_account is not None
         else sel.account_label
     )
-    effective_account_type = (
+    effective_account_type = str(override.get("account_type") or "") or (
         tracked_account.account_type if tracked_account is not None else sel.display.account_type
     )
     effective_money_role = _money_role(effective_asset_group, effective_account_type, effective_label)
@@ -516,6 +535,7 @@ def _resolve_evidence_matches(
         effective_account_type=effective_account_type,
         effective_money_role=effective_money_role,
         has_live_pricing=has_live_pricing,
+        registry_override=override,
     )
 
 
@@ -531,6 +551,7 @@ def _build_evidence_summary(
     account_valuations: dict[str, Any],
     source_owned_household_account_ids: set[str],
     source_owned_account_values: dict[str, dict[str, Any]],
+    registry_account_overrides: dict[str, dict[str, str]] | None = None,
     latest_transaction_dates_by_household_account: dict[str, date],
     latest_transaction_dates_by_document: dict[str, date],
     latest_transaction_dates_by_account_label: dict[str, date],
@@ -549,6 +570,7 @@ def _build_evidence_summary(
         account_valuations=account_valuations,
         source_owned_household_account_ids=source_owned_household_account_ids,
         source_owned_account_values=source_owned_account_values,
+        registry_account_overrides=registry_account_overrides,
         linked_portfolio_ids=linked_portfolio_ids,
         linked_tracked_ids=linked_tracked_ids,
     )
@@ -604,6 +626,7 @@ def _build_evidence_summary(
         source_account_value=mr.source_account_value,
         source_owned=mr.source_owned,
         has_live_pricing=mr.has_live_pricing,
+        registry_override=mr.registry_override,
     )
 
 
@@ -618,7 +641,7 @@ def _build_portfolio_summary(
     account_valuations: dict[str, Any],
     source_owned_household_account_ids: set[str],
     source_owned_account_values: dict[str, dict[str, Any]],
-    registry_classification_overrides: dict[str, dict[str, str]] | None = None,
+    registry_account_overrides: dict[str, dict[str, str]] | None = None,
     holdings_by_account: dict[str, float],
 ) -> HouseholdAccountSummary:
     portfolio_valuation = account_valuations.get(account.id)
@@ -626,7 +649,7 @@ def _build_portfolio_summary(
     # The provider's account type is the default reading, but an operator
     # override on the registry row exists precisely because the provider is
     # wrong about this account on every sync.
-    override = (registry_classification_overrides or {}).get(
+    override = (registry_account_overrides or {}).get(
         str(portfolio_household_account_id)
     ) if portfolio_household_account_id is not None else None
     effective_asset_group = (
@@ -635,6 +658,12 @@ def _build_portfolio_summary(
     effective_account_type = (
         str(override.get("account_type") or "") if override else ""
     ) or str(account.account_type)
+    effective_label = (
+        str(override.get("label") or "") if override else ""
+    ) or _portfolio_label(account)
+    effective_mask = str(override.get("account_mask") or "") if override else ""
+    effective_owner = str(override.get("owner_name") or "") if override else ""
+
     source_owned = (
         portfolio_household_account_id is not None
         and str(portfolio_household_account_id) in source_owned_household_account_ids
@@ -680,9 +709,11 @@ def _build_portfolio_summary(
     return HouseholdAccountSummary(
         id=_portfolio_summary_key(account),
         household_account_id=portfolio_household_account_id,
-        label=_portfolio_label(account),
+        label=effective_label,
         asset_group=effective_asset_group,
         account_type=effective_account_type,
+        account_mask=effective_mask or None,
+        owner_name=effective_owner or None,
         source_type=_portfolio_source_type(account),
         match_key=None,
         current_value=effective_current,
@@ -700,7 +731,7 @@ def _build_portfolio_summary(
         linked_portfolio_account_name=_portfolio_label(account),
         account_origin="portfolio",
         money_role=_money_role(
-            effective_asset_group, effective_account_type, _portfolio_label(account)
+            effective_asset_group, effective_account_type, effective_label
         ),
         last_balance_at=source_balance_dt.isoformat() if source_balance_dt is not None else None,
         days_since_balance=days_since_source_balance,
@@ -1013,7 +1044,7 @@ def build_account_summaries(
     source_owned_account_values: dict[str, dict[str, Any]] | None = None,
     closed_household_account_ids: set[str] | None = None,
     hidden_household_account_ids: set[str] | None = None,
-    registry_classification_overrides: dict[str, dict[str, str]] | None = None,
+    registry_account_overrides: dict[str, dict[str, str]] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
@@ -1025,7 +1056,7 @@ def build_account_summaries(
     source_owned_account_values = source_owned_account_values or {}
     closed_household_account_ids = closed_household_account_ids or set()
     hidden_household_account_ids = hidden_household_account_ids or set()
-    registry_classification_overrides = registry_classification_overrides or {}
+    registry_account_overrides = registry_account_overrides or {}
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
@@ -1095,6 +1126,7 @@ def build_account_summaries(
             account_valuations=account_valuations,
             source_owned_household_account_ids=source_owned_household_account_ids,
             source_owned_account_values=source_owned_account_values,
+            registry_account_overrides=registry_account_overrides,
             latest_transaction_dates_by_household_account=latest_transaction_dates_by_household_account,
             latest_transaction_dates_by_document=latest_transaction_dates_by_document,
             latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
@@ -1116,7 +1148,7 @@ def build_account_summaries(
                 account_valuations=account_valuations,
                 source_owned_household_account_ids=source_owned_household_account_ids,
                 source_owned_account_values=source_owned_account_values,
-                registry_classification_overrides=registry_classification_overrides,
+                registry_account_overrides=registry_account_overrides,
                 holdings_by_account=holdings_by_account,
             )
         )

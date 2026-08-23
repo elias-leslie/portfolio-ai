@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -199,6 +200,54 @@ def _entry_matches_search(entry: HouseholdLedgerEntry, search: str) -> bool:
         amount_query in _normalized_amount_query(token)
         for token in _amount_search_tokens(entry.amount)
     )
+
+
+_LEDGER_MASK_PATTERN = re.compile(r"(\d{4})(?!.*\d)")
+
+
+def _collapse_unresolved_account_labels(
+    entries: list[tuple[Any, HouseholdLedgerEntry]],
+) -> None:
+    """Give one unidentified account one name in the filter, not three.
+
+    A label only survives raw when it resolved to no registry account -- linked
+    rows already read their name from the registry. Those raw labels come from
+    whoever wrote them, and a merchant is not consistent: the same card arrives
+    as "Visa Credit ****4635", "Visa credit ending 4635" and "Visa ending 4635",
+    so the account filter offers one card three times and each option hides two
+    thirds of its own rows.
+
+    Collapsing is keyed on the trailing four digits, which is the only part of
+    those strings that identifies anything, and the surviving spelling is chosen
+    deterministically so the filter value is stable between requests. This is a
+    display repair, not an identification: the account is still unknown, and the
+    money inbox asks about it.
+    """
+    by_mask: dict[str, set[str]] = {}
+    for _, entry in entries:
+        if entry.household_account_id:
+            continue
+        label = (entry.account_label or "").strip()
+        if not label:
+            continue
+        match = _LEDGER_MASK_PATTERN.search(label)
+        if match:
+            by_mask.setdefault(match.group(1), set()).add(label)
+
+    canonical = {
+        label: sorted(labels)[0]
+        for labels in by_mask.values()
+        if len(labels) > 1
+        for label in labels
+    }
+    if not canonical:
+        return
+    for _, entry in entries:
+        if entry.household_account_id:
+            continue
+        replacement = canonical.get((entry.account_label or "").strip())
+        if replacement:
+            entry.account_label = replacement
 
 
 def _entry_matches_filters(
@@ -640,6 +689,8 @@ class HouseholdLedgerService:
                     entry,
                 )
             )
+
+        _collapse_unresolved_account_labels(entries)
 
         account_options = sorted(
             {

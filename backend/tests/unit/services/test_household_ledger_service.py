@@ -8,7 +8,11 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
-from app.services.household_ledger_service import HouseholdLedgerService
+from app.models.household_finance import HouseholdLedgerEntry
+from app.services.household_ledger_service import (
+    HouseholdLedgerService,
+    _collapse_unresolved_account_labels,
+)
 
 
 class _SequenceConnection:
@@ -458,3 +462,75 @@ def test_ledger_sorts_by_amount_ascending() -> None:
         sort_dir="asc",
     )
     assert [entry.id for entry in ascending.entries] == ["a", "b", "c"]
+
+
+def _unresolved(label: str, entry_id: str) -> HouseholdLedgerEntry:
+    return HouseholdLedgerEntry(
+        id=entry_id,
+        kind="transaction",
+        description=f"Walmart {entry_id}",
+        account_label=label,
+        household_account_id=None,
+        row_hash=entry_id,
+    )
+
+
+def test_one_unidentified_card_gets_one_name_in_the_account_filter() -> None:
+    """A merchant is not consistent about how it writes a card.
+
+    The same card arrives as three strings, so the filter offered one account
+    three times and each option hid two thirds of its own rows. Only the trailing
+    four digits identify anything, so that is what the collapse keys on.
+    """
+    entries = [
+        (None, _unresolved("Visa Credit ****4635", "a")),
+        (None, _unresolved("Visa credit ending 4635", "b")),
+        (None, _unresolved("Visa ending 4635", "c")),
+    ]
+
+    _collapse_unresolved_account_labels(entries)
+
+    assert {entry.account_label for _, entry in entries} == {"Visa Credit ****4635"}
+
+
+def test_two_different_cards_are_not_collapsed_into_one() -> None:
+    entries = [
+        (None, _unresolved("Visa ending 4635", "a")),
+        (None, _unresolved("Visa ending 1234", "b")),
+    ]
+
+    _collapse_unresolved_account_labels(entries)
+
+    assert {entry.account_label for _, entry in entries} == {
+        "Visa ending 4635",
+        "Visa ending 1234",
+    }
+
+
+def test_a_label_that_resolved_to_a_registry_account_is_left_alone() -> None:
+    """Linked rows already read their name from the registry; do not second-guess it."""
+    linked = HouseholdLedgerEntry(
+        id="linked",
+        kind="transaction",
+        description="Chase charge",
+        account_label="Chase Sapphire Preferred ·3627",
+        household_account_id="household-sapphire",
+        row_hash="linked",
+    )
+    entries = [
+        (None, linked),
+        (None, _unresolved("Visa ending 3627", "loose")),
+    ]
+
+    _collapse_unresolved_account_labels(entries)
+
+    assert linked.account_label == "Chase Sapphire Preferred ·3627"
+    assert entries[1][1].account_label == "Visa ending 3627"
+
+
+def test_a_single_spelling_is_not_rewritten() -> None:
+    entries = [(None, _unresolved("Visa ending 4635", "only"))]
+
+    _collapse_unresolved_account_labels(entries)
+
+    assert entries[0][1].account_label == "Visa ending 4635"

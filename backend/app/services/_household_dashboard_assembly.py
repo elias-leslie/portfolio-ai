@@ -27,7 +27,7 @@ from app.portfolio.account_valuation import calculate_account_valuations
 from app.services._household_account_status import (
     fetch_closed_household_account_ids,
     fetch_hidden_household_account_ids,
-    fetch_registry_classification_overrides,
+    fetch_registry_account_overrides,
 )
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
@@ -576,7 +576,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     questions = service.list_questions(limit=25).items
     closed_household_account_ids = fetch_closed_household_account_ids(service.storage)
     hidden_household_account_ids = fetch_hidden_household_account_ids(service.storage)
-    registry_classification_overrides = fetch_registry_classification_overrides(service.storage)
+    registry_account_overrides = fetch_registry_account_overrides(service.storage)
     evidence_accounts = [
         account
         for account in service.list_evidence_accounts(limit=1000, dedupe=False)
@@ -617,7 +617,7 @@ def gather_service_data(service: Any) -> dict[str, Any]:
         "account_valuations": account_valuations,
         "account_control": account_control_result.control,
         "closed_household_account_ids": closed_household_account_ids,
-        "registry_classification_overrides": registry_classification_overrides,
+        "registry_account_overrides": registry_account_overrides,
         "hidden_household_account_ids": hidden_household_account_ids,
         "source_owned_household_account_ids": (
             account_control_result.source_owned_household_account_ids

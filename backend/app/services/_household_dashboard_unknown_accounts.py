@@ -18,6 +18,32 @@ _UNKNOWN_ACCOUNT_SQL = """
     LIMIT 500
 """
 
+# The query above finds accounts money was sent *to*. It cannot find an account
+# money was spent *from*: a card named only on a receipt never becomes a transfer
+# description. Those rows carry an account_label that failed to resolve to a
+# registry account, which is the whole signal -- five receipts naming a "Visa
+# ending 4635" mean a real card the household uses and the app has never heard of.
+# Grouping by the mask is what collapses the merchant's spelling variants
+# ("Visa Credit ****4635", "Visa credit ending 4635", "Visa ending 4635") into
+# the one account they all describe.
+_UNLINKED_ACCOUNT_LABEL_SQL = """
+    SELECT
+        t.account_label,
+        COUNT(*) AS occurrence_count,
+        MIN(t.transaction_date)::date AS first_seen,
+        MAX(t.transaction_date)::date AS last_seen
+    FROM household_transactions t
+    WHERE t.household_account_id IS NULL
+      AND COALESCE(t.account_label, '') <> ''
+      AND t.removed IS NOT TRUE
+      AND t.transaction_date <= CURRENT_DATE
+    GROUP BY t.account_label
+    ORDER BY COUNT(*) DESC, t.account_label
+    LIMIT 200
+"""
+
+_MASK_PATTERN = re.compile(r"(\d{4})(?!.*\d)")
+
 _KNOWN_INSTITUTIONS = [
     "CHASE", "AMEX", "DISCOVER", "CITI", "CAPITAL ONE", "BANK OF AMERICA",
     "AMERICAN EXPRESS", "WELLS FARGO", "BARCLAYS", "US BANK", "PNC",
@@ -179,9 +205,83 @@ def _update_detected_account(
     )
 
 
+def _detect_unlinked_spending_accounts(
+    conn: Any, known_masks: set[str]
+) -> list[dict[str, Any]]:
+    """Surface accounts the ledger spends from that resolve to no registry row."""
+    rows = conn.execute(_UNLINKED_ACCOUNT_LABEL_SQL).fetchall()
+    by_mask: dict[str, dict[str, Any]] = {}
+    for label, occurrences, first_seen, last_seen in rows:
+        text = str(label or "").strip()
+        match = _MASK_PATTERN.search(text)
+        if not match:
+            continue
+        mask = match.group(1)
+        if mask in known_masks:
+            continue
+        entry = by_mask.setdefault(
+            mask,
+            {
+                "institution": "",
+                "partial_account": mask,
+                "key": f"unlinked_{mask}",
+                "suggested_label": text,
+                "asset_group": "credit" if "credit" in text.lower() else "other",
+                "account_type": "credit_card" if "credit" in text.lower() else "other",
+                "source_type": "transaction_label",
+                "confidence": 0.55,
+                "occurrence_count": 0,
+                "spellings": set(),
+                "first_seen": first_seen,
+                "last_seen": last_seen,
+            },
+        )
+        entry["occurrence_count"] = int(entry["occurrence_count"]) + int(occurrences or 0)
+        entry["spellings"].add(text)
+        if first_seen is not None and (entry["first_seen"] is None or first_seen < entry["first_seen"]):
+            entry["first_seen"] = first_seen
+        if last_seen is not None and (entry["last_seen"] is None or last_seen > entry["last_seen"]):
+            entry["last_seen"] = last_seen
+
+    detected: list[dict[str, Any]] = []
+    for mask, entry in by_mask.items():
+        spellings = sorted(entry.pop("spellings"))
+        seen = (
+            f" between {entry['first_seen']} and {entry['last_seen']}"
+            if entry["first_seen"] and entry["last_seen"] and entry["first_seen"] != entry["last_seen"]
+            else ""
+        )
+        spelled = (
+            f" The source spells it {len(spellings)} different ways: "
+            + "; ".join(f"\u201c{name}\u201d" for name in spellings)
+            + "."
+            if len(spellings) > 1
+            else ""
+        )
+        entry.pop("first_seen", None)
+        entry.pop("last_seen", None)
+        entry["sample_description"] = spellings[0]
+        entry["detail"] = (
+            f"{entry['occurrence_count']} transaction"
+            f"{'s' if entry['occurrence_count'] != 1 else ''} were spent from an account "
+            f"ending {mask}{seen}, and it matches no account on file.{spelled} "
+            "Until it is identified these rows sit outside every account total."
+        )
+        detected.append(entry)
+    return detected
+
+
 def detect_unknown_accounts(storage: Any, documents: list[Any]) -> list[dict[str, Any]]:
     with storage.connection() as conn:
         rows = conn.execute(_UNKNOWN_ACCOUNT_SQL).fetchall()
+        known_masks = {
+            str(row[0])
+            for row in conn.execute(
+                "SELECT account_mask FROM household_accounts WHERE account_mask IS NOT NULL"
+            ).fetchall()
+            if row[0]
+        }
+        unlinked = _detect_unlinked_spending_accounts(conn, known_masks)
     known_labels, known_hints, known_entities_by_source = _known_entities(documents)
     detected: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -218,7 +318,7 @@ def detect_unknown_accounts(storage: Any, documents: list[Any]) -> list[dict[str
             confidence=confidence,
         )
     return sorted(
-        detected.values(),
+        [*detected.values(), *unlinked],
         key=lambda item: (
             -int(item.get("occurrence_count") or 0),
             -float(item.get("confidence") or 0.0),

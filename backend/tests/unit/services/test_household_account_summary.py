@@ -2611,7 +2611,7 @@ def test_an_operator_override_outranks_the_provider_account_type() -> None:
         documents=[],
         portfolio_accounts=[portfolio_account],
         tracked_accounts=[],
-        registry_classification_overrides={
+        registry_account_overrides={
             "household-529": {"asset_group": "education", "account_type": "529"}
         },
         holdings_by_account={"portfolio-529": 12500.0},
@@ -2638,7 +2638,7 @@ def test_without_an_override_the_provider_classification_still_stands() -> None:
         documents=[],
         portfolio_accounts=[portfolio_account],
         tracked_accounts=[],
-        registry_classification_overrides={
+        registry_account_overrides={
             "household-529": {"asset_group": "education", "account_type": "529"}
         },
         holdings_by_account={"portfolio-brokerage": 1000.0},
