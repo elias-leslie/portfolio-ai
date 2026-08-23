@@ -162,7 +162,14 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert dashboard.overview.last_transaction_date == "2026-03-07"
     assert dashboard.overview.net_worth_status == "unavailable"
     assert dashboard.overview.monthly_spend_status == "unavailable"
-    assert dashboard.budget_readiness.status == "ready_for_budgeting"
+    # No lane has a target the household set, so readiness cannot claim it is
+    # ready however much evidence has arrived.
+    assert dashboard.budget_readiness.status == "setup_needed"
+    assert [lane.status for lane in dashboard.budget_readiness.starter_lanes] == [
+        "Needs target",
+        "Needs target",
+        "Needs target",
+    ]
     assert dashboard.retirement_preparedness.status == "scenario_ready"
     assert dashboard.questions[0].id == "question-1"
     assert dashboard.overview.inbox_count >= 1

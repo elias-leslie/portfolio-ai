@@ -454,25 +454,58 @@ def build_overview(
     return overview, retirement, taxable, cash, total
 
 
+def _lane_status(resolved_values: list[HouseholdResolvedValue], field: str) -> str:
+    """What the household has actually decided about this lane.
+
+    "Configured" used to mean any resolved value at all, so the Lifestyle lane
+    read Configured off an inferred $4,073.26 -- which is simply the discretionary
+    spending the household already does. A cap the system copied from behaviour is
+    not a cap, and calling it one is how all three lanes reported Configured with
+    17 of 19 category caps unset.
+    """
+    for value in resolved_values:
+        if value.field_name != field or value.value is None:
+            continue
+        if value.status == "confirmed":
+            return "Configured"
+        return "Inferred from spending"
+    return "Needs target"
+
+
 def build_budget_readiness(
     *, resolved_values: list[HouseholdResolvedValue], documents: list[Any], service: Any | None = None
 ) -> BudgetReadiness:
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
     budget_inputs = _call_service_override(service, "_budget_input_status", budget_input_status, rnv, documents)
     starter_lanes = [
-        BudgetLane(name=name, objective=objective, status="Configured" if rnv(field) is not None else "Needs target")
+        BudgetLane(name=name, objective=objective, status=_lane_status(resolved_values, field))
         for name, objective, field in _LANE_CONFIGS
     ]
+    unset_lanes = [lane.name for lane in starter_lanes if lane.status != "Configured"]
+    if unset_lanes:
+        status = "partially_configured" if len(unset_lanes) < len(starter_lanes) else "setup_needed"
+        summary = (
+            f"{_spoken_lane_list(unset_lanes)} still {'has' if len(unset_lanes) == 1 else 'have'} "
+            "no target the household has set, so the plan is not one it can be held to yet."
+        )
+    elif budget_inputs["budget_ready"]:
+        status = "ready_for_budgeting"
+        summary = "Every lane has a target the household set, and evidence is arriving to monitor them against."
+    else:
+        status = "setup_needed"
+        summary = "Budgeting is one step away: define the monthly plan and keep feeding the system statements."
     return BudgetReadiness(
-        status="ready_for_budgeting" if budget_inputs["budget_ready"] else "setup_needed",
-        summary=(
-            "Jenny can enforce budget guardrails once household income targets and transaction documents are in place."
-            if budget_inputs["budget_ready"]
-            else "Budgeting is one step away: define the monthly plan and keep feeding the system statements."
-        ),
+        status=status,
+        summary=summary,
         priorities=budget_inputs["priorities"], missing_inputs=budget_inputs["missing_inputs"],
         starter_lanes=starter_lanes,
     )
+
+
+def _spoken_lane_list(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def build_retirement_preparedness(

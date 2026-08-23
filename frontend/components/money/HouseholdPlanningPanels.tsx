@@ -18,6 +18,7 @@ import type {
 } from '@/lib/api/household-planning'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { useUpdateHouseholdPlanning } from '@/lib/hooks/useHousehold'
+import { cn } from '@/lib/utils'
 import { HouseholdPlanningDocumentsCard } from './household-planning-documents-card'
 import {
   type EditableItem,
@@ -284,7 +285,14 @@ export function HouseholdPlanningPanels({
                       <p className="mt-1 text-sm text-text-muted">
                         {lane.objective}
                       </p>
-                      <p className="mt-2 text-xs uppercase tracking-wide text-primary">
+                      <p
+                        className={cn(
+                          'mt-2 text-xs uppercase tracking-wide',
+                          lane.status === 'Configured'
+                            ? 'text-primary'
+                            : 'text-warning',
+                        )}
+                      >
                         {lane.status}
                       </p>
                     </div>

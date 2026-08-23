@@ -258,14 +258,14 @@ describe('HouseholdPlanningPanels', () => {
             missingInputs: [],
             starterLanes: [
               {
-                name: 'Emergency Fund',
-                objective: 'Build 6 months of expenses',
-                status: 'in_progress',
+                name: 'Essentials',
+                objective: 'Protect fixed bills and groceries',
+                status: 'Configured',
               },
               {
-                name: 'Vacation Savings',
-                objective: 'Save for annual trips',
-                status: 'started',
+                name: 'Lifestyle',
+                objective: 'Cap shopping, dining and convenience',
+                status: 'Inferred from spending',
               },
             ],
           },
@@ -400,8 +400,14 @@ describe('HouseholdPlanningPanels', () => {
       />,
     )
 
-    expect(screen.getByText('Emergency Fund')).toBeInTheDocument()
-    expect(screen.getByText('Vacation Savings')).toBeInTheDocument()
+    expect(screen.getByText('Essentials')).toBeInTheDocument()
+    expect(screen.getByText('Lifestyle')).toBeInTheDocument()
+    // A lane whose cap was copied from the household's own spending is not
+    // configured, and must not be coloured as though it were.
+    expect(screen.getByText('Configured')).toHaveClass('text-primary')
+    expect(screen.getByText('Inferred from spending')).toHaveClass(
+      'text-warning',
+    )
     expect(
       screen.getByText('High savings rate relative to income'),
     ).toBeInTheDocument()

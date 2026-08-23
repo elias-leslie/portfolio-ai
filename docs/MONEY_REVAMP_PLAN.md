@@ -54,23 +54,21 @@ contradicts another number on screen.
 ## 2a. Next actions (live queue — work top down)
 
 **Phase 0 is complete and its exit test passes** (the table is at the end of
-§7's Phase 0 block). **Phase 1 is in progress: 1.1, 1.2, 1.3, 1.4 and 1.8 are done.**
+§7's Phase 0 block). **Phase 1 is in progress: 1.1–1.5 and 1.8 are done.**
 
 Work top down through what is left of §7 Phase 1:
 
-1. **1.5 — delete vacuous verdicts.** No `status: "on_track"` from unset inputs,
-   in `budget_snapshot`, `budget_readiness` and `retirement_contribution_tracker`.
-2. **1.6 — fix the taxonomy** (P1-7). One essentiality per category; collapse the
+1. **1.6 — fix the taxonomy** (P1-7). One essentiality per category; collapse the
    duplicate Transportation/Household/Travel series; map the Plaid leakage
    ("General Services Storage/Insurance") into the curated set. 1.3 already has
    to word-match around that leakage to decide what is a bill, which is the
    second consumer paying for the same mess.
-3. **1.7 — make exclusions visible and appealable** (P1-6): a UI surface, a
+2. **1.7 — make exclusions visible and appealable** (P1-6): a UI surface, a
    total, and a per-row override for the hardcoded list in
    `_household_spend_filters.py`.
-4. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
-5. **1.10 — show the `mixed` bucket** so needs/wants sums to 100% (P1-8).
-6. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+3. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
+4. **1.10 — show the `mixed` bucket** so needs/wants sums to 100% (P1-8).
+5. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
 
@@ -91,6 +89,10 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- P0-4 the three vacuous verdicts are gone: the budget snapshot says
+  `plan_incomplete` and names the missing target, the Lifestyle lane says
+  "Inferred from spending" instead of "Configured", and the retirement tracker
+  stops passing a $0 target against $0 contributions (1.5).
 - P0-2 Safe to Spend is now **Free to spend**, and it is cash minus what is owed:
   $30,494.75 − $88.38 bills − $1,290.32 essentials still to come − $17,287.71 on
   cards = **$11,828.34**. The card shows the subtraction, names what it could not
@@ -286,6 +288,31 @@ different verdicts in one payload.
 `budget_readiness`: `status: "ready_for_budgeting"`, all three lanes
 ("Essentials", "Lifestyle", "Savings") reported **"Configured"** — while 17 of
 19 categories have no cap at all.
+
+**RESOLVED in 1.5.** Three separate vacuous verdicts, one cause: `on_track` and
+`Configured` were both fall-through values, reached by *not* failing a check
+rather than by passing one.
+
+`budget_snapshot.status` no longer falls through. A partial plan now returns
+`plan_incomplete` and says what is missing — *"No verdict yet: the monthly plan
+has no discretionary target, so total spending of $10,085/mo cannot be judged
+against it"* — and a complete plan that the total still overruns returns
+`above_plan`, because the lanes do not have to add up to the plan and each one
+can sit under its cap while the total misses. `on_track` is now only reachable
+when a complete plan exists and the spending actually fits inside it.
+
+`budget_readiness` distinguishes a target the household **set** from one the
+system **inferred**. The Lifestyle lane read "Configured" off an inferred
+$4,073.26, which is simply the discretionary spending the household already
+does, handed back as a cap. It now reads **"Inferred from spending"**, the status
+is `partially_configured`, and the summary names the lane. The lane label is
+tinted by state rather than always rendering in the primary colour.
+
+`retirement_contribution_tracker` stops reporting `on_track` from a $0 target
+against $0 contributions. A zero target is either unset or a decision the system
+cannot record yet — D17 makes `paused` a first-class state in Phase 3 — and
+until then the tracker says *"there is nothing to measure contributions
+against"* rather than passing.
 
 ### P0-5 — Ledger totals and Budget totals differ by ~4x with no reconciliation
 
@@ -1516,7 +1543,7 @@ Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
     `cash − bills actually due − rest-of-month essentials − committed fund
     balances − card balances outstanding`. Retire the `plan_residual` constraint
     and the green "Safe" badge over a disclaimed number.
-1.5 **Delete vacuous verdicts.** No `status: "on_track"` derived from unset inputs
+1.5 ✅ **Delete vacuous verdicts.** No `status: "on_track"` derived from unset inputs
     — applies to `budget_snapshot`, `budget_readiness` ("all lanes Configured"
     with 17/19 caps unset) and `retirement_contribution_tracker` (D13).
 1.6 **Fix the taxonomy** (P1-7). One essentiality per category; collapse the
@@ -1717,3 +1744,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |
 | 2026-08-23 | Phase 1.1–1.3, 1.8 | **One month, one number, and bills that are actually bills.** 1.1/1.2: every surface now reads one canonical spend definition over **complete calendar months** — a month selector plus two fixed comparators (prior month, all-month average) replaced the 1M/3M/6M/12M chips (D3), and reversal pairing nets out the Jul 09 ↔ Jul 10 Pinellas charge that was inflating July income *and* July spend by $1,102.23 (`8e70c8136`). 1.8: statement merchants normalise, so `DIRECT DEBIT DUKEENERGY BILL PAY (Cash)` is Duke Energy and three spellings of Frontier are one merchant (`efc4ca2fb`) — which turned out to be **half of P0-3**, because a bill split across three spellings never accumulates enough sightings to prove a cadence. 1.3: the recurring detector was rebuilt on evidence rather than size. The old bar was two sightings ranked by `average_amount DESC`; the new one requires 3 sightings, a 55+ day span across 3+ calendar months, and 70% of both the gaps and the amounts inside 35% of the merchant's own median. Live result: **Frontier $34.99, Duke Energy $184.05, T-Mobile $151.58, Waste Pro $194.59 quarterly, P C Utilities $202.96 bimonthly, the declared HOA $104.13 annual**, then Netflix/Spotify/Get Fitness/YouTube Premium as subscriptions. Airbnb, Avis, Lufthansa and Costco are gone — and each fails for a different reason, which is why all three tests were needed: the Airbnb stay kept a *perfect* weekly cadence, just for a fortnight. `due_soon_bills_total` went from **$1,922 of phantom overdue vacation** to **$88.38** of four real obligations, and it stopped being computed from a truncated top-six list. P C Utilities is bimonthly rather than rounded to quarterly, which would have under-funded its sinking fund by a third. Gate green at each commit; 2442 backend tests, 232 frontend money tests. |
 | 2026-08-23 | Phase 1.4 | **Safe to Spend became Free to spend, and it is now arithmetic on money.** The old figure was $1,283 and its binding constraint was `plan_residual` — monthly income *target* minus monthly plan *total* — so neither the $30,494.75 in the CMA nor the $17,287.71 owed across three Sapphires ever reached it, and a green **Safe** badge sat over a number the card disclaimed in the same breath. The check is now `cash − bills due − essentials still to come − sinking-fund balances − card balances`, shown as the full subtraction so the reader can check it: **30,494.75 − 88.38 − 1,290.32 − 0 − 17,287.71 = $11,828.34**. Four judgment calls are recorded in P0-2: the horizon is the rest of the month *or* the next fortnight, whichever reaches further (ask on the 30th and a pure month frame hides next week's bills); essentials still to come is the larger of what is left of the baseline and the remaining days at the baseline's own daily rate (August's $5,000 was already spent by the 23rd, and 'nothing left to buy' with eight days of groceries ahead is false); the result is **not floored at zero**, because a household that cannot cover what it owes needs the size of the hole; and inputs the system does not have are **named** rather than treated as zero — sinking-fund balances have no home until D7 lands in Phase 3, so the card says so. `plan_residual` and `discretionary_cap` are retired, `cash_after_commitments` is the only constraint left, and the status can be estimate, tight, hold or review — never *safe*. |
+| 2026-08-23 | Phase 1.5 | **Three green verdicts deleted, one cause between them.** `on_track` and `Configured` were both *fall-through* values — reached by not failing a check rather than by passing one. `budget_snapshot.status` said `on_track` in the same payload as `pace_status: partial_plan` and `actual_monthly_spend 10,085` against a `monthly_plan_total 5,000`; it now returns **`plan_incomplete`** and says why (*"the monthly plan has no discretionary target, so total spending of $10,085/mo cannot be judged against it"*), or **`above_plan`** when a complete plan is overrun on the total even though every lane is individually inside its cap. `budget_readiness` reported all three lanes **Configured** with 17/19 category caps unset, because "Configured" meant *any* resolved value — and Lifestyle's was an inferred $4,073.26, which is just the discretionary spending the household already does, handed back as a cap. Lanes now distinguish set from inferred (**"Inferred from spending"**, status `partially_configured`, summary naming the lane, label tinted by state). `retirement_contribution_tracker` stops reporting `on_track` from a $0 target against $0 contributions (D13's defect) — a zero target is unset or paused, and D17 makes `paused` first-class in Phase 3. All three verified live on the running backend. |

@@ -13,6 +13,7 @@ from app.models.household_finance import (
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_recurring_commitment,
+    build_retirement_contribution_tracker,
 )
 from app.services._household_recurrence import (
     CADENCE_DAYS,
@@ -212,6 +213,78 @@ def test_full_plan_still_paces_against_total() -> None:
     assert snapshot.plan_is_partial is False
     assert snapshot.missing_plan_components == []
     assert snapshot.pace_status != "partial_plan"
+
+
+def test_a_partial_plan_gets_no_verdict_at_all_rather_than_on_track() -> None:
+    """Two verdicts in one payload, and one of them came from nothing.
+
+    ``status: on_track`` was the fall-through for every case the lane checks did
+    not catch -- including "the targets are not set" -- so it sat next to
+    ``pace_status: partial_plan`` and an average spend well over the plan total.
+    """
+    snapshot = build_budget_snapshot(
+        profile=_profile_for_pace(essential=5000, discretionary=None, savings=None),
+        reports=_reports_for_pace(),
+        month_to_date_spend=7342,
+    )
+
+    assert snapshot.status == "plan_incomplete"
+    assert "discretionary or savings" in snapshot.summary
+    assert "6,100" in snapshot.summary
+
+
+def test_spending_over_a_complete_plan_is_not_on_track_even_with_every_lane_inside() -> None:
+    """$6,100 a month against a $5,600 plan is not inside the guardrails.
+
+    Each lane can sit under its own cap while the total still misses, because the
+    lanes do not have to add up to the plan.
+    """
+    snapshot = build_budget_snapshot(
+        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=-900),
+        reports=_reports_for_pace(),
+        month_to_date_spend=3000,
+    )
+
+    assert snapshot.monthly_plan_total == 5600
+    assert snapshot.status == "above_plan"
+    assert "not holding" in snapshot.summary
+
+
+def test_a_plan_the_spending_fits_inside_is_still_allowed_to_say_so() -> None:
+    snapshot = build_budget_snapshot(
+        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=1500),
+        reports=_reports_for_pace(),
+        month_to_date_spend=3000,
+    )
+
+    assert snapshot.status == "on_track"
+
+
+def test_a_zero_savings_target_is_not_evidence_that_saving_is_on_track() -> None:
+    """Zero trivially keeps up with zero.
+
+    The tracker reported ``on_track`` with a $0 target, $0 contributions and a $0
+    gap, over the sentence "Recent retirement contributions are keeping up with
+    the savings target".
+    """
+    tracker = build_retirement_contribution_tracker(
+        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=0.0),
+        estimated_monthly_contributions=0.0,
+    )
+
+    assert tracker.status == "target_missing"
+    assert tracker.monthly_target is None
+    assert "nothing to measure" in tracker.detail
+
+
+def test_a_real_savings_target_is_still_measured() -> None:
+    tracker = build_retirement_contribution_tracker(
+        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=800.0),
+        estimated_monthly_contributions=900.0,
+    )
+
+    assert tracker.status == "on_track"
+    assert tracker.monthly_gap == 0.0
 
 
 def _commitment(*, average_amount: float, days_until_due: int | None) -> HouseholdRecurringCommitment:
