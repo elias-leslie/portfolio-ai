@@ -537,6 +537,105 @@ def mark_review_failed(
     conn.commit()
 
 
+def settle_document_recovered_without_source(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    now: str,
+) -> int:
+    """Close a document whose source file is gone but whose spend is applied.
+
+    ``mark_review_failed`` leaves every unreadable document saying "Re-upload or
+    add more context." For a document whose file has since vanished from disk
+    that instruction is wrong twice over: there is nothing left to re-upload,
+    and its transactions are already in the ledger, so acting on it invites a
+    second copy of money that is counted once. The recovery pass proves the
+    spend applied before calling this; the row count in the message is read back
+    from the ledger here rather than passed in, so the reassurance and the
+    evidence for it cannot drift apart.
+    """
+    counted = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM household_transactions
+        WHERE document_id = %s AND removed IS NOT TRUE
+        """,
+        [document_id],
+    ).fetchone()
+    transactions_verified = int(counted[0]) if counted else 0
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET status = 'parsed', review_status = 'complete',
+            review_summary = %s, parsed_at = %s,
+            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+        WHERE id = %s
+        """,
+        [
+            (
+                "The original file is no longer on disk, so this document cannot be "
+                f"re-read. Its {transactions_verified} transaction(s) are in the "
+                "ledger already, so nothing is missing and there is nothing to "
+                "re-upload."
+            ),
+            now,
+            json.dumps(
+                {
+                    "recovered_without_source": {
+                        "at": now,
+                        "transactions_verified": transactions_verified,
+                        "reason": "source_file_missing_spend_already_applied",
+                    }
+                }
+            ),
+            document_id,
+        ],
+    )
+    return transactions_verified
+
+
+def mark_document_source_missing(
+    conn: DatabaseConnection,
+    *,
+    document_id: str,
+    now: str,
+) -> None:
+    """Say plainly that a document's file is gone and nothing of it landed.
+
+    This is the other half of :func:`settle_document_recovered_without_source`.
+    There the spend was already applied, so the document could leave the queue.
+    Here nothing applied and the file cannot be re-read, so the household really
+    does have to upload it again -- but "Jenny could not finish reviewing this
+    document yet" does not tell them that, and a review that can never succeed
+    will be retried on every maintenance pass without ever changing the message.
+    """
+    conn.execute(
+        """
+        UPDATE household_documents
+        SET review_summary = %s, parsed_at = %s,
+            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+        WHERE id = %s
+        """,
+        [
+            (
+                "The original file is no longer on disk and nothing from it reached "
+                "the ledger, so it cannot be recovered here. Upload it again to "
+                "capture it."
+            ),
+            now,
+            json.dumps(
+                {
+                    "source_missing": {
+                        "at": now,
+                        "reason": "source_file_missing_nothing_applied",
+                    }
+                }
+            ),
+            document_id,
+        ],
+    )
+
+
 def dismiss_open_document_questions(
     conn: DatabaseConnection,
     *,

@@ -9,7 +9,11 @@ from app.logging_config import get_logger
 from app.models.household_finance import (
     HouseholdFinanceDashboard,
 )
-from app.services._household_document_pipeline_db import update_document_application_summary
+from app.services._household_document_pipeline_db import (
+    mark_document_source_missing,
+    settle_document_recovered_without_source,
+    update_document_application_summary,
+)
 from app.services._jenny_review_notifications import (
     resolve_superseded_notifications,
     upsert_notification,
@@ -182,6 +186,7 @@ class JennyHouseholdMaintenanceService:
                 if self._recover_document_without_source(service, str(document_id)):
                     recovered += 1
                     continue
+                self._report_missing_source(service, str(document_id))
                 missing_source += 1
                 continue
             attempted += 1
@@ -202,6 +207,16 @@ class JennyHouseholdMaintenanceService:
             "missing_source": missing_source,
             "unresolved": unresolved,
         }
+
+    @staticmethod
+    def _report_missing_source(service: Any, document_id: str) -> None:
+        with service.storage.connection() as conn:
+            mark_document_source_missing(
+                conn,
+                document_id=document_id,
+                now=datetime.now(UTC).isoformat(),
+            )
+            conn.commit()
 
     def _recover_document_without_source(self, service: Any, document_id: str) -> bool:
         service.household_service.review_document(document_id)
@@ -251,6 +266,15 @@ class JennyHouseholdMaintenanceService:
                     "ambiguity_remaining": False,
                     "issues": [],
                 },
+            )
+            # The summary above is only half the recovery. Leaving the document
+            # at needs_review keeps a permanent false alarm in the queue that
+            # asks the household to re-upload a file that no longer exists and
+            # whose money is already counted.
+            settle_document_recovered_without_source(
+                conn,
+                document_id=document_id,
+                now=datetime.now(UTC).isoformat(),
             )
             conn.commit()
         return True
