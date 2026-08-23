@@ -18,7 +18,10 @@ from app.services._household_transaction_parsers import (
     parse_ofx_transactions,
     parse_wells_fargo_statement,
 )
-from app.services.household_transaction_service import HouseholdTransactionService
+from app.services.household_transaction_service import (
+    HouseholdTransactionService,
+    _undated_receipt_reason,
+)
 
 
 class _FakeConnection:
@@ -1755,3 +1758,64 @@ def test_a_declaration_with_no_label_is_not_treated_as_an_answer() -> None:
 
     assert cadence is not None
     assert cadence["label"] == "likely monthly"
+
+
+def test_a_receipt_that_cannot_be_dated_is_held_rather_than_dropped() -> None:
+    """Silence was the old answer, and it is the worst one.
+
+    A receipt describing two orders with no purchase dates produced zero
+    transactions, no warning, and a document reported as applied while none of
+    its spend was recorded. Guessing is worse still -- a May purchase filed under
+    the day the file was opened is what makes a month's review wrong.
+    """
+    reason = _undated_receipt_reason(
+        source_type="receipt",
+        structured_data={
+            "merchant": "Some Market",
+            "total_amount": "313.20",
+            "transactions": [{"line_items": []}, {"line_items": []}],
+        },
+    )
+
+    assert reason is not None
+    assert "2 orders" in reason
+    assert "2 of them carry no purchase date" in reason
+
+
+def test_a_receipt_with_a_readable_date_needs_no_explanation() -> None:
+    assert (
+        _undated_receipt_reason(
+            source_type="receipt",
+            structured_data={
+                "merchant": "Some Market",
+                "total_amount": "54.06",
+                "statement_period": "2026-08-17",
+            },
+        )
+        is None
+    )
+
+
+def test_a_receipt_with_a_total_and_no_date_at_all_is_explained() -> None:
+    reason = _undated_receipt_reason(
+        source_type="receipt",
+        structured_data={"merchant": "Some Market", "total_amount": "54.06"},
+    )
+
+    assert reason is not None
+    assert "no purchase date" in reason
+
+
+def test_a_statement_is_not_a_receipt_and_is_left_alone() -> None:
+    """Only receipts are explained here; a bank statement has its own paths."""
+    assert (
+        _undated_receipt_reason(
+            source_type="bank",
+            structured_data={"merchant": "Some Bank", "total_amount": "100.00"},
+        )
+        is None
+    )
+
+
+def test_a_document_with_no_total_has_nothing_to_explain() -> None:
+    assert _undated_receipt_reason(source_type="receipt", structured_data={}) is None

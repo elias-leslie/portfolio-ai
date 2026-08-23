@@ -184,6 +184,45 @@ def _needs_category_review(
 # ---------------------------------------------------------------------------
 
 
+def _undated_receipt_reason(
+    *,
+    source_type: str,
+    structured_data: dict[str, Any],
+) -> str | None:
+    """Say why a receipt produced no spend, when it plainly describes some.
+
+    Returns None when there is nothing to explain -- a document that is not a
+    receipt, or one that carried no total to begin with.
+    """
+    if source_type != "receipt":
+        return None
+    if not structured_data.get("merchant"):
+        return None
+    raw_orders = structured_data.get("transactions")
+    orders = raw_orders if isinstance(raw_orders, list) else []
+    order_count = len(orders)
+    if order_count:
+        undated = sum(
+            1
+            for order in orders
+            if isinstance(order, dict) and not order.get("date")
+        )
+        if undated:
+            return (
+                f"The receipt describes {order_count} order"
+                f"{'s' if order_count != 1 else ''}, and {undated} of them carry no "
+                "purchase date. Booking them on the day the file was read would "
+                "put the spend in the wrong month."
+            )
+        return None
+    if structured_data.get("total_amount") and not structured_data.get("statement_period"):
+        return (
+            "The receipt carries a total but no purchase date, so there is no "
+            "honest month to record it in."
+        )
+    return None
+
+
 class HouseholdTransactionService:
     """Persist normalized household transactions and generate reporting views."""
 
@@ -221,6 +260,24 @@ class HouseholdTransactionService:
             stored_path=stored_path,
         )
         if not transactions:
+            undated = _undated_receipt_reason(
+                source_type=str(reviewed.get("source_type") or document.source_type),
+                structured_data=structured_data,
+            )
+            if undated is not None:
+                # A receipt that carries a merchant and a total but no readable
+                # purchase date used to end here as silence: zero transactions,
+                # no warning, and a document reported as applied while none of
+                # its spend was recorded. Guessing the date is worse -- a May
+                # purchase filed under the day the file happened to be opened is
+                # what makes a month's review wrong -- so it is held instead.
+                self._hold_undated_receipt(document=document, reason=undated)
+                logger.warning(
+                    "household_receipt_held_without_a_date",
+                    document_id=document.id,
+                    reason=undated,
+                )
+                return {"inserted": 0, "updated": 0, "held_for_date_review": 1}
             return {"inserted": 0, "updated": 0}
 
         today = datetime.now(UTC).date()
@@ -507,6 +564,42 @@ class HouseholdTransactionService:
             "deduplicated": deduplicated,
             "held_for_date_review": len(date_issues),
         }
+
+    def _hold_undated_receipt(self, *, document: Any, reason: str) -> None:
+        """Record the hold on the document so the review surfaces show it.
+
+        This reuses the date-quality channel the future-dated holds already use,
+        so a receipt with no date and a receipt with an impossible date arrive in
+        the same queue rather than one of them arriving nowhere.
+        """
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE household_documents
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE id = %s
+                """,
+                [
+                    json.dumps(
+                        {
+                            "transaction_import_summary": {
+                                "inserted": 0,
+                                "updated": 0,
+                                "deleted": 0,
+                                "held_for_date_review": 1,
+                            },
+                            "date_quality_summary": {
+                                "status": "needs_review",
+                                "future_transaction_count": 0,
+                                "future_transactions": [],
+                                "undated_receipt_reason": reason,
+                            },
+                        }
+                    ),
+                    document.id,
+                ],
+            )
+            conn.commit()
 
     def backfill_from_latest_reviews(self, *, limit: int = 24) -> dict[str, int]:
         with self.storage.connection() as conn:

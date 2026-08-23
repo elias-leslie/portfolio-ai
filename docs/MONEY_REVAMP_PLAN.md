@@ -1,6 +1,7 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASE 0 IN FLIGHT — 14 of 16 tasks landed, 1 partial, 1 open.
+**Status:** PHASE 0 IN FLIGHT — 15 of 16 tasks landed, 1 open (0.13, the
+13 staged receipts, which waits on the Costco/Walmart order-page parser).
 Nothing is blocked on the household. Phase 1 has not started.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
@@ -54,33 +55,35 @@ contradicts another number on screen.
 Ordered by what most changes the number the household sits down to review.
 Each item names where the evidence is. Re-order this list when you finish one.
 
-1. **Finish 0.3 — make the identity override reach every read path.**
-   The ledger's account filter offers `Visa Credit ****4635`,
-   `Visa credit ending 4635` and `Visa ending 4635` as three accounts; the
-   registry has them merged. `account_options` is built from raw
-   `account_label`, not the registry. Account summaries show provider labels
-   (`Individual - 529`, no mask) instead of registry ones. Same defect class as
-   P0-29, one field over, and the fix has the same shape — thread the override
-   through the read path. **Start with the ledger filter: it is what the
-   household actually touches.**
+1. **Clear the review inbox — 17 documents sit at `needs_review`.** They are
+   not one problem, they are four:
+   - **12 receipts** (8 Walmart order pages, 4 Costco order pages, all staged
+     2026-08-22). These are 0.13. The Costco parser is Phase 4.2; the Walmart
+     order pages need one dated transaction per order (see P0-27). Until a
+     parser reads their dates they must stay held, not guessed.
+   - **`Order History.csv`** — correctly reports "nothing new" (its rows are
+     already in the feed). Needs a **Reject** to leave the queue.
+   - **`image.png`** (brokerage, staged 2026-03-12) — unexamined.
+   - **4 Wells Fargo statements** (Jan/Feb 2026) whose date quality is `clear`
+     and whose import summary says **`inserted: 0`**. A bank statement that
+     parses to zero transactions is the same silence P0-27 closed for receipts,
+     one source type over. **Look here first — it is the only one of the four
+     that is a live defect rather than a known parser gap.**
 
-2. **Fix P0-27 — the receipt parser dates purchases to the day it processed
-   them, and merges several orders into one row.** `$313.20` on 2026-06-13 is
-   provably two May orders ($174.98 on 5/22 + $138.22 on 5/28), and its $138.22
-   leg is already counted from the card feed. Emit one transaction per order,
-   date it from the page, and hold for review rather than falling back to
-   today. This also unblocks **0.13** (13 staged receipts) alongside the Costco
-   parser in Phase 4.2.
+2. **Then run the Phase 0 exit test** (§7, below) and record the result here.
 
-3. **Clear the review inbox.** 17 documents sit at `needs_review`, including the
-   Amazon `Order History.csv` that now correctly reports "nothing new" — that
-   one needs a Reject to clear. Reviewing the rest will surface more parser
-   defects; expect them, record them here.
-
-4. **Then start Phase 1.** Everything above is data repair. Phase 1 is the one
+3. **Then start Phase 1.** Everything above is data repair. Phase 1 is the one
    trustworthy number pipeline — the reason five panels give four different
-   answers to "what did we spend." Phase 0's exit test is below; check it before
-   starting.
+   answers to "what did we spend."
+
+**Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 0.3 identity override now reaches every read path — the ledger filter offers
+  8 accounts, not 10, and the three spellings of `Visa Credit ****4635` are one
+  (`3391408e4`).
+- P0-27 receipt dating — the four mis-dated rows are retired and the silent
+  drop is now a hold (see the finding below).
+- 0.14 receipt↔card-feed reconciliation — 6 receipts / $677.20 retired against
+  7 charges, line items carried to the surviving charge (`b5094ec5a`).
 
 **Known-but-deliberately-deferred** (do not treat as bugs to fix on sight):
 - **P0-3** the recurring detector's *inferred* labels remain wrong — Costco reads
@@ -406,39 +409,47 @@ so either the charge is not monthly or later months were dropped.
 
 ---
 
-### P0-27 — The receipt parser dates a purchase to the day it was processed, and merges several orders into one row
+### P0-27 — Four receipt rows were dated to the day their file was read, and one was two orders added together
 
-Reconciling receipts against the card feed (0.14) exposed a defect underneath it.
-Three live Walmart receipt rows all carry `2026-06-13` — the day they were
-processed — and their own summaries say otherwise:
+**[fixed — data retired; the silent path closed]**
 
-- `$313.20` — *"two grocery orders (May 20, 2026 and May 26, 2026)"*. The feed
-  has `$174.98` on 2026-05-22 and `$138.22` on 2026-05-28. **$174.98 + $138.22 =
-  $313.20.** One row is standing in for two separate orders, five weeks earlier.
-- `$162.23` — *"two Walmart grocery receipts from May 2026"*. Same shape; it does
-  not decompose against the Walmart feed rows, so at least one leg is missing.
-- `$170.81` — a single order, but the feed carries exactly `$170.81` on
-  2026-06-04, nine days before the date on the row.
+Reconciling receipts against the card feed (0.14) exposed four rows whose
+`transaction_date` equalled their document's **upload date** while their own
+summaries named a different month:
 
-A Costco row shows the same fault: dated `2026-08-22`, summary says *"purchases
-dated 2026-08-10"*.
+- `$313.20` dated 2026-06-13 — *"two grocery orders (May 20, 2026 and May 26,
+  2026)"*. The feed has `$174.98` on 2026-05-22 and `$138.22` on 2026-05-28.
+  **$174.98 + $138.22 = $313.20.** One row stood for two orders five weeks
+  earlier, and its $138.22 leg was already counted from the feed.
+- `$162.23` dated 2026-06-13 — *"two Walmart grocery receipts from May 2026"*.
+- `$170.81` dated 2026-06-13 — a single order; the feed carries exactly $170.81
+  on 2026-06-04.
+- `$133.70` dated 2026-08-22 — *"purchases dated 2026-08-10"*.
 
-Two consequences, both live:
+**The current parser no longer produces these.** Replaying the $313.20
+document's structured data through `extract_transactions` today yields **zero**
+transactions: the review returned two orders with 19 and 27 line items, all with
+`date`, `amount` and `merchant` null, so structured extraction skips them and
+the summary fallback finds no date either. The rows are residue from an older
+path.
 
-1. **Double counting that reconciliation cannot reach.** The $138.22 leg of the
-   $313.20 row was already matched and retired on its own; the aggregate row
-   still carries it. Widening the match window to cover a nine-day gap would
-   start absorbing unrelated charges, so this cannot be fixed downstream.
-2. **Months are wrong.** May spending lands in June, and August spending lands
-   on whatever day the file was opened — which is precisely the number the
-   household is meant to sit down and review.
+But zero was its own defect — **silence**. A receipt naming a merchant, a total
+and two orders produced no spend, no warning, and a document reported as applied
+while none of its money was recorded. Guessing a date is worse (that is what
+made these four wrong), so the receipt is now **held**: the reason is written to
+the document's `date_quality_summary` alongside the future-dated holds, and a
+`household_receipt_held_without_a_date` warning is logged. The held reason reads
+*"The receipt describes 2 orders, and 2 of them carry no purchase date. Booking
+them on the day the file was read would put the spend in the wrong month."*
 
-Fix belongs in Phase 4.2 with the Costco parser: emit **one transaction per
-order**, dated by the **order date on the page**, and refuse to fall back to
-`now()` — a receipt whose date cannot be read should be held for review, not
-booked on today.
+The four stale rows are retired — `removed = TRUE` with
+`metadata.date_quality.reason = "dated_to_the_day_the_file_was_read"`, never
+deleted, and their documents stay in the queue to be re-read. Live receipt rows:
+15 → 5, and every one of the 5 is genuinely pre-feed or genuinely unmatched.
 
----
+**Remaining, and it belongs with the Costco parser in Phase 4.2 (0.13):** teach
+the review to read `"May 20, 2026 order"` off a Walmart order page and emit one
+dated transaction per order. Until then those receipts hold instead of lying.
 
 ### P0-28 — An annual bill could not be a recurring commitment at any confidence
 
@@ -1496,4 +1507,5 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Phase 0 | Both Sapphire cards connected (P0-20 closed): `·3627` Elias, `·8054` Mariana on a second Chase item. The AC replacement is **split across both cards** — $5,831.50 + $5,801.50 on 2026-07-23 — clearing both $5,000 minimum spends with one purchase. `household_credit_cards` seeded with three rows; both welcome bonuses compute as `earned` from the ledger; the $95 annual fee posted 2026-08-02 on both, so the next one is 2027-08-02. Chase reports both cards as `Ultimate Rewards®`, so the registry gained an `identity_override` (label + owner) that survives evidence refresh, mirroring the classification override. The Cards tab had the same problem one level up — it rendered both Sapphires as the same row twice — so a card row now carries its account's owner and last four. MSR progress now excludes the issuer's own fees — the annual fee was counting as qualifying spend. The 63% `removed` rate was investigated and cleared: 11 true orphans, nine of them Plaid pending holds. |
 | 2026-08-22 | Phase 0 cont. 2 | Three household answers landed and each exposed a defect underneath it. **HOA is annual** (0.11) — but `annual` was not a cadence the system had (**P0-28**): it was absent from `_RECURRING_CADENCES`, the multiplier and next-date tables, and the recurring query required two sightings, which six months of coverage can never show for a yearly bill. Added `annual`, added a merchant `cadence_override` that outranks inference (`scripts/household_declare_cadence.py`), and admitted declared merchants on one sighting. HOA now reports annual, $104.13, next 2027-02-17, confidence 1.0, recategorised `Bills` → `Home` with a merchant rule. **No delivery at Aldi/Amazon/Publix/Walmart** (0.12) — all four now carry a known $0 pickup fee with delivery deliberately unset, so "unset" means *not used* rather than *not yet asked*. **Fidelity 529s** (0.4) — the "no balance" diagnosis was wrong: SnapTrade had $14,929.22 for each all along, and the dashboard was filing them under taxable because the account summary read the *provider's* account type while the registry's `classification_override` was only ever read back inside the registry (**P0-29**). Education $6,793.17 → **$36,651.61**, taxable $635,774.29 → $605,915.85, net worth unchanged — proof it was a reclassification, not a revaluation. Also read the source PDF and retired D20's data-quality flag: the identical $14,363.57 is real (both accounts hold the same 177.153 CWIAX shares), not an extraction error. |
 | 2026-08-22 | Phase 0 cont. | Receipts stopped double-counting the card feed (0.14): a new reconciliation pass retires a receipt whose spend the feed already carries, matching a **set** of charges rather than a twin — the $54.06 Walmart receipt is the $50.48 + $3.58 pair. Six receipts / $677.20 retired against seven charges, idempotent on a second pass, audit blob on every retired row. The same pass detects a receipt uploaded twice as two different files, on identical line items rather than a matching total. CSV imports fixed and made legible (0.15): a byte-order mark was silently voiding an entire Amazon export, and the review proposal now states rows-in-file / new / already-known / date range before approval. 0.3a and 0.10 closed by household answers (two separate closed Wells Fargo accounts; property tax paid at the 4% November discount). New finding **P0-27** — the receipt parser dates purchases to the day they were processed and merges several orders into one row; $313.20 is provably two May orders, and its $138.22 leg is already counted elsewhere. Fix lands in Phase 4.2. |
+| 2026-08-22 | Phase 0 cont. 3 | **P0-27 re-diagnosed by reproduction, and it was not what the finding said.** Replaying the $313.20 document's structured data through the current `extract_transactions` yields **zero** transactions, not a mis-dated one: the review returns two orders whose `date`, `amount` and `merchant` are all null, structured extraction skips them, and the summary fallback finds no date either. The mis-dated rows are residue from an older path — every one of the four had `transaction_date` exactly equal to its document's upload date. So the live defect was **silence**: a receipt naming a merchant, a total and two orders produced no spend, no warning, and a document reported as applied. A receipt with no readable purchase date is now **held** — reason written to `date_quality_summary` beside the future-dated holds, `household_receipt_held_without_a_date` logged — because guessing the date is what made the four wrong in the first place. The four stale rows are retired (`removed`, never deleted) with `metadata.date_quality.reason = dated_to_the_day_the_file_was_read`; live receipt rows 15 → 5. Teaching the parser to read `"May 20, 2026 order"` off a Walmart order page stays with the Costco parser in Phase 4.2. |
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |
