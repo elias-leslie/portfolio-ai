@@ -642,6 +642,7 @@ def _build_portfolio_summary(
     source_owned_household_account_ids: set[str],
     source_owned_account_values: dict[str, dict[str, Any]],
     registry_account_overrides: dict[str, dict[str, str]] | None = None,
+    registry_account_masks: dict[str, str] | None = None,
     holdings_by_account: dict[str, float],
 ) -> HouseholdAccountSummary:
     portfolio_valuation = account_valuations.get(account.id)
@@ -662,6 +663,12 @@ def _build_portfolio_summary(
         str(override.get("label") or "") if override else ""
     ) or _portfolio_label(account)
     effective_mask = str(override.get("account_mask") or "") if override else ""
+    if not effective_mask and portfolio_household_account_id is not None:
+        # No operator typed this; the registry already recorded it at sync time.
+        # Filling an empty field is not renaming an account.
+        effective_mask = str(
+            (registry_account_masks or {}).get(str(portfolio_household_account_id)) or ""
+        )
     effective_owner = str(override.get("owner_name") or "") if override else ""
 
     source_owned = (
@@ -1045,6 +1052,7 @@ def build_account_summaries(
     closed_household_account_ids: set[str] | None = None,
     hidden_household_account_ids: set[str] | None = None,
     registry_account_overrides: dict[str, dict[str, str]] | None = None,
+    registry_account_masks: dict[str, str] | None = None,
     holdings_by_account: dict[str, float],
     statement_freshness: dict[str, Any],
     latest_transaction_dates_by_household_account: dict[str, date] | None = None,
@@ -1057,6 +1065,7 @@ def build_account_summaries(
     closed_household_account_ids = closed_household_account_ids or set()
     hidden_household_account_ids = hidden_household_account_ids or set()
     registry_account_overrides = registry_account_overrides or {}
+    registry_account_masks = registry_account_masks or {}
     latest_transaction_dates_by_household_account = latest_transaction_dates_by_household_account or {}
     latest_transaction_dates_by_document = latest_transaction_dates_by_document or {}
     latest_transaction_dates_by_account_label = latest_transaction_dates_by_account_label or {}
@@ -1149,6 +1158,7 @@ def build_account_summaries(
                 source_owned_household_account_ids=source_owned_household_account_ids,
                 source_owned_account_values=source_owned_account_values,
                 registry_account_overrides=registry_account_overrides,
+                registry_account_masks=registry_account_masks,
                 holdings_by_account=holdings_by_account,
             )
         )
@@ -1161,6 +1171,8 @@ def build_account_summaries(
             continue
         summaries.append(_build_tracked_summary(account, portfolio_account))
 
+    _disambiguate_shared_labels(summaries)
+
     duplicate_ids = {
         summary_id
         for ids in duplicate_candidates.values()
@@ -1168,6 +1180,37 @@ def build_account_summaries(
         for summary_id in ids
     }
     return _finalize_summaries(summaries, documents_by_id, statement_freshness, duplicate_ids)
+
+
+def _disambiguate_shared_labels(summaries: list[HouseholdAccountSummary]) -> None:
+    """Append the mask where two accounts would otherwise render the same name.
+
+    The household holds two Fidelity rollover IRAs and SnapTrade calls both of
+    them "Rollover IRA". Side by side one shows $8,428 and the other shows
+    nothing, and the list gives no way to tell which is which -- the same shape
+    of problem as the two Chase Sapphire cards both reported as "Ultimate
+    Rewards", which had to be corrected by hand one account at a time.
+
+    Only labels that actually collide are touched, and only with a mask the
+    account already carries, so an account whose name is unique keeps exactly
+    the name the provider or the operator gave it. A colliding account with no
+    mask is left alone rather than given a made-up suffix.
+    """
+    by_label: defaultdict[str, list[HouseholdAccountSummary]] = defaultdict(list)
+    for summary in summaries:
+        label = (summary.label or "").strip()
+        if label:
+            by_label[label.casefold()].append(summary)
+    for shared in by_label.values():
+        if len(shared) < 2:
+            continue
+        masks = {(summary.account_mask or "").strip() for summary in shared}
+        if "" in masks or len(masks) < len(shared):
+            # Either an account cannot be told apart this way, or the masks
+            # repeat and would not distinguish anything.
+            continue
+        for summary in shared:
+            summary.label = f"{summary.label} ·{summary.account_mask}"
 
 
 def _track_duplicate_candidate(

@@ -101,6 +101,31 @@ def fetch_registry_account_overrides(storage: Any) -> dict[str, dict[str, str]]:
     return overrides
 
 
+def fetch_registry_account_masks(storage: Any) -> dict[str, str]:
+    """Return the last four the registry already knows for each account.
+
+    This is not an override -- nothing here contradicts a provider. It exists
+    because two accounts can arrive under one provider name: the household holds
+    two Fidelity rollover IRAs, and SnapTrade calls both of them "Rollover IRA".
+    Rendered side by side, one shows a balance and the other shows nothing, and
+    there is no way to tell which is which.
+
+    The mask is used only to tell two identically-named accounts apart, never to
+    rename an account whose name is already unique.
+    """
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id::text, account_mask
+            FROM household_accounts
+            WHERE account_mask IS NOT NULL
+              AND account_mask <> ''
+              AND archived_at IS NULL
+            """
+        ).fetchall()
+    return {str(row[0]): str(row[1]) for row in rows if row[0] and row[1]}
+
+
 def fetch_hidden_household_account_ids(storage: Any) -> set[str]:
     """Return canonical accounts the user removed from active Money views."""
     with storage.connection() as conn:

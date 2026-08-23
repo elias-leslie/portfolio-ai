@@ -272,6 +272,10 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
             "app.services._household_dashboard_assembly.fetch_registry_account_overrides",
             return_value={},
         ),
+        patch(
+            "app.services._household_dashboard_assembly.fetch_registry_account_masks",
+            return_value={},
+        ),
     ):
         gather_service_data(service)
 

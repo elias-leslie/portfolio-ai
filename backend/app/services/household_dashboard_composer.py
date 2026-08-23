@@ -86,6 +86,7 @@ class HouseholdDashboardComposer:
             source_owned_account_values=d["source_owned_account_values"],
             closed_household_account_ids=d["closed_household_account_ids"],
             registry_account_overrides=d["registry_account_overrides"],
+            registry_account_masks=d["registry_account_masks"],
             hidden_household_account_ids=d["hidden_household_account_ids"],
             holdings_by_account=d["holdings_by_account"],
             statement_freshness=freshness,

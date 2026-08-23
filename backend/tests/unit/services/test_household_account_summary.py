@@ -2648,3 +2648,126 @@ def test_without_an_override_the_provider_classification_still_stands() -> None:
     assert len(summaries) == 1
     assert summaries[0].asset_group == "taxable"
     assert summaries[0].account_type == "Taxable"
+
+
+def test_two_accounts_the_provider_names_identically_are_told_apart_by_mask() -> None:
+    """The household holds two rollover IRAs and SnapTrade calls both the same.
+
+    Side by side the list showed "Rollover IRA" twice -- one with a balance, one
+    empty -- and nothing said which was which. The registry already recorded
+    both masks at sync time, so nothing has to be corrected by hand.
+    """
+    summaries = build_account_summaries(
+        evidence_accounts=[],
+        documents=[],
+        portfolio_accounts=[
+            Account(
+                id="portfolio-rollover-a",
+                name="Rollover IRA",
+                account_type="IRA",
+                cash_balance=0.0,
+                household_account_id="household-rollover-a",
+            ),
+            Account(
+                id="portfolio-rollover-b",
+                name="Rollover IRA",
+                account_type="IRA",
+                cash_balance=0.0,
+                household_account_id="household-rollover-b",
+            ),
+        ],
+        tracked_accounts=[],
+        registry_account_masks={
+            "household-rollover-a": "2283",
+            "household-rollover-b": "8698",
+        },
+        holdings_by_account={"portfolio-rollover-a": 0.0, "portfolio-rollover-b": 9529.61},
+        statement_freshness={"coverage_months": 0, "gap_months": []},
+    )
+
+    assert sorted(summary.label for summary in summaries) == [
+        "Rollover IRA ·2283",
+        "Rollover IRA ·8698",
+    ]
+
+
+def test_an_account_whose_name_is_already_unique_keeps_its_name() -> None:
+    """Filling an empty mask field is allowed; renaming an account is not."""
+    summaries = build_account_summaries(
+        evidence_accounts=[],
+        documents=[],
+        portfolio_accounts=[
+            Account(
+                id="portfolio-tod",
+                name="Individual - TOD",
+                account_type="Taxable",
+                cash_balance=0.0,
+                household_account_id="household-tod",
+            )
+        ],
+        tracked_accounts=[],
+        registry_account_masks={"household-tod": "7544"},
+        holdings_by_account={"portfolio-tod": 549332.66},
+        statement_freshness={"coverage_months": 0, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    assert summaries[0].label == "Individual - TOD"
+    # The mask is still carried, it just does not enter the name.
+    assert summaries[0].account_mask == "7544"
+
+
+def test_colliding_accounts_with_no_mask_are_left_alone_rather_than_invented() -> None:
+    """A suffix that is not real would be worse than an ambiguous name."""
+    summaries = build_account_summaries(
+        evidence_accounts=[],
+        documents=[],
+        portfolio_accounts=[
+            Account(
+                id="portfolio-a",
+                name="Rollover IRA",
+                account_type="IRA",
+                cash_balance=0.0,
+                household_account_id="household-a",
+            ),
+            Account(
+                id="portfolio-b",
+                name="Rollover IRA",
+                account_type="IRA",
+                cash_balance=0.0,
+                household_account_id="household-b",
+            ),
+        ],
+        tracked_accounts=[],
+        registry_account_masks={"household-a": "2283"},
+        holdings_by_account={"portfolio-a": 0.0, "portfolio-b": 100.0},
+        statement_freshness={"coverage_months": 0, "gap_months": []},
+    )
+
+    assert [summary.label for summary in summaries] == ["Rollover IRA", "Rollover IRA"]
+
+
+def test_an_identity_override_still_outranks_the_registry_mask() -> None:
+    portfolio_account = Account(
+        id="portfolio-card",
+        name="Ultimate Rewards",
+        account_type="Taxable",
+        cash_balance=0.0,
+        household_account_id="household-card",
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        registry_account_overrides={
+            "household-card": {"label": "Chase Sapphire Preferred ·3627", "account_mask": "3627"}
+        },
+        registry_account_masks={"household-card": "9999"},
+        holdings_by_account={"portfolio-card": 0.0},
+        statement_freshness={"coverage_months": 0, "gap_months": []},
+    )
+
+    assert summaries[0].label == "Chase Sapphire Preferred ·3627"
+    assert summaries[0].account_mask == "3627"
