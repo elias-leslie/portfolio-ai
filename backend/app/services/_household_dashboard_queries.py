@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from statistics import median
 from typing import Any
 
 from app.models.household_finance import (
@@ -35,7 +36,19 @@ from app.services._household_dashboard_query_sql import (
 from app.services._household_dashboard_unknown_accounts import (
     detect_unknown_accounts as _detect_unknown_accounts_impl,
 )
+from app.services._household_recurrence import (
+    BILL,
+    CADENCE_FOR_LABEL,
+    CADENCE_LABELS,
+    SUBSCRIPTION,
+    RecurrencePattern,
+    detect_recurrence,
+)
 from app.services.household_transaction_service import HouseholdTransactionService
+
+# Nothing plausible reaches this many proven commitments; it exists so a broken
+# detector cannot return a thousand rows to the browser.
+COMMITMENT_LIMIT = 40
 
 
 def fetch_transaction_date_issues(storage: Any, limit: int = 12):
@@ -161,19 +174,104 @@ def fetch_categorization_queue(storage: Any, limit: int = 10) -> list[HouseholdC
 def fetch_recurring_commitments(
     storage: Any,
     transaction_service: Any,
-    limit: int = 6,
+    limit: int = COMMITMENT_LIMIT,
 ) -> list[HouseholdRecurringCommitment]:
+    """Return the merchants that actually keep a cadence, obligations first.
+
+    The limit is a safety cap, not a shortlist. Cutting the list to six before
+    totalling what falls due meant the subscriptions that sorted below the
+    utilities were simply missing from "bills due in 14 days"; the surfaces that
+    only want a handful do their own slicing.
+    """
     today = datetime.now(UTC).date()
     with storage.connection() as conn:
-        rows = conn.execute(RECURRING_SQL, [limit * 2]).fetchall()
-    commitments: list[HouseholdRecurringCommitment] = []
-    for row in rows:
-        cadence_info = transaction_service.infer_merchant_cadence(merchant=str(row[0])) or {}
-        cadence = str(cadence_info.get("label") or "irregular")
-        commitment = build_recurring_commitment(row, cadence, cadence_info, today)
-        if commitment is not None:
-            commitments.append(commitment)
+        rows = conn.execute(RECURRING_SQL).fetchall()
+        commitments: list[HouseholdRecurringCommitment] = []
+        for merchant_raw, category_raw, charge_dates, charge_amounts, cadence_declared in rows:
+            merchant = str(merchant_raw)
+            category = str(category_raw or "Household")
+            events = _charge_events(charge_dates, charge_amounts)
+            pattern = _declared_pattern(
+                transaction_service,
+                conn=conn,
+                merchant=merchant,
+                events=events,
+            ) if cadence_declared else detect_recurrence(events)
+            if pattern is None:
+                continue
+            commitment = build_recurring_commitment(
+                merchant=merchant,
+                category=category,
+                pattern=pattern,
+                today=today,
+            )
+            if commitment is not None:
+                commitments.append(commitment)
+    commitments.sort(key=_commitment_rank)
     return commitments[:limit]
+
+
+def _charge_events(charge_dates: Any, charge_amounts: Any) -> list[tuple[date, float]]:
+    dates = list(charge_dates or [])
+    amounts = list(charge_amounts or [])
+    events: list[tuple[date, float]] = []
+    for raw_date, raw_amount in zip(dates, amounts, strict=False):
+        if raw_date is None or raw_amount is None:
+            continue
+        events.append((_date_value(raw_date), float(raw_amount)))
+    return events
+
+
+def _declared_pattern(
+    transaction_service: Any,
+    *,
+    conn: Any,
+    merchant: str,
+    events: list[tuple[date, float]],
+) -> RecurrencePattern | None:
+    """Build a pattern from a cadence the household stated rather than inferred.
+
+    A declared annual bill has one sighting inside a year of coverage, so no
+    amount of arithmetic will ever find it. When someone knows the answer the
+    knowing is the evidence, and the charge series only supplies the amount.
+    """
+    declared = transaction_service.declared_merchant_cadence(merchant=merchant, conn=conn)
+    if not declared:
+        return None
+    cadence = CADENCE_FOR_LABEL.get(str(declared.get("label") or ""), str(declared.get("label") or ""))
+    if cadence not in CADENCE_LABELS or not events:
+        return None
+    amounts = [abs(amount) for _, amount in events]
+    last_seen = max(day for day, _ in events)
+    typical_amount = float(median(amounts))
+    return RecurrencePattern(
+        cadence=cadence,
+        label=CADENCE_LABELS[cadence],
+        confidence=float(declared.get("confidence") or 1.0),
+        typical_amount=round(typical_amount, 2),
+        last_seen=last_seen,
+        sightings=len(events),
+        median_interval_days=0,
+        span_days=0,
+        distinct_months=len({(day.year, day.month) for day, _ in events}),
+        evidence=str(
+            declared.get("rationale")
+            or f"The household states this merchant bills {CADENCE_LABELS[cadence]}."
+        ),
+    )
+
+
+def _commitment_rank(commitment: HouseholdRecurringCommitment) -> tuple[int, int, float]:
+    """Order obligations before habits, then by what falls due soonest.
+
+    Size deliberately breaks ties last. Sorting the list by size was what let one
+    expensive merchant crowd out five utilities that were actually due.
+    """
+    type_rank = {BILL: 0, SUBSCRIPTION: 1}.get(commitment.commitment_type, 2)
+    days_until_due = (
+        commitment.days_until_due if commitment.days_until_due is not None else 10_000
+    )
+    return (type_rank, days_until_due, -commitment.annualized_cost)
 
 
 def fetch_monthly_retirement_contributions(storage: Any) -> float:

@@ -16,12 +16,23 @@ from app.models.household_finance import (
     HouseholdRetirementScenario,
     HouseholdSinkingFund,
 )
+from app.services._household_recurrence import (
+    BILL,
+    CADENCE_DAYS,
+    CADENCE_FOR_LABEL,
+    LAPSED_AFTER_CYCLES,
+    SUBSCRIPTION,
+    RecurrencePattern,
+    commitment_type_for,
+)
 
 _CADENCE_MULTIPLIERS: dict[str, int] = {
     "weekly": 52,
     "biweekly": 26,
     "monthly": 12,
+    "bimonthly": 6,
     "quarterly": 4,
+    "semiannual": 2,
     "annual": 1,
 }
 
@@ -29,24 +40,23 @@ _CADENCE_OFFSETS: dict[str, timedelta | relativedelta] = {
     "weekly": timedelta(weeks=1),
     "biweekly": timedelta(weeks=2),
     "monthly": relativedelta(months=1),
+    "bimonthly": relativedelta(months=2),
     "quarterly": relativedelta(months=3),
+    "semiannual": relativedelta(months=6),
     "annual": relativedelta(years=1),
 }
 
-_SUBSCRIPTION_CATEGORIES = {"subscriptions", "dining"}
 # Annual belongs here even though nothing can infer it from two sightings a year
 # apart: it is the cadence a household declares, and leaving it out meant a
 # property tax or an HOA due once a year could never become a commitment at all,
 # which is precisely the gap that under-funds the sinking fund by a twelfth of
 # itself every month.
-_RECURRING_CADENCES = {"monthly", "biweekly", "weekly", "quarterly", "annual"}
-_CADENCE_LABEL_MAP = {
-    "likely weekly": "weekly",
-    "likely bi-weekly": "biweekly",
-    "likely monthly": "monthly",
-    "likely quarterly": "quarterly",
-    "likely annual": "annual",
-}
+_RECURRING_CADENCES = set(_CADENCE_MULTIPLIERS)
+_CADENCE_LABEL_MAP = CADENCE_FOR_LABEL
+# Commitments that are obligations rather than habits. Only these count toward
+# what is due soon or gets a sinking fund: a merchant the household merely
+# visits on a rhythm owes nothing on a date.
+_OBLIGATION_TYPES = {BILL, SUBSCRIPTION}
 
 _CATEGORY_KEYWORDS: list[tuple[list[str], str]] = [
     (["spotify", "netflix", "prime"], "Subscriptions"),
@@ -70,7 +80,7 @@ def suggest_essentiality(merchant: str, description: str) -> str:
     return "essential" if category in _ESSENTIAL_CATEGORIES else "discretionary"
 
 
-def estimate_next_commitment_date(last_seen: datetime, cadence: str) -> str | None:
+def estimate_next_commitment_date(last_seen: date | datetime, cadence: str) -> str | None:
     offset = _CADENCE_OFFSETS.get(cadence)
     if offset is None:
         return None
@@ -88,25 +98,19 @@ def _commitment_due_status(days_until_due: int | None) -> str:
 
 
 def build_recurring_commitment(
-    row: tuple[object, ...],
-    cadence: str,
-    cadence_info: dict[str, object],
+    *,
+    merchant: str,
+    category: str,
+    pattern: RecurrencePattern,
     today: date,
 ) -> HouseholdRecurringCommitment | None:
-    """Build a single recurring commitment from a DB row, or return None to skip."""
-    normalized_cadence = _CADENCE_LABEL_MAP.get(cadence, cadence)
-    if normalized_cadence not in _RECURRING_CADENCES:
+    """Turn a proven cadence into a commitment, or return None to skip."""
+    if pattern.cadence not in _RECURRING_CADENCES:
         return None
-    average_amount = float(row[2] or 0.0)
-    last_seen = row[4]
-    if last_seen is None:
+    if (today - pattern.last_seen).days > LAPSED_AFTER_CYCLES * CADENCE_DAYS[pattern.cadence]:
         return None
-    merchant = str(row[0])
-    annualized_cost = average_amount * _CADENCE_MULTIPLIERS.get(normalized_cadence, 12)
-    commitment_type = (
-        "subscription" if str(row[1]).lower() in _SUBSCRIPTION_CATEGORIES else "bill"
-    )
-    next_expected = estimate_next_commitment_date(last_seen, normalized_cadence)
+    annualized_cost = pattern.typical_amount * _CADENCE_MULTIPLIERS[pattern.cadence]
+    next_expected = estimate_next_commitment_date(pattern.last_seen, pattern.cadence)
     next_expected_date = (
         datetime.fromisoformat(next_expected).date() if next_expected is not None else None
     )
@@ -117,16 +121,17 @@ def build_recurring_commitment(
     )
     return HouseholdRecurringCommitment(
         merchant=merchant,
-        category=str(row[1]),
-        cadence=cadence,
-        average_amount=round(average_amount, 2),
+        category=category,
+        cadence=pattern.label,
+        average_amount=round(pattern.typical_amount, 2),
         annualized_cost=round(annualized_cost, 2),
-        last_seen=last_seen.isoformat(),
+        last_seen=pattern.last_seen.isoformat(),
         next_expected=next_expected,
         days_until_due=days_until_due,
         due_status=_commitment_due_status(days_until_due),
-        due_confidence=float(cadence_info.get("confidence") or 0.0),
-        commitment_type=commitment_type,
+        due_confidence=pattern.confidence,
+        commitment_type=commitment_type_for(category),
+        evidence=pattern.evidence,
     )
 
 
@@ -135,8 +140,12 @@ def build_sinking_funds(
 ) -> list[HouseholdSinkingFund]:
     funds: list[HouseholdSinkingFund] = []
     for commitment in recurring_commitments:
+        # A sinking fund smooths an obligation the household owes. A merchant it
+        # simply visits often is not one, however large the yearly total looks.
+        if commitment.commitment_type not in _OBLIGATION_TYPES:
+            continue
         normalized_cadence = _CADENCE_LABEL_MAP.get(commitment.cadence, commitment.cadence)
-        if normalized_cadence not in {"quarterly", "irregular"} and commitment.average_amount < 150:
+        if normalized_cadence in {"weekly", "biweekly", "monthly"} and commitment.average_amount < 150:
             continue
         monthly_target = round(commitment.annualized_cost / 12, 2)
         funds.append(
@@ -334,7 +343,9 @@ def build_budget_snapshot(
             sum(
                 commitment.average_amount
                 for commitment in recurring_commitments
-                if commitment.days_until_due is not None and commitment.days_until_due <= 14
+                if commitment.commitment_type in _OBLIGATION_TYPES
+                and commitment.days_until_due is not None
+                and commitment.days_until_due <= 14
             ),
             2,
         )

@@ -54,13 +54,30 @@ contradicts another number on screen.
 ## 2a. Next actions (live queue — work top down)
 
 **Phase 0 is complete and its exit test passes** (the table is at the end of
-§7's Phase 0 block). The next session is the UI/UX work.
+§7's Phase 0 block). **Phase 1 is in progress: 1.1, 1.2, 1.3 and 1.8 are done.**
 
-1. **Start Phase 1 — one trustworthy number pipeline.** This is the reason five
-   panels give four different answers to "what did we spend." Everything before
-   it was data repair; this is the first thing the household will *see* change.
-   Read §7 Phase 1 for the tasks, and D3 for the decision to drop the sliding
-   1M/3M/6M/12M chips in favour of complete calendar months.
+Work top down through what is left of §7 Phase 1:
+
+1. **1.4 — rebuild `safe_to_spend`** as the cash-based affordability check in D8.
+   The dashboard still shows a green *Safe to Spend* over a disclaimed number
+   whose binding constraint is `plan_residual` — income minus a target, not cash.
+   Retire that constraint and the badge. 1.3 already gives it an honest
+   `due_soon_bills_total` to subtract ($88.38 today, from four real obligations).
+2. **1.5 — delete vacuous verdicts.** No `status: "on_track"` from unset inputs,
+   in `budget_snapshot`, `budget_readiness` and `retirement_contribution_tracker`.
+3. **1.6 — fix the taxonomy** (P1-7). One essentiality per category; collapse the
+   duplicate Transportation/Household/Travel series; map the Plaid leakage
+   ("General Services Storage/Insurance") into the curated set. 1.3 already has
+   to word-match around that leakage to decide what is a bill, which is the
+   second consumer paying for the same mess.
+4. **1.7 — make exclusions visible and appealable** (P1-6): a UI surface, a
+   total, and a per-row override for the hardcoded list in
+   `_household_spend_filters.py`.
+5. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
+6. **1.10 — show the `mixed` bucket** so needs/wants sums to 100% (P1-8).
+7. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+   portfolio-origin account row while `current_value` carries the number. Pick
+   one field.
 
 **The review inbox is as clear as it can get without the household** — 17 → 12,
 and each of the 12 is waiting on a person, not on a bug:
@@ -79,6 +96,15 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- P0-3 the recurring detector is rebuilt: the list is now Frontier, Duke Energy,
+  T-Mobile, Waste Pro, P C Utilities, the declared HOA, then four subscriptions.
+  Airbnb, Avis, Lufthansa and Costco are gone (1.3).
+- P0-1 one canonical spend definition, complete calendar months only, sliding
+  chips retired (1.1) and the Pinellas reversal netted out (1.2) — `8e70c8136`.
+- P1-12 statement merchants normalise: "DIRECT DEBIT DUKEENERGY BILL PAY (Cash)"
+  is Duke Energy, and the three spellings of Frontier are one merchant
+  (`efc4ca2fb`). This was half of P0-3 — a bill split across three spellings
+  never accumulates enough sightings to prove a cadence.
 - P0-33 two rollover IRAs both named "Rollover IRA" are now ·2283 and ·8698,
   and the mask fallback closes that class for good (`e497b3e9b`).
 - P0-32 a document proposing zero changes no longer waits for an approval the
@@ -93,9 +119,6 @@ and each of the 12 is waiting on a person, not on a bug:
   7 charges, line items carried to the surviving charge (`b5094ec5a`).
 
 **Known-but-deliberately-deferred** (do not treat as bugs to fix on sight):
-- **P0-3** the recurring detector's *inferred* labels remain wrong — Costco reads
-  "likely weekly, $61,113/yr annualized". Declaring a cadence (0.11) routes
-  around it for known bills; repairing it is Phase 1.
 - Purchase items cannot span charges, so a split order keeps its line items on
   the retired receipt rather than restating their prices against one leg
   (0.14). Phase 4.
@@ -192,6 +215,37 @@ completely missed: Duke Energy (monthly), T-Mobile (monthly ~15th), Frontier
 This feeds `due_soon_bills_total = $1,922`, which is displayed as *"$1,922 of
 recurring bills are due inside 14 days"* — every one of them is in the past —
 and is an input to the Safe-to-Spend cash constraint.
+
+**RESOLVED in 1.3.** Three things were wrong and each had to be fixed
+separately. The *evidence bar* was two sightings, which describes one gap, and
+one gap cannot tell a monthly bill from two unrelated purchases five weeks
+apart. The *ranking* was `ORDER BY average_amount DESC`, so merchants were sorted
+by size before anything asked whether they recurred — which is precisely how a
+vacation reached the top of a list of bills. And nothing tested *amount
+stability*, so Lufthansa's $90 / $91 / $1,041 read as a cadence.
+
+`_household_recurrence.py` now requires three distinct sightings, a median gap
+that lands in a named cadence, an observed span of 55+ days across 3+ calendar
+months, and 70% of both the gaps and the amounts within 35% of the merchant's own
+median. Same-day duplicate rows collapse to the day's largest charge rather than
+summing (Duke Energy has two rows dated 2026-01-07). A series last seen two full
+cycles ago is dropped rather than reported as overdue: a monthly bill last seen
+in June is not "late by fifty days", it is a series that ended.
+
+Each of the four false positives now fails for its own reason, and the reasons
+are worth keeping: **Airbnb** kept a *perfect* weekly cadence — but for fourteen
+days inside a single month, so only the span bar catches it; **Avis** was seen
+once; **Lufthansa** ranged $90–$1,041; **Costco** was neither regular nor stable.
+All five real bills are detected, and P C Utilities is filed **bimonthly** on its
+true 61-day cycle rather than rounded to quarterly, which would have set its
+sinking fund a third short.
+
+Separately, `commitment_type` is now decided by category — travel, retail,
+groceries and fuel become `recurring_purchase`, never `bill` — and only bills and
+subscriptions count toward `due_soon_bills_total` or get a sinking fund. The
+totalling also stopped reading a truncated list: cutting to the top six before
+summing meant the subscriptions that sorted below the utilities were simply
+missing from "due inside 14 days".
 
 ### P0-4 — Headline verdicts contradict the arithmetic under them
 
@@ -1418,15 +1472,15 @@ fields mean two chances to read the wrong one. Pick one in Phase 1.
 ### Phase 1 — One trustworthy number pipeline
 Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
 
-1.1 **One canonical spend definition** shared by every surface. Report only
+1.1 ✅ **One canonical spend definition** shared by every surface. Report only
     **complete calendar months** and name which months were used. Remove the
     1M/3M/6M/12M sliding chips (D3) — replace with a month selector plus two fixed
     comparators (prior month, all-month average).
-1.2 **Reversal pairing.** Detect same-amount / opposite-direction / same-merchant-
+1.2 ✅ **Reversal pairing.** Detect same-amount / opposite-direction / same-merchant-
     token rows within N days and net them out. The Jul 09 ↔ Jul 10 Pinellas pair
     is the reference case: it inflates July income *and* July spend by $1,102 and
     makes Bills read $1,497 instead of ~$395.
-1.3 **Rebuild recurring-bill detection** (P0-3). Require true periodicity + amount
+1.3 ✅ **Rebuild recurring-bill detection** (P0-3). Require true periodicity + amount
     stability. Exclude travel/retail merchants from `commitment_type: "bill"`.
     Must detect Duke Energy, T-Mobile, Frontier, P C Utilities, Waste Pro — and
     must not detect Airbnb, Avis, Lufthansa, Costco.
@@ -1443,7 +1497,7 @@ Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
 1.7 **Make exclusions visible and appealable** (P1-6). The hardcoded string list in
     `_household_spend_filters.py` ("zelle to", "atm withdrawal", …) gets a UI
     surface, a total, and per-row override.
-1.8 **Merchant normalisation for statement rows** (P1-12) — "DIRECT DEBIT
+1.8 ✅ **Merchant normalisation for statement rows** (P1-12) — "DIRECT DEBIT
     DUKEENERGY BILL PAY (Cash)" → "Duke Energy".
 1.9 Replace `visibility_score: 99` with a coverage measure that tracks actual
     account coverage (P1-13).
@@ -1451,6 +1505,21 @@ Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
 
 **Exit test:** every window/surface agrees; July 2026 reports $5,025 spend and
 $2,755 income; recurring bills lists utilities, not a vacation.
+
+**What the $5,025 figure means — recorded, because the arithmetic only works one
+way.** July 2026's tracked outflow is **$16,658.01**. The exit-test number is
+that total less the two things that were never July's ordinary spending:
+`17,760.24 − 11,633.00 − 1,102.23 = $5,025.01`. The $11,633.00 is the air
+conditioner, bought 2026-07-23 and **split across both Sapphire cards**
+($5,831.50 + $5,801.50); the $1,102.23 is the Pinellas charge that was reversed
+the next day. Income is `3,856.59 − 1,102.23 = $2,754.36` — the same reversal,
+removed from the other side of the ledger.
+
+The headline therefore **stays $16,658.01**, because $11,633 genuinely left the
+account and showing $5,025 as "what July cost" would be exactly the class of lie
+this revamp exists to kill. $5,025.01 is surfaced as `summary.everyday_spend`
+with the air conditioner named in `one_time_purchases`, and $2,754.36 as the
+income. Read that way, the exit test passes as written.
 
 ---
 
@@ -1618,3 +1687,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Phase 0 cont. 3 | **P0-27 re-diagnosed by reproduction, and it was not what the finding said.** Replaying the $313.20 document's structured data through the current `extract_transactions` yields **zero** transactions, not a mis-dated one: the review returns two orders whose `date`, `amount` and `merchant` are all null, structured extraction skips them, and the summary fallback finds no date either. The mis-dated rows are residue from an older path — every one of the four had `transaction_date` exactly equal to its document's upload date. So the live defect was **silence**: a receipt naming a merchant, a total and two orders produced no spend, no warning, and a document reported as applied. A receipt with no readable purchase date is now **held** — reason written to `date_quality_summary` beside the future-dated holds, `household_receipt_held_without_a_date` logged — because guessing the date is what made the four wrong in the first place. The four stale rows are retired (`removed`, never deleted) with `metadata.date_quality.reason = dated_to_the_day_the_file_was_read`; live receipt rows 15 → 5. Teaching the parser to read `"May 20, 2026 order"` off a Walmart order page stays with the Costco parser in Phase 4.2. |
 | 2026-08-22 | Phase 0 closed | The review inbox went **17 → 12**, and every one of the 12 that remains is waiting on a person rather than on a bug. Three defects came out of clearing it. **P0-31**: four Wells Fargo statements had sat at `needs_review` since March saying *"Re-upload or add more context"* while their 41 transactions were in the ledger the whole time — only the PDFs had moved out from under the recorded path. The recovery pass already knew this and wrote the summaries, but never touched `status`, so the false alarm was permanent and the action it recommended was the one that could double-count applied spend. **P0-32**: the Amazon export reads 3,056 rows, finds 0 new, proposes nothing — and was pinned open waiting for an approval the system itself refuses (*"no explicit money-data changes to approve"*), because a general preference question about Amazon set `ambiguity_remaining`. **P0-33**: SnapTrade names both Fidelity rollover IRAs `Rollover IRA`; the list showed that name twice, one row at $9,596.29 and one at $0.00, with nothing to tell them apart — the same hand-correction the two Sapphires and the two 529s each needed, now closed as a class by falling back to the mask the registry already recorded and appending it only where labels actually collide. Net worth $1,530,455.18 before and after. **Phase 0's exit test was then run against the live backend and passes on all five checks** (liabilities $17,287.71; every account honest about freshness; `2144.48` finds the property tax; the Progressive premium appears once, as an expense; assets − liabilities reconciles). Phase 1 — the UI/UX work — is next. |
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |
+| 2026-08-23 | Phase 1.1–1.3, 1.8 | **One month, one number, and bills that are actually bills.** 1.1/1.2: every surface now reads one canonical spend definition over **complete calendar months** — a month selector plus two fixed comparators (prior month, all-month average) replaced the 1M/3M/6M/12M chips (D3), and reversal pairing nets out the Jul 09 ↔ Jul 10 Pinellas charge that was inflating July income *and* July spend by $1,102.23 (`8e70c8136`). 1.8: statement merchants normalise, so `DIRECT DEBIT DUKEENERGY BILL PAY (Cash)` is Duke Energy and three spellings of Frontier are one merchant (`efc4ca2fb`) — which turned out to be **half of P0-3**, because a bill split across three spellings never accumulates enough sightings to prove a cadence. 1.3: the recurring detector was rebuilt on evidence rather than size. The old bar was two sightings ranked by `average_amount DESC`; the new one requires 3 sightings, a 55+ day span across 3+ calendar months, and 70% of both the gaps and the amounts inside 35% of the merchant's own median. Live result: **Frontier $34.99, Duke Energy $184.05, T-Mobile $151.58, Waste Pro $194.59 quarterly, P C Utilities $202.96 bimonthly, the declared HOA $104.13 annual**, then Netflix/Spotify/Get Fitness/YouTube Premium as subscriptions. Airbnb, Avis, Lufthansa and Costco are gone — and each fails for a different reason, which is why all three tests were needed: the Airbnb stay kept a *perfect* weekly cadence, just for a fortnight. `due_soon_bills_total` went from **$1,922 of phantom overdue vacation** to **$88.38** of four real obligations, and it stopped being computed from a truncated top-six list. P C Utilities is bimonthly rather than rounded to quarterly, which would have under-funded its sinking fund by a third. Gate green at each commit; 2442 backend tests, 232 frontend money tests. |

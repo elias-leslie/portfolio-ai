@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date
 
 from app.models.household_finance import (
     HouseholdExecutiveReport,
@@ -14,6 +14,33 @@ from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_recurring_commitment,
 )
+from app.services._household_recurrence import (
+    CADENCE_DAYS,
+    CADENCE_LABELS,
+    RecurrencePattern,
+)
+
+
+def _pattern(
+    *,
+    cadence: str,
+    typical_amount: float,
+    last_seen: date,
+    sightings: int = 6,
+    confidence: float = 0.9,
+) -> RecurrencePattern:
+    return RecurrencePattern(
+        cadence=cadence,
+        label=CADENCE_LABELS[cadence],
+        confidence=confidence,
+        typical_amount=typical_amount,
+        last_seen=last_seen,
+        sightings=sightings,
+        median_interval_days=CADENCE_DAYS[cadence],
+        span_days=CADENCE_DAYS[cadence] * (sightings - 1),
+        distinct_months=sightings,
+        evidence="test pattern",
+    )
 
 
 def test_an_annual_bill_becomes_a_commitment_and_is_not_annualized_twelve_times() -> None:
@@ -24,44 +51,73 @@ def test_an_annual_bill_becomes_a_commitment_and_is_not_annualized_twelve_times(
     under-funding the fund is meant to prevent.
     """
     commitment = build_recurring_commitment(
-        (
-            "Lakeside Association",
-            "Home",
-            104.13,
-            1,
-            datetime(2026, 2, 17, tzinfo=UTC),
+        merchant="Lakeside Association",
+        category="Home",
+        pattern=_pattern(
+            cadence="annual",
+            typical_amount=104.13,
+            last_seen=date(2026, 2, 17),
+            sightings=1,
+            confidence=1.0,
         ),
-        "annual",
-        {"confidence": 1.0},
-        date(2026, 8, 22),
+        today=date(2026, 8, 22),
     )
 
     assert commitment is not None
-    assert commitment.cadence == "annual"
+    assert commitment.cadence == "likely annual"
     assert commitment.annualized_cost == 104.13
     assert commitment.next_expected is not None
     assert commitment.next_expected.startswith("2027-02-17")
     assert commitment.due_status == "upcoming"
+    assert commitment.commitment_type == "bill"
 
 
-def test_build_recurring_commitment_accepts_likely_monthly_labels() -> None:
+def test_a_travel_merchant_that_does_recur_is_a_purchase_and_not_a_bill() -> None:
+    """Cadence alone does not make an obligation.
+
+    A monthly flight is a monthly flight. Calling it a bill is what let a
+    vacation sit at the head of the household's recurring commitments and be
+    counted as money already owed.
+    """
     commitment = build_recurring_commitment(
-        (
-            "Duke Energy",
-            "Bills",
-            177.51,
-            2,
-            datetime(2026, 2, 9, tzinfo=UTC),
+        merchant="Lufthansa",
+        category="Travel",
+        pattern=_pattern(
+            cadence="monthly", typical_amount=400.0, last_seen=date(2026, 8, 2)
         ),
-        "likely monthly",
-        {"confidence": 0.82},
-        date(2026, 2, 10),
+        today=date(2026, 8, 22),
     )
 
     assert commitment is not None
-    assert commitment.cadence == "likely monthly"
-    assert commitment.annualized_cost == 2130.12
-    assert commitment.due_status == "upcoming"
+    assert commitment.commitment_type == "recurring_purchase"
+
+
+def test_a_series_that_stopped_two_cycles_ago_is_no_longer_a_commitment() -> None:
+    """A monthly bill last seen in June is not "overdue by fifty days".
+
+    It is a series that ended -- a cancelled subscription, or a merchant renamed
+    underneath the feed -- and presenting it as due invents money owed.
+    """
+    lapsed = build_recurring_commitment(
+        merchant="All Smiles Ortho Clear",
+        category="Healthcare",
+        pattern=_pattern(
+            cadence="monthly", typical_amount=132.08, last_seen=date(2026, 6, 2)
+        ),
+        today=date(2026, 8, 22),
+    )
+    still_running = build_recurring_commitment(
+        merchant="All Smiles Ortho",
+        category="Healthcare",
+        pattern=_pattern(
+            cadence="monthly", typical_amount=132.08, last_seen=date(2026, 8, 4)
+        ),
+        today=date(2026, 8, 22),
+    )
+
+    assert lapsed is None
+    assert still_running is not None
+    assert still_running.due_status == "upcoming"
 
 
 def test_build_budget_snapshot_exposes_profile_plan_source() -> None:

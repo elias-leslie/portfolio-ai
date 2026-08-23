@@ -67,8 +67,16 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
     (transaction) => transaction.category === selectedCategory,
   )
   const monthComparison = dashboard.reports.monthComparison
+  // Bills and subscriptions only. A merchant the household happens to visit on a
+  // rhythm owes nothing on a date, and listing it here is how a vacation ended up
+  // being read as a commitment the household still had to pay.
   const dueSoonCommitments = dashboard.recurringCommitments
-    .filter((commitment) => commitment.daysUntilDue != null)
+    .filter(
+      (commitment) =>
+        commitment.daysUntilDue != null &&
+        (commitment.commitmentType === 'bill' ||
+          commitment.commitmentType === 'subscription'),
+    )
     .sort((left, right) => {
       const leftDue = left.daysUntilDue ?? Number.POSITIVE_INFINITY
       const rightDue = right.daysUntilDue ?? Number.POSITIVE_INFINITY

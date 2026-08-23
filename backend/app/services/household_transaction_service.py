@@ -1589,6 +1589,25 @@ class HouseholdTransactionService:
             return None
         return self._dates_to_cadence(row_dates)
 
+    def declared_merchant_cadence(
+        self,
+        *,
+        merchant: str,
+        conn: Any | None = None,
+    ) -> dict[str, object] | None:
+        """Return only the cadence the household stated, never an inferred one.
+
+        Recurring-bill detection reads the whole charge series itself, so it has
+        no use for the inference half of ``infer_merchant_cadence`` -- but it
+        still has to honour a declared cadence, which is the only way an annual
+        obligation reaches the list at all.
+        """
+        connection_context = (
+            nullcontext(conn) if conn is not None else self.storage.connection()
+        )
+        with connection_context as active_conn:
+            return self._declared_cadence(active_conn, merchant=merchant)
+
     @staticmethod
     def _declared_cadence(conn: Any, *, merchant: str) -> dict[str, object] | None:
         """Return the cadence the household stated, if it stated one.

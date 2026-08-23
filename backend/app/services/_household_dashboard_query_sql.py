@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.services._household_recurrence import MIN_SIGHTINGS
 from app.services._household_spend_filters import (
     investment_activity_sql_predicate,
     non_spend_sql_predicate,
@@ -58,26 +59,30 @@ CATEGORIZATION_SQL = f"""
 RECURRING_SQL = f"""
     SELECT
         COALESCE(m.canonical_name, t.raw_merchant, t.description) AS merchant,
-        COALESCE(t.category, 'Household') AS category,
-        AVG(CAST(t.amount AS DOUBLE PRECISION)) AS average_amount,
-        COUNT(*) AS transaction_count,
-        MAX(t.transaction_date) AS last_seen
+        mode() WITHIN GROUP (ORDER BY COALESCE(t.category, 'Household')) AS category,
+        array_agg(t.transaction_date::date ORDER BY t.transaction_date) AS charge_dates,
+        array_agg(CAST(t.amount AS DOUBLE PRECISION) ORDER BY t.transaction_date) AS charge_amounts,
+        BOOL_OR(jsonb_exists(COALESCE(m.metadata, '{{}}'::jsonb), 'cadence_override')) AS cadence_declared
     FROM household_transactions t
     LEFT JOIN household_merchants m ON m.id = t.merchant_id
     WHERE t.flow_type = 'expense'
+      AND t.removed IS NOT TRUE
       AND {current_transaction_date_predicate("t")}
       AND NOT {_NON_SPEND_TRANSACTION_SQL}
-    GROUP BY 1, 2
-    -- Two sightings is the evidence bar for inferring a cadence, but an annual
-    -- bill cannot clear it: six months of card coverage will never show the
-    -- second one. A merchant whose cadence the household has declared is
-    -- admitted on one sighting, which is the only way an annual obligation ever
-    -- reaches a sinking fund. jsonb_exists, not the containment operator -- the
-    -- driver reads that operator's character as a placeholder.
-    HAVING COUNT(*) >= 2
+    GROUP BY 1
+    -- The whole charge series comes back per merchant because periodicity and
+    -- amount stability cannot be judged from an average and a count. There is
+    -- deliberately no ORDER BY average_amount here: ranking merchants by size
+    -- before testing whether they recur at all is what put a two-week Airbnb
+    -- stay at the top of the household's recurring bills.
+    --
+    -- {MIN_SIGHTINGS} sightings is the floor for inferring a rhythm. A merchant
+    -- whose cadence the household has declared is admitted on one, which is the
+    -- only way an annual obligation ever reaches a sinking fund. jsonb_exists,
+    -- not the containment operator -- the driver reads that operator's
+    -- character as a placeholder.
+    HAVING COUNT(*) >= {MIN_SIGHTINGS}
         OR BOOL_OR(jsonb_exists(COALESCE(m.metadata, '{{}}'::jsonb), 'cadence_override'))
-    ORDER BY average_amount DESC
-    LIMIT %s
 """
 
 RETIREMENT_CONTRIBUTION_SQL = f"""

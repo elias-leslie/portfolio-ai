@@ -180,6 +180,40 @@ describe('useDecisionBoard', () => {
     )
   })
 
+  it('leaves recurring purchases out of the recurring bills list', () => {
+    // A merchant the household visits on a rhythm owes nothing on a date. The
+    // reference case is the Airbnb stay that billed weekly for a fortnight and
+    // was read as the household's largest recurring bill.
+    const withVacation = {
+      ...dashboard,
+      recurringCommitments: [
+        ...dashboard.recurringCommitments,
+        {
+          merchant: 'Airbnb',
+          category: 'Travel',
+          cadence: 'likely weekly',
+          averageAmount: 744,
+          annualizedCost: 38688,
+          lastSeen: '2026-06-30',
+          nextExpected: '2026-06-07',
+          daysUntilDue: 1,
+          dueStatus: 'due_soon',
+          dueConfidence: 0.7,
+          commitmentType: 'recurring_purchase',
+          evidence: null,
+        },
+      ],
+    } as unknown as HouseholdFinanceDashboard
+
+    const { result } = renderHook(() => useDecisionBoard(withVacation))
+
+    expect(
+      result.current.dueSoonCommitments.map(
+        (commitment) => commitment.merchant,
+      ),
+    ).toEqual(['Rent Co'])
+  })
+
   it('keeps the drilldown filter on raw accounts for the selected backend group', () => {
     const { result } = renderHook(() => useDecisionBoard(dashboard))
 

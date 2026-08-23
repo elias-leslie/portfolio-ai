@@ -514,6 +514,9 @@ class HouseholdRecurringCommitment(BaseModel):
     due_status: str = "unknown"
     due_confidence: float = 0.0
     commitment_type: str
+    # Why this merchant counts as a commitment, in the household's own numbers,
+    # so "recurring" is a claim the reader can check rather than take on trust.
+    evidence: str | None = None
 
 
 class HouseholdTransactionDateIssue(BaseModel):

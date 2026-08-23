@@ -343,6 +343,7 @@ export interface HouseholdRecurringCommitment {
   dueStatus: string
   dueConfidence: number
   commitmentType: string
+  evidence: string | null
 }
 
 export interface HouseholdTransactionDateIssue {

@@ -242,6 +242,8 @@ const dashboard = {
       dueStatus: 'due_soon',
       dueConfidence: 0.82,
       commitmentType: 'bill',
+      evidence:
+        '8 charges across 8 months, about 30 days apart, typically 178.00.',
     },
   ],
   transactionDateIssues: [],

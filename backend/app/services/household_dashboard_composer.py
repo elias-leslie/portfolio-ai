@@ -34,6 +34,7 @@ from app.services._household_dashboard_date_issues import (
     fetch_transaction_date_issues,
 )
 from app.services._household_dashboard_queries import (
+    COMMITMENT_LIMIT,
     check_statement_freshness,
     fetch_categorization_queue,
     fetch_confirmed_facts,
@@ -121,7 +122,7 @@ class HouseholdDashboardComposer:
             service=service,
         )
         categorization_queue = fetch_categorization_queue(service.storage, 6)
-        recurring_commitments = fetch_recurring_commitments(service.storage, service.transaction_service, 6)
+        recurring_commitments = fetch_recurring_commitments(service.storage, service.transaction_service)
         jenny_needs = build_jenny_needs(
             profile=d["profile"], planning=d["planning"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values, reports=d["reports"],
@@ -147,7 +148,7 @@ class HouseholdDashboardComposer:
     def build_categorization_queue(self, service: Any, limit: int = 6) -> list[HouseholdCategorizationCandidate]:
         return fetch_categorization_queue(service.storage, limit)
 
-    def build_recurring_commitments(self, service: Any, limit: int = 6) -> list[HouseholdRecurringCommitment]:
+    def build_recurring_commitments(self, service: Any, limit: int = COMMITMENT_LIMIT) -> list[HouseholdRecurringCommitment]:
         return fetch_recurring_commitments(service.storage, service.transaction_service, limit)
 
     def build_sinking_funds(self, *, recurring_commitments: list[HouseholdRecurringCommitment]) -> list[HouseholdSinkingFund]:

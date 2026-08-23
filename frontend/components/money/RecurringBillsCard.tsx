@@ -43,8 +43,15 @@ export function RecurringBillsCard({
                   ? 'No due-date estimate yet.'
                   : commitment.daysUntilDue === 0
                     ? 'Expected today.'
-                    : `Expected in ${commitment.daysUntilDue} day${commitment.daysUntilDue === 1 ? '' : 's'}.`}
+                    : commitment.daysUntilDue < 0
+                      ? `Expected ${Math.abs(commitment.daysUntilDue)} day${commitment.daysUntilDue === -1 ? '' : 's'} ago.`
+                      : `Expected in ${commitment.daysUntilDue} day${commitment.daysUntilDue === 1 ? '' : 's'}.`}
               </p>
+              {commitment.evidence ? (
+                <p className="mt-1 text-xs text-text-muted/80">
+                  {commitment.evidence}
+                </p>
+              ) : null}
             </div>
           ))
         )}
