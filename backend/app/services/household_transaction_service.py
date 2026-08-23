@@ -61,6 +61,11 @@ from app.services._household_spend_periods import (
     months_between,
     resolve_spend_period,
 )
+from app.services._household_statement_merchants import (
+    MIN_SHARED_BILLER_PREFIX,
+    normalize_statement_merchant,
+    statement_merchant_key,
+)
 from app.services._household_transaction_parsers import (
     _parse_date_value,
     extract_transactions,
@@ -679,6 +684,7 @@ class HouseholdTransactionService:
         """Repair canonical categories, provenance fields, account links, and doc summaries."""
         with self.storage.connection() as conn:
             canonicalized = self._canonicalize_stored_categories(conn, limit=limit)
+            merchants_normalized = self._normalize_merchant_names(conn)
             rules_backfilled = self._backfill_merchant_rules(conn, limit=limit)
             provenance_backfilled = self._backfill_transaction_provenance(conn)
             account_linked = self._link_transactions_by_account_mask(conn, limit=limit)
@@ -690,6 +696,7 @@ class HouseholdTransactionService:
         purchase_item_summary = HouseholdPurchaseItemService().backfill(limit=limit)
         return {
             "canonicalized": canonicalized,
+            "merchants_normalized": merchants_normalized,
             "rules_backfilled": rules_backfilled,
             "provenance_backfilled": provenance_backfilled,
             "account_linked": account_linked,
@@ -1764,6 +1771,88 @@ class HouseholdTransactionService:
                 ],
             )
             updated += 1
+        return updated
+
+    @staticmethod
+    def _normalize_merchant_names(conn: Any) -> int:
+        """Give every spelling of one merchant the same canonical name.
+
+        The electricity bill arrives as `DIRECT DEBIT DUKEENERGY BILL PAY (Cash)`
+        from one export and `Dukeenergy Bill Pay 910066616132 ...` from another;
+        the card feed files `PUBLIX #1309 | Sale` apart from `Publix`. Each
+        spelling created its own merchant row, so one merchant was counted as
+        several, no half had enough sightings to prove a cadence, and bills the
+        household pays every month were invisible to the recurring detector
+        (P1-12, and half of P0-3).
+
+        The merchant rows stay where they are -- merging them would move
+        transactions and rules under one another -- but they are given one
+        canonical name, which is what every read path groups by. Names are
+        derived from the raw text rather than from the stored canonical name, so
+        the pass is idempotent and a second run cannot normalize its own output.
+        Among statement spellings the longest wins, because statements truncate
+        and the longest one is the least truncated.
+        """
+        rows = conn.execute(
+            """
+            SELECT DISTINCT t.merchant_id, t.raw_merchant
+            FROM household_transactions t
+            WHERE t.merchant_id IS NOT NULL
+              AND t.raw_merchant IS NOT NULL
+            ORDER BY t.merchant_id, t.raw_merchant
+            """
+        ).fetchall()
+
+        # One merchant row can carry several raw spellings. Resolve each merchant
+        # to a single group first, deterministically, so the pass settles instead
+        # of two groups taking turns renaming the same row.
+        raws_by_merchant: dict[str, list[str]] = {}
+        for merchant_id, raw_merchant in rows:
+            raws_by_merchant.setdefault(str(merchant_id), []).append(str(raw_merchant))
+
+        # group key -> (chosen name, {merchant ids})
+        groups: dict[str, tuple[str, set[str]]] = {}
+        for merchant_id, raws in sorted(raws_by_merchant.items()):
+            representative = sorted(raws, key=lambda value: (-len(value), value))[0]
+            biller_key = statement_merchant_key(representative)
+            if biller_key:
+                name = normalize_statement_merchant(representative) or ""
+                group_key = f"biller:{biller_key[:MIN_SHARED_BILLER_PREFIX]}"
+            else:
+                name = _canonical_merchant_name(representative)
+                group_key = f"name:{name.lower()}"
+            if not name:
+                continue
+            chosen, ids = groups.get(group_key, ("", set()))
+            groups[group_key] = (
+                name if len(name) > len(chosen) else chosen,
+                ids | {merchant_id},
+            )
+
+        updated = 0
+        for chosen_name, merchant_ids in groups.values():
+            result = conn.execute(
+                """
+                UPDATE household_merchants
+                SET canonical_name = %s,
+                    display_name = %s,
+                    updated_at = %s
+                WHERE id = ANY(%s::uuid[])
+                  AND (
+                      canonical_name IS DISTINCT FROM %s
+                      OR display_name IS DISTINCT FROM %s
+                  )
+                """,
+                [
+                    chosen_name,
+                    chosen_name,
+                    datetime.now(UTC).isoformat(),
+                    sorted(merchant_ids),
+                    chosen_name,
+                    chosen_name,
+                ],
+            )
+            updated += int(getattr(result, "rowcount", 0) or 0)
         return updated
 
     @staticmethod

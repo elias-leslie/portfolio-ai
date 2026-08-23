@@ -21,6 +21,10 @@ from app.models.household_finance import (
 )
 from app.services._household_document_pipeline_utils import parse_decimal_value
 from app.services._household_item_splits import expand_rows_with_item_splits
+from app.services._household_statement_merchants import (
+    MIN_SHARED_BILLER_PREFIX,
+    statement_merchant_key,
+)
 
 _EXECUTIVE_WINDOW_MONTHS = 6
 _UNIT_PATTERN = (
@@ -270,6 +274,14 @@ def _merchant_aliases(raw_merchant: str) -> set[str]:
     root = _merchant_root(raw_merchant)
     aliases: set[str] = {root, root.replace(" ", "")} if root else set()
     collapsed = root.replace(" ", "") if root else ""
+    # A statement line's biller key, plus the truncation-tolerant prefix, so
+    # "DIRECT DEBIT DUKEENERGY BILL PAY (Cash)" and "Dukeenergy Bill Pay
+    # 910066616132 ..." resolve to the same merchant instead of two (P1-12).
+    biller_key = statement_merchant_key(raw_merchant)
+    if biller_key:
+        aliases.add(f"biller:{biller_key}")
+        if len(biller_key) >= MIN_SHARED_BILLER_PREFIX:
+            aliases.add(f"biller:{biller_key[:MIN_SHARED_BILLER_PREFIX]}")
     if "walmart" in collapsed or "wmsupercenter" in collapsed:
         aliases.update({"walmart", "wal mart", "walmart supercenter", "wm supercenter", "wmsupercenter"})
     if "amazon" in collapsed or "amzn" in collapsed:

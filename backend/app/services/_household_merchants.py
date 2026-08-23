@@ -7,6 +7,7 @@ from typing import Any
 
 from app.services._household_report_builder import _merchant_root
 from app.services._household_spend_filters import looks_like_investment_activity
+from app.services._household_statement_merchants import normalize_statement_merchant
 
 MIN_SUBSCRIPTION_AMOUNT = 5.0
 MAX_SUBSCRIPTION_AMOUNT = 25.0
@@ -76,6 +77,11 @@ _PLAID_CATEGORY_MAP: dict[str, tuple[str, str]] = {
 
 
 def _canonical_merchant_name(raw_merchant: str) -> str:
+    # A bank-statement line names its biller behind a wall of plumbing; a card
+    # feed's merchant is already clean and must be left alone (P1-12).
+    statement_name = normalize_statement_merchant(raw_merchant)
+    if statement_name is not None:
+        return statement_name
     root = _merchant_root(raw_merchant)
     if not root:
         return raw_merchant.strip() or "Unknown merchant"
@@ -94,7 +100,30 @@ def _canonical_merchant_name(raw_merchant: str) -> str:
         return "Amazon"
     if "wholefoods" in collapsed:
         return "Whole Foods"
-    return re.sub(r"\s+", " ", raw_merchant).strip()
+    return _clean_card_feed_merchant(raw_merchant)
+
+
+# A card feed appends what the charge was ("| Sale") and which shop rang it up
+# ("#1309", "43370"). Neither is the merchant, and keeping them split Publix into
+# two merchants and Speedway into two more (P1-12).
+_CARD_FEED_SUFFIX = re.compile(r"\s*\|.*$")
+_STORE_NUMBER = re.compile(r"\s*#\s?\d+\b")
+_TRAILING_STORE_DIGITS = re.compile(r"\s+\d{3,}$")
+
+
+def _clean_card_feed_merchant(raw_merchant: str) -> str:
+    cleaned = _CARD_FEED_SUFFIX.sub("", raw_merchant)
+    cleaned = _STORE_NUMBER.sub("", cleaned)
+    cleaned = _TRAILING_STORE_DIGITS.sub("", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if not cleaned:
+        return re.sub(r"\s+", " ", raw_merchant).strip() or "Unknown merchant"
+    # Feeds shout; a short name that carries no case of its own gets title case
+    # rather than being left as PUBLIX beside Publix. Long all-caps strings are
+    # descriptions, not names -- title-casing those only turns "12TH" into "12Th".
+    if (cleaned.isupper() or cleaned.islower()) and len(cleaned.split()) <= 3:
+        return cleaned.title()
+    return cleaned
 
 
 def _category_key(value: str | None) -> str:
