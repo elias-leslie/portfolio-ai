@@ -1,12 +1,13 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASE 0 IN FLIGHT — 15 of 16 tasks landed, 1 open (0.13, the
-13 staged receipts, which waits on the Costco/Walmart order-page parser).
-Nothing is blocked on the household. Phase 1 has not started.
+**Status:** PHASE 0 COMPLETE — exit test passes (§7). 15 of 16 tasks landed;
+0.13 (the staged receipts) waits on the household's approval and on the
+Costco/Walmart order-page parser in Phase 4.2. **Phase 1 is next, and it is the
+UI/UX work.**
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (education resolves to $36,651.61; an annual bill
-can finally be a commitment; receipts no longer double-count the card feed)
+**Last updated:** 2026-08-22 (Phase 0 closed: the review queue no longer asks
+for decisions nobody can make, and two accounts sharing one name are told apart)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -52,36 +53,42 @@ contradicts another number on screen.
 
 ## 2a. Next actions (live queue — work top down)
 
-Ordered by what most changes the number the household sits down to review.
-Each item names where the evidence is. Re-order this list when you finish one.
+**Phase 0 is complete and its exit test passes** (the table is at the end of
+§7's Phase 0 block). The next session is the UI/UX work.
 
-1. **Clear the review inbox — 17 documents sit at `needs_review`.** They are
-   not one problem, they are four:
-   - **12 receipts** (8 Walmart order pages, 4 Costco order pages, all staged
-     2026-08-22). These are 0.13. The Costco parser is Phase 4.2; the Walmart
-     order pages need one dated transaction per order (see P0-27). Until a
-     parser reads their dates they must stay held, not guessed.
-   - **`Order History.csv`** — correctly reports "nothing new" (its rows are
-     already in the feed). Needs a **Reject** to leave the queue.
-   - **`image.png`** (brokerage, staged 2026-03-12) — unexamined.
-   - **4 Wells Fargo statements** (Jan/Feb 2026) whose date quality is `clear`
-     and whose import summary says **`inserted: 0`**. A bank statement that
-     parses to zero transactions is the same silence P0-27 closed for receipts,
-     one source type over. **Look here first — it is the only one of the four
-     that is a live defect rather than a known parser gap.**
+1. **Start Phase 1 — one trustworthy number pipeline.** This is the reason five
+   panels give four different answers to "what did we spend." Everything before
+   it was data repair; this is the first thing the household will *see* change.
+   Read §7 Phase 1 for the tasks, and D3 for the decision to drop the sliding
+   1M/3M/6M/12M chips in favour of complete calendar months.
 
-2. **Then run the Phase 0 exit test** (§7, below) and record the result here.
+**The review inbox is as clear as it can get without the household** — 17 → 12,
+and each of the 12 is waiting on a person, not on a bug:
+- **11 receipts** (7 Walmart order pages, 4 Costco) staged 2026-08-22, each with
+  real proposed changes at 0.92–0.98 confidence. These are **0.13**, and they are
+  held on purpose — the household asked that nothing be ingested until approved.
+  The Walmart pages still need one dated transaction per order before their spend
+  can be trusted (see P0-27); the Costco parser is Phase 4.2.
+- **`image.png`** — brokerage screenshot staged in March. Its file is gone from
+  disk and nothing from it ever applied, so it genuinely needs a re-upload. It
+  now says that instead of the generic review failure (P0-31).
 
-3. **Then start Phase 1.** Everything above is data repair. Phase 1 is the one
-   trustworthy number pipeline — the reason five panels give four different
-   answers to "what did we spend."
+**Still open for the household** (surfaced in the money inbox, blocking nothing):
+- What is the **·4635 card**? Five Walmart receipts name it and no account
+  matches. Answering it links those rows to a real account (P0-30).
+- Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
-- 0.3 identity override now reaches every read path — the ledger filter offers
-  8 accounts, not 10, and the three spellings of `Visa Credit ****4635` are one
-  (`3391408e4`).
-- P0-27 receipt dating — the four mis-dated rows are retired and the silent
-  drop is now a hold (see the finding below).
+- P0-33 two rollover IRAs both named "Rollover IRA" are now ·2283 and ·8698,
+  and the mask fallback closes that class for good (`e497b3e9b`).
+- P0-32 a document proposing zero changes no longer waits for an approval the
+  system itself refuses (`6eabc9379`).
+- P0-31 four applied Wells Fargo statements left the queue after five months of
+  telling the household to re-upload files that no longer exist (`f9461b85b`).
+- P0-27 receipt dating — four mis-dated rows retired, silent drop is now a hold
+  (`c231a3b4b`).
+- 0.3 identity override reaches every read path — the ledger filter offers 8
+  accounts, not 10 (`3391408e4`).
 - 0.14 receipt↔card-feed reconciliation — 6 receipts / $677.20 retired against
   7 charges, line items carried to the surviving charge (`b5094ec5a`).
 
@@ -536,6 +543,97 @@ these rows sit outside every account total."*
 **Still open, and it is the household's to answer:** what is the ·4635 card?
 Confirming it links those five receipts to a real account. Until then the ledger
 shows them under one honest, unidentified name.
+
+### P0-31 — Four applied statements sat in the review queue for five months telling the household to re-upload them
+
+**[fixed]**
+
+`012726`, `013026`, `022526` and `022726 WellsFargo.pdf` all read
+`status: needs_review`, `review_status: failed`, summary *"Jenny could not
+finish reviewing this document yet. Re-upload or add more context."*
+
+Their spend was in the ledger the whole time — **41 transactions** spanning
+2025-12-26 to 2026-02-27 — and their own metadata said so:
+`application_summary.status = "applied"`,
+`reconciliation_summary.review_strategy = "recovered_without_source"`. Only the
+PDFs had gone: their recorded `stored_path` points under a home directory that
+no longer exists.
+
+The maintenance pass already detected exactly this and wrote both summaries —
+and then stopped, never touching `status` or `review_status`. So the false alarm
+was permanent, and the one action it recommended was the one thing that could
+double-count spend the ledger already held.
+
+Recovery now settles the document: `parsed`, `complete`, and a summary that says
+the file is gone and its rows are already counted. The count in that sentence is
+read back from `household_transactions` inside the helper rather than passed in,
+so the reassurance cannot outlive its evidence.
+
+The other half is a document whose file is gone and which **never** applied —
+`image.png`, staged in March, zero transactions, 33% review confidence.
+Re-uploading really is the fix there, so it stays in the queue, but it now says
+the file is missing instead of repeating the generic failure on every pass.
+
+Incidentally this is also where the two Wells Fargo checking accounts show
+themselves: `012726` and `013026` are the *same weeks of the same month for two
+different accounts*, and their $506.31 "Recurring Transfer to / From Leslie E"
+rows on 2026-01-02 are the two sides of one internal transfer. Both are already
+classified as transfers, not spend, so nothing is double-counted (P0-22's fix
+holds).
+
+---
+
+### P0-32 — A document that changes nothing was held open waiting for approval
+
+**[fixed]**
+
+The Amazon `Order History.csv` reads 3,056 rows, finds all 3,051 known ones
+already imported and **0 new**, 0 unreadable, and proposes nothing:
+`proposed_changes: []`, confidence 0.98.
+
+Approval already refuses a proposal in that state — *"This review has no explicit
+money-data changes to approve. Reject it or re-run review with clearer
+evidence."* So the only decision available was Reject, and rejecting changes
+exactly as much as approving would. The document was pinned in the queue asking
+for a decision whose two outcomes are identical.
+
+It got there because a **general preference question** — *"Should Jenny treat
+Amazon orders like this as part of regular household spending?"* — sets
+`ambiguity_remaining`, and that gates the document regardless of whether the file
+has anything left to apply. A nice-to-know question was holding a finished file.
+
+A proposal with an empty `proposed_changes` now settles the document instead of
+binding a decision, read from the same field the approval path refuses on, so a
+proposal can never be both un-approvable and held open awaiting approval. The
+review's questions are inserted whether or not the document is held, so the
+preference is still asked — it just stops pinning a finished file.
+
+---
+
+### P0-33 — Two accounts, one name, and no way to tell which held the money
+
+**[fixed]**
+
+SnapTrade reports both of the household's Fidelity rollover IRAs as
+`Rollover IRA`. The accounts list rendered that name twice: one row at
+**$9,596.29**, the other at **$0.00** with no mask at all. Nothing on either row
+said which was which, and the empty one read *"Fresh"*.
+
+They are genuinely two accounts (·2283 at $0.00, ·8698 funded), not a duplicate —
+so hiding one would have been wrong. This is the same shape as the two Chase
+Sapphire cards Chase reports as `Ultimate Rewards`, and as the two Fidelity 529s:
+both of those were corrected by hand, one account at a time, with an
+`identity_override`. Nobody should have to.
+
+The registry already recorded both masks at sync time. A portfolio-origin summary
+now falls back to the registry's mask when no override set one — filling an empty
+field, not renaming an account — and a final pass appends the mask **only where
+two labels actually collide**. An account whose name is already unique keeps
+exactly the name the provider or the operator gave it, and a colliding account
+with no mask is left ambiguous rather than given an invented suffix.
+
+Net worth before and after: **$1,530,455.18** both times. A labelling fix, not a
+valuation change.
 
 ---
 
@@ -1300,10 +1398,20 @@ started.
     dropped, and the review proposal shows the real delta — rows in the file, how
     many are new, how many are already known, and the date range of the new ones.
 
-**Exit test:** `liabilities_total` matches reality; every account carries an
-honest `feed_status` and coverage range; searching `2144.48` finds the property
-tax; the Progressive premium appears exactly once, as an expense; net worth
-reconciles to statements.
+**Exit test — run 2026-08-22 against the live backend. PASSES.**
+
+| Check | Result |
+|---|---|
+| `liabilities_total` matches reality | **$17,287.71** = 5,896.50 (·8054) + 5,926.50 (·3627) + 5,464.71 (Amazon Chase). ✅ |
+| Every account carries an honest freshness status and coverage range | 16 accounts, every one with a `freshness_status`; the three that are not current say so (`stale_balance` / `stale_transactions` gap flags with reasons), and none of the fresh ones is bluffing. ✅ |
+| Searching `2144.48` finds the property tax | Exactly 1 hit: 2025-11-01, $2,144.48, Pinellas County Tax Collector, Home / essential, `manual_entry`. ✅ |
+| The Progressive premium appears exactly once, as an expense | 2026-02-17 $276.99 expense live; its income twin is `removed = TRUE`. (A separate $763.00 premium on 2026-06-03 is a different charge, correctly its own row.) ✅ |
+| Net worth reconciles | 1,547,742.89 assets − 17,287.71 liabilities = **1,530,455.18**. ✅ |
+
+**Carried into Phase 1, not blocking:** the API's `balance` field is `null` on
+every portfolio-origin account row while `current_value` carries the number —
+the accounts UI renders `currentValue`, so nothing is visibly wrong, but two
+fields mean two chances to read the wrong one. Pick one in Phase 1.
 
 ---
 
@@ -1508,4 +1616,5 @@ household-level habits and per-person habits are different products.
 | 2026-08-22 | Phase 0 cont. 2 | Three household answers landed and each exposed a defect underneath it. **HOA is annual** (0.11) — but `annual` was not a cadence the system had (**P0-28**): it was absent from `_RECURRING_CADENCES`, the multiplier and next-date tables, and the recurring query required two sightings, which six months of coverage can never show for a yearly bill. Added `annual`, added a merchant `cadence_override` that outranks inference (`scripts/household_declare_cadence.py`), and admitted declared merchants on one sighting. HOA now reports annual, $104.13, next 2027-02-17, confidence 1.0, recategorised `Bills` → `Home` with a merchant rule. **No delivery at Aldi/Amazon/Publix/Walmart** (0.12) — all four now carry a known $0 pickup fee with delivery deliberately unset, so "unset" means *not used* rather than *not yet asked*. **Fidelity 529s** (0.4) — the "no balance" diagnosis was wrong: SnapTrade had $14,929.22 for each all along, and the dashboard was filing them under taxable because the account summary read the *provider's* account type while the registry's `classification_override` was only ever read back inside the registry (**P0-29**). Education $6,793.17 → **$36,651.61**, taxable $635,774.29 → $605,915.85, net worth unchanged — proof it was a reclassification, not a revaluation. Also read the source PDF and retired D20's data-quality flag: the identical $14,363.57 is real (both accounts hold the same 177.153 CWIAX shares), not an extraction error. |
 | 2026-08-22 | Phase 0 cont. | Receipts stopped double-counting the card feed (0.14): a new reconciliation pass retires a receipt whose spend the feed already carries, matching a **set** of charges rather than a twin — the $54.06 Walmart receipt is the $50.48 + $3.58 pair. Six receipts / $677.20 retired against seven charges, idempotent on a second pass, audit blob on every retired row. The same pass detects a receipt uploaded twice as two different files, on identical line items rather than a matching total. CSV imports fixed and made legible (0.15): a byte-order mark was silently voiding an entire Amazon export, and the review proposal now states rows-in-file / new / already-known / date range before approval. 0.3a and 0.10 closed by household answers (two separate closed Wells Fargo accounts; property tax paid at the 4% November discount). New finding **P0-27** — the receipt parser dates purchases to the day they were processed and merges several orders into one row; $313.20 is provably two May orders, and its $138.22 leg is already counted elsewhere. Fix lands in Phase 4.2. |
 | 2026-08-22 | Phase 0 cont. 3 | **P0-27 re-diagnosed by reproduction, and it was not what the finding said.** Replaying the $313.20 document's structured data through the current `extract_transactions` yields **zero** transactions, not a mis-dated one: the review returns two orders whose `date`, `amount` and `merchant` are all null, structured extraction skips them, and the summary fallback finds no date either. The mis-dated rows are residue from an older path — every one of the four had `transaction_date` exactly equal to its document's upload date. So the live defect was **silence**: a receipt naming a merchant, a total and two orders produced no spend, no warning, and a document reported as applied. A receipt with no readable purchase date is now **held** — reason written to `date_quality_summary` beside the future-dated holds, `household_receipt_held_without_a_date` logged — because guessing the date is what made the four wrong in the first place. The four stale rows are retired (`removed`, never deleted) with `metadata.date_quality.reason = dated_to_the_day_the_file_was_read`; live receipt rows 15 → 5. Teaching the parser to read `"May 20, 2026 order"` off a Walmart order page stays with the Costco parser in Phase 4.2. |
+| 2026-08-22 | Phase 0 closed | The review inbox went **17 → 12**, and every one of the 12 that remains is waiting on a person rather than on a bug. Three defects came out of clearing it. **P0-31**: four Wells Fargo statements had sat at `needs_review` since March saying *"Re-upload or add more context"* while their 41 transactions were in the ledger the whole time — only the PDFs had moved out from under the recorded path. The recovery pass already knew this and wrote the summaries, but never touched `status`, so the false alarm was permanent and the action it recommended was the one that could double-count applied spend. **P0-32**: the Amazon export reads 3,056 rows, finds 0 new, proposes nothing — and was pinned open waiting for an approval the system itself refuses (*"no explicit money-data changes to approve"*), because a general preference question about Amazon set `ambiguity_remaining`. **P0-33**: SnapTrade names both Fidelity rollover IRAs `Rollover IRA`; the list showed that name twice, one row at $9,596.29 and one at $0.00, with nothing to tell them apart — the same hand-correction the two Sapphires and the two 529s each needed, now closed as a class by falling back to the mask the registry already recorded and appending it only where labels actually collide. Net worth $1,530,455.18 before and after. **Phase 0's exit test was then run against the live backend and passes on all five checks** (liabilities $17,287.71; every account honest about freshness; `2144.48` finds the property tax; the Progressive premium appears once, as an expense; assets − liabilities reconciles). Phase 1 — the UI/UX work — is next. |
 | 2026-08-22 | Questions closed | All 7 open questions in §5 resolved — 3 from the data, 4 by the user. New findings P0-21 (only two live feeds), P0-22 (same premium booked income *and* expense), P0-23 (spend filters delete real note income), P1-24 (19 labels / ~7 accounts), P1-25 (ledger can't search by amount), P2-26 (HOA ×6, miscategorized). Decisions D16–D23 added. Phase 0 expanded 6→13 tasks; Phase 3 rewritten. **Plan is ready to build.** |
