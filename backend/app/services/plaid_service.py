@@ -25,6 +25,7 @@ from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
 from app.logging_config import get_logger
 from app.services._household_merchants import _canonical_category_from_taxonomy
+from app.services._household_taxonomy import canonical_classification
 from app.services.credential_crypto import (
     CredentialCipher,
     SecretDecryptionError,
@@ -241,10 +242,10 @@ def _transaction_category(personal_finance_category: dict[str, object]) -> tuple
     mapped = _canonical_category_from_taxonomy(category=str(raw))
     if mapped is not None:
         return mapped
-    return (
-        str(raw).replace("_", " ").title(),
-        "mixed",
-    )
+    # Never title-case an unmapped enum into a category. That fallback is how
+    # "GENERAL_SERVICES_STORAGE" reached the household's category legend as
+    # "General Services Storage", sitting beside the curated names.
+    return canonical_classification(str(raw))
 
 
 class PlaidService:

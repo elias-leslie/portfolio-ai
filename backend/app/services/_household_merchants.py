@@ -8,6 +8,11 @@ from typing import Any
 from app.services._household_report_builder import _merchant_root
 from app.services._household_spend_filters import looks_like_investment_activity
 from app.services._household_statement_merchants import normalize_statement_merchant
+from app.services._household_taxonomy import (
+    canonical_classification,
+    essentiality_for,
+    normalize_category,
+)
 
 MIN_SUBSCRIPTION_AMOUNT = 5.0
 MAX_SUBSCRIPTION_AMOUNT = 25.0
@@ -42,6 +47,8 @@ _PLAID_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "GENERAL_MERCHANDISE_SPORTING_GOODS": ("Retail", "discretionary"),
     "GENERAL_MERCHANDISE_SUPERSTORES": ("Household", "mixed"),
     "GENERAL_SERVICES_AUTOMOTIVE": ("Transportation", "essential"),
+    "GENERAL_SERVICES_INSURANCE": ("Insurance", "essential"),
+    "GENERAL_SERVICES_STORAGE": ("Household", "mixed"),
     "GENERAL_SERVICES_EDUCATION": ("Education", "essential"),
     "GENERAL_SERVICES_OTHER_GENERAL_SERVICES": ("Subscriptions", "discretionary"),
     "GOVERNMENT_AND_NON_PROFIT_DONATIONS": ("Donations", "discretionary"),
@@ -161,6 +168,14 @@ def _canonical_category_from_taxonomy(
         ("RENT_AND_UTILITIES_", ("Bills", "essential")),
         ("TRANSPORTATION_", ("Transportation", "essential")),
         ("TRAVEL_", ("Travel", "discretionary")),
+        # Without these two the enum falls past every branch and the caller
+        # title-cases it, which is how "General Services Storage" and "Bank Fees
+        # Other Bank Fees" ended up in the category legend next to "Bills".
+        ("BANK_FEES_", ("Bills", "essential")),
+        ("GENERAL_SERVICES_", ("Household", "mixed")),
+        ("ENTERTAINMENT_", ("Entertainment", "discretionary")),
+        ("PERSONAL_CARE_", ("Personal Care", "discretionary")),
+        ("GOVERNMENT_AND_NON_PROFIT_", ("Donations", "discretionary")),
     )
     if mapped is None:
         mapped = next(
@@ -168,10 +183,11 @@ def _canonical_category_from_taxonomy(
             None,
         )
     if mapped is None and category and not _looks_like_raw_taxonomy_enum(category):
-        normalized_category = re.sub(r"\s+", " ", category).strip()
-        normalized_essentiality = (essentiality or "mixed").strip() or "mixed"
-        mapped = (normalized_category, normalized_essentiality)
-    return mapped
+        mapped = (normalize_category(category), "")
+    if mapped is None:
+        return None
+    resolved_category = normalize_category(mapped[0])
+    return (resolved_category, essentiality_for(resolved_category))
 
 
 def _classify_statement_flow(description: str) -> str:
@@ -253,6 +269,12 @@ def _classify_merchant(
                 "spectrum",
                 "frontier",
                 "waste pro",
+                "property tax",
+                "tax collector",
+                "homeowners association",
+                "association dues",
+                "hoa dues",
+                "hoa payment",
             ],
             ("Bills", "essential"),
         ),
@@ -280,7 +302,26 @@ def _classify_merchant(
             ("Gas", "essential"),
         ),
         (
-            ["uber", "lyft", "parking", "toll", "sunpass", "jiffy lube", "valvoline", "midas", "firestone", "pep boys"],
+            [
+                "uber",
+                "lyft",
+                "parking",
+                "toll",
+                "sunpass",
+                "jiffy lube",
+                "valvoline",
+                "midas",
+                "firestone",
+                "pep boys",
+                "autozone",
+                "auto zone",
+                "advance auto",
+                "o reilly",
+                "napa auto",
+                "auto parts",
+                "car wash",
+                "port authority",
+            ],
             ("Transportation", "essential"),
         ),
         (
@@ -407,18 +448,20 @@ def _classification_for_flow(
 ) -> tuple[str, str]:
     if flow_type == "income":
         return ("Income", "essential")
-    if flow_type == "refund":
-        return _classify_merchant(
-            raw_merchant=raw_merchant,
-            description=description,
-            amount=amount,
-        )
     if flow_type in {"payment", "transfer_in", "transfer_out", "investment"}:
         return ("Transfers", "mixed")
-    return _classify_merchant(
+    category, _ = _classify_merchant(
         raw_merchant=raw_merchant,
         description=description,
         amount=amount,
+    )
+    # The merchant rules pick the category; the taxonomy decides the
+    # essentiality. Letting each rule carry its own essentiality is what put
+    # Transportation in the legend twice.
+    return canonical_classification(
+        category,
+        merchant=raw_merchant,
+        description=description,
     )
 
 
@@ -486,19 +529,19 @@ def _effective_transaction_classification(
     merchant_metadata: dict[str, Any] | None,
     categorization_source: str | None = None,
 ) -> tuple[str, str]:
+    # A category a person chose is authoritative and is kept exactly as written,
+    # custom names included. The essentiality is not theirs to vary row by row:
+    # it belongs to the category, or the same category reappears in the legend
+    # twice with two different meanings.
     if (
         (categorization_source or "").strip().lower() in _AUTHORITATIVE_CATEGORY_SOURCES
         and (stored_category or "").strip()
     ):
-        return (
-            (stored_category or "").strip(),
-            (stored_essentiality or "mixed").strip() or "mixed",
-        )
+        chosen = (stored_category or "").strip()
+        return (chosen, essentiality_for(chosen))
     if isinstance(merchant_metadata, dict) and isinstance(merchant_metadata.get("manual_rule"), dict):
-        return (
-            (stored_category or "Uncategorized").strip() or "Uncategorized",
-            (stored_essentiality or "mixed").strip() or "mixed",
-        )
+        chosen = (stored_category or "Uncategorized").strip() or "Uncategorized"
+        return (chosen, essentiality_for(chosen))
 
     resolved_category, resolved_essentiality = _classification_for_flow(
         raw_merchant=raw_merchant,
@@ -532,8 +575,5 @@ def _effective_transaction_classification(
             description=description,
         )
     ):
-        return (
-            stored_category_text,
-            stored_essentiality_text or resolved_essentiality,
-        )
+        return (stored_category_text, essentiality_for(stored_category_text))
     return resolved_category, resolved_essentiality

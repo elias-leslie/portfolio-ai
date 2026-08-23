@@ -66,6 +66,7 @@ from app.services._household_statement_merchants import (
     normalize_statement_merchant,
     statement_merchant_key,
 )
+from app.services._household_taxonomy import essentiality_for
 from app.services._household_transaction_parsers import (
     _parse_date_value,
     extract_transactions,
@@ -684,6 +685,7 @@ class HouseholdTransactionService:
         """Repair canonical categories, provenance fields, account links, and doc summaries."""
         with self.storage.connection() as conn:
             canonicalized = self._canonicalize_stored_categories(conn, limit=limit)
+            essentiality_aligned = self._canonicalize_stored_essentiality(conn)
             merchants_normalized = self._normalize_merchant_names(conn)
             rules_backfilled = self._backfill_merchant_rules(conn, limit=limit)
             provenance_backfilled = self._backfill_transaction_provenance(conn)
@@ -696,6 +698,7 @@ class HouseholdTransactionService:
         purchase_item_summary = HouseholdPurchaseItemService().backfill(limit=limit)
         return {
             "canonicalized": canonicalized,
+            "essentiality_aligned": essentiality_aligned,
             "merchants_normalized": merchants_normalized,
             "rules_backfilled": rules_backfilled,
             "provenance_backfilled": provenance_backfilled,
@@ -1815,6 +1818,46 @@ class HouseholdTransactionService:
                 ],
             )
             updated += 1
+        return updated
+
+    @staticmethod
+    def _canonicalize_stored_essentiality(conn: Any) -> int:
+        """Make every row agree with its category about whether it is a need.
+
+        ``_canonicalize_stored_categories`` deliberately leaves manually
+        categorized rows alone, and rightly so -- but essentiality is not a
+        per-row choice. Rows that disagreed with their own category are why the
+        Budget legend carried "Transportation" twice, once essential and once
+        discretionary, and why the same dollar could move between needs and
+        wants with nobody touching it.
+
+        This only ever rewrites essentiality. The category a person chose stays
+        exactly as they wrote it.
+        """
+        rows = conn.execute(
+            """
+            SELECT DISTINCT COALESCE(category, '')
+            FROM household_transactions
+            WHERE removed IS NOT TRUE
+            """
+        ).fetchall()
+        updated = 0
+        now = datetime.now(UTC).isoformat()
+        for (raw_category,) in rows:
+            category = str(raw_category or "")
+            canonical = essentiality_for(category)
+            result = conn.execute(
+                """
+                UPDATE household_transactions
+                SET essentiality = %s,
+                    updated_at = %s
+                WHERE removed IS NOT TRUE
+                  AND COALESCE(category, '') = %s
+                  AND COALESCE(essentiality, '') <> %s
+                """,
+                [canonical, now, category, canonical],
+            )
+            updated += int(getattr(result, "rowcount", 0) or 0)
         return updated
 
     @staticmethod

@@ -744,7 +744,10 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
 
 def test_effective_classification_honors_manual_categorization() -> None:
     # A user-set category must survive display-time heuristics that would
-    # otherwise re-resolve the merchant (Anthropic -> Subscriptions here).
+    # otherwise re-resolve the merchant (Anthropic -> Subscriptions here). The
+    # essentiality stored alongside it does not survive: it belongs to the
+    # category, and letting it vary row by row is what put the same category in
+    # the legend twice with two different meanings.
     assert _effective_transaction_classification(
         flow_type="expense",
         raw_merchant="Anthropic",
@@ -754,7 +757,7 @@ def test_effective_classification_honors_manual_categorization() -> None:
         stored_essentiality="discretionary",
         merchant_metadata=None,
         categorization_source="manual",
-    ) == ("Bills", "discretionary")
+    ) == ("Bills", "essential")
     # Non-curated sources still go through the resolver.
     category, _essentiality = _effective_transaction_classification(
         flow_type="expense",
