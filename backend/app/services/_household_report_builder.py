@@ -808,6 +808,7 @@ def build_household_reports(
                 average_monthly_spend=0.0,
                 average_monthly_essentials=0.0,
                 average_monthly_discretionary=0.0,
+                average_monthly_mixed=0.0,
                 recent_30_day_spend=0.0,
                 recurring_merchant_count=0,
                 tracked_expense_count=0,
@@ -875,6 +876,12 @@ def build_household_reports(
     discretionary_spend = sum(
         amount for (_, essentiality), amount in category_average_totals.items() if essentiality == "discretionary"
     )
+    # Everything that is neither, taken as the remainder rather than as a third
+    # sum over a third label: a category carrying some unforeseen essentiality
+    # would otherwise vanish from the split instead of showing up as unclassified.
+    mixed_spend = (
+        sum(category_average_totals.values()) - essential_spend - discretionary_spend
+    )
     recent_30_day_spend = sum(
         _row_signed_amount(row) for row in recent_rows if row["date"].toordinal() >= recent_cutoff
     )
@@ -897,6 +904,7 @@ def build_household_reports(
         average_monthly_spend=round(average_monthly_spend, 2),
         average_monthly_essentials=round(essential_spend / average_months, 2),
         average_monthly_discretionary=round(discretionary_spend / average_months, 2),
+        average_monthly_mixed=round(max(mixed_spend, 0.0) / average_months, 2),
         recent_30_day_spend=round(recent_30_day_spend, 2),
         recurring_merchant_count=recurring_merchant_count,
         tracked_expense_count=len(recent_rows),

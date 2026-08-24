@@ -114,6 +114,10 @@ class HouseholdExecutiveReport(BaseModel):
     average_monthly_spend: float
     average_monthly_essentials: float
     average_monthly_discretionary: float
+    # Categories that are genuinely neither -- Household, Cash, Peer Payments.
+    # Published rather than dropped: without it the two shares sum to 90% and
+    # the card silently loses a quarter of the money.
+    average_monthly_mixed: float = 0.0
     recent_30_day_spend: float
     recurring_merchant_count: int
     tracked_expense_count: int

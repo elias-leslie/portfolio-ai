@@ -149,7 +149,8 @@ const dashboard = {
       summary: 'Summary',
       averageMonthlySpend: 6500,
       averageMonthlyEssentials: 4700,
-      averageMonthlyDiscretionary: 1800,
+      averageMonthlyDiscretionary: 1500,
+      averageMonthlyMixed: 300,
       recent30DaySpend: 6200,
       recurringMerchantCount: 3,
       trackedExpenseCount: 18,
@@ -365,7 +366,7 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.getByText('Decision Board')).toBeInTheDocument()
     expect(screen.getByText('Budget Pace')).toBeInTheDocument()
     expect(screen.getByText('Free to spend')).toBeInTheDocument()
-    expect(screen.getByText('Want vs need')).toBeInTheDocument()
+    expect(screen.getByText('Needs, wants and mixed')).toBeInTheDocument()
     expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
     expect(screen.getByText('+$500')).toBeInTheDocument()
     // Backend-owned numbers render verbatim: none of these are derivable from
@@ -381,7 +382,7 @@ describe('MoneyOverviewPanel', () => {
       screen.getByText(/less essentials still to come: \$1,515/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/less owed on cards: \$6,000/i)).toBeInTheDocument()
-    expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
+    expect(screen.getByText('$4,700 / $1,500 / $300')).toBeInTheDocument()
     expect(
       screen.getByText('Wants are $400 above the current cap.'),
     ).toBeInTheDocument()
@@ -481,7 +482,7 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.queryByText('Safe')).not.toBeInTheDocument()
     expect(screen.getByText('Review')).toBeInTheDocument()
     expect(screen.getByText('$240')).toBeInTheDocument()
-    expect(screen.getByText('$4,700 / $1,800')).toBeInTheDocument()
+    expect(screen.getByText('$4,700 / $1,500 / $300')).toBeInTheDocument()
     expect(
       screen.queryByText(/estimate from current coverage/i),
     ).not.toBeInTheDocument()

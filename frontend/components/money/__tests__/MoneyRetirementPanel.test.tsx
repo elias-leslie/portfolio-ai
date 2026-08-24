@@ -195,6 +195,7 @@ const dashboard = {
       averageMonthlySpend: 7000,
       averageMonthlyEssentials: 5000,
       averageMonthlyDiscretionary: 2000,
+      averageMonthlyMixed: 0,
       recent30DaySpend: 6900,
       recurringMerchantCount: 3,
       trackedExpenseCount: 20,

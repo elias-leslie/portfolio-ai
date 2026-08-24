@@ -43,10 +43,13 @@ export function DecisionBoard({
   affordability,
   needsAmount,
   wantsAmount,
+  mixedAmount,
   needsShare,
   wantsShare,
+  mixedShare,
   needCategories,
   wantCategories,
+  mixedCategories,
   saveNowLines,
   priceInsights,
   merchantHighlights,
@@ -73,10 +76,13 @@ export function DecisionBoard({
   | 'affordability'
   | 'needsAmount'
   | 'wantsAmount'
+  | 'mixedAmount'
   | 'needsShare'
   | 'wantsShare'
+  | 'mixedShare'
   | 'needCategories'
   | 'wantCategories'
+  | 'mixedCategories'
   | 'saveNowLines'
   | 'priceInsights'
   | 'merchantHighlights'
@@ -245,7 +251,9 @@ export function DecisionBoard({
 
         <div className="rounded-2xl border border-border/40 bg-surface-muted/15 p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-text">Want vs need</p>
+            <p className="text-sm font-semibold text-text">
+              Needs, wants and mixed
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               {spendTrustDegraded ? (
                 <InfoBadge
@@ -274,7 +282,7 @@ export function DecisionBoard({
           <p className="mt-3 text-2xl font-semibold text-text">
             {trustCardValue(
               spendTrustStatus,
-              `${formatCurrencyWhole(needsAmount)} / ${formatCurrencyWhole(wantsAmount)}`,
+              `${formatCurrencyWhole(needsAmount)} / ${formatCurrencyWhole(wantsAmount)} / ${formatCurrencyWhole(mixedAmount)}`,
               'Awaiting split',
             )}
           </p>
@@ -283,18 +291,31 @@ export function DecisionBoard({
             wantsShare != null &&
             wantsAmount > needsAmount
               ? `Wants are outspending needs (${formatPercent(wantsShare, { decimals: 0 })} vs ${formatPercent(needsShare ?? 0, { decimals: 0 })}).`
-              : 'Needs versus wants from the recent monthly average.'}
+              : 'Needs, wants and mixed from the recent monthly average.'}
           </p>
           <div className="mt-3 space-y-2 text-xs text-text-muted">
-            <p>Needs: {formatCategoryPreview(needCategories)}</p>
-            <p>Wants: {formatCategoryPreview(wantCategories)}</p>
             <p>
-              Wants share:{' '}
-              {formatPercent(wantsShare, {
-                decimals: 0,
-                nullDisplay: '—',
-              })}
+              Needs{' '}
+              {formatPercent(needsShare, { decimals: 0, nullDisplay: '—' })}:{' '}
+              {formatCategoryPreview(needCategories)}
             </p>
+            <p>
+              Wants{' '}
+              {formatPercent(wantsShare, { decimals: 0, nullDisplay: '—' })}:{' '}
+              {formatCategoryPreview(wantCategories)}
+            </p>
+            <p>
+              Mixed{' '}
+              {formatPercent(mixedShare, { decimals: 0, nullDisplay: '—' })}:{' '}
+              {formatCategoryPreview(mixedCategories)}
+            </p>
+            {mixedAmount > 0 ? (
+              <p className="text-text-muted/80">
+                Mixed is spending that is genuinely neither — a Household or
+                Cash row can be a repair or a treat. It is shown so the three
+                shares account for every tracked dollar.
+              </p>
+            ) : null}
           </div>
           <div className="mt-3 border-t border-border/30 pt-3 text-xs">
             <Link

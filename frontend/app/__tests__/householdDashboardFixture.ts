@@ -91,6 +91,7 @@ export function buildHouseholdDashboard() {
         averageMonthlySpend: 5200,
         averageMonthlyEssentials: 3400,
         averageMonthlyDiscretionary: 1800,
+        averageMonthlyMixed: 0,
         recent30DaySpend: 4900,
         recurringMerchantCount: 4,
         trackedExpenseCount: 24,

@@ -54,23 +54,19 @@ contradicts another number on screen.
 ## 2a. Next actions (live queue — work top down)
 
 **Phase 0 is complete and its exit test passes** (the table is at the end of
-§7's Phase 0 block). **Phase 1 is in progress: 1.1–1.8 are done.** Only 1.9 and
-1.10 remain before the Phase 1 exit test can be run.
+§7's Phase 0 block). **Phase 1 is nearly done: 1.1–1.8 and 1.10 are complete.**
+Only 1.9 stands between here and the Phase 1 exit test.
 
 Work top down through what is left of §7 Phase 1:
 
-1. **1.10 — show the `mixed` bucket** so needs/wants sums to 100% (P1-8). 1.6
-   made this sharper rather than easier: Household is now a single honest
-   `mixed` series and it is the **largest** category at 24.6% of spend, so the
-   invisible bucket is a quarter of the money, not the $811 tail the ticket
-   describes.
-2. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
-   1.7 supplied one honest input for it: `spend_exclusions` now states how much
-   of the ledger reaches the spend totals (861 of 1,000 rows), which is a
-   coverage fact the score currently ignores.
-3. **Then run the Phase 1 exit test** — every window/surface agrees; July 2026
+1. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
+   Two of its honest inputs now exist: `spend_exclusions` states how much of the
+   ledger reaches the spend totals (861 of 1,000 rows), and account lifecycle
+   (`feed_status`, `coverage_through`, added in Phase 0) states which feeds are
+   still reporting. The score currently ignores both.
+2. **Then run the Phase 1 exit test** — every window/surface agrees; July 2026
    reports $5,025 spend and $2,755 income; recurring bills lists utilities.
-4. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
 
@@ -446,6 +442,23 @@ Decision Board: **$3,217 / $4,074**, badge *"Wants leading 50%"*, body *"(50% vs
 40%)"*. 3,217 + 4,074 = 7,292, but average monthly spend is 8,103 — the $811
 `mixed` bucket is invisible, so the two shares sum to 90% and the card labels
 itself "Want vs need" while displaying needs first.
+
+**RESOLVED in 1.10.** The `mixed` bucket was computed nowhere and displayed
+nowhere: the executive report summed `essential` and `discretionary` and simply
+never asked what the remainder was. `average_monthly_mixed` is now published,
+and taken as **the remainder** rather than as a third sum over a third label —
+so a category carrying some unforeseen essentiality shows up as unclassified
+instead of vanishing from the split, which is the failure mode being fixed.
+
+Task 1.6 made this larger rather than smaller. With Household given one honest
+`mixed` reading it is the household's biggest single category, so live the split
+is **needs $3,154 (30.8%) / wants $4,253 (41.6%) / mixed $2,823 (27.6%)**,
+summing to exactly $10,230.57 and 100.0%. The invisible slice was a quarter of
+the money, not the $811 tail this finding describes.
+
+The card is renamed **"Needs, wants and mixed"** — it displayed needs first while
+calling itself "Want vs need" — shows all three amounts and all three shares, and
+says what mixed means: *a Household or Cash row can be a repair or a treat*.
 
 ### P1-9 — Signal quality: a vitamin bottle is presented as a budget driver
 
@@ -1646,7 +1659,7 @@ Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
     DUKEENERGY BILL PAY (Cash)" → "Duke Energy".
 1.9 Replace `visibility_score: 99` with a coverage measure that tracks actual
     account coverage (P1-13).
-1.10 Show the **mixed** bucket in needs/wants so the split sums to 100% (P1-8).
+1.10 ✅ Show the **mixed** bucket in needs/wants so the split sums to 100% (P1-8).
 
 **Exit test:** every window/surface agrees; July 2026 reports $5,025 spend and
 $2,755 income; recurring bills lists utilities, not a vacation.
@@ -1837,3 +1850,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-23 | Phase 1.5 | **Three green verdicts deleted, one cause between them.** `on_track` and `Configured` were both *fall-through* values — reached by not failing a check rather than by passing one. `budget_snapshot.status` said `on_track` in the same payload as `pace_status: partial_plan` and `actual_monthly_spend 10,085` against a `monthly_plan_total 5,000`; it now returns **`plan_incomplete`** and says why (*"the monthly plan has no discretionary target, so total spending of $10,085/mo cannot be judged against it"*), or **`above_plan`** when a complete plan is overrun on the total even though every lane is individually inside its cap. `budget_readiness` reported all three lanes **Configured** with 17/19 category caps unset, because "Configured" meant *any* resolved value — and Lifestyle's was an inferred $4,073.26, which is just the discretionary spending the household already does, handed back as a cap. Lanes now distinguish set from inferred (**"Inferred from spending"**, status `partially_configured`, summary naming the lane, label tinted by state). `retirement_contribution_tracker` stops reporting `on_track` from a $0 target against $0 contributions (D13's defect) — a zero target is unset or paused, and D17 makes `paused` first-class in Phase 3. All three verified live on the running backend. |
 | 2026-08-23 | Phase 1.6 | **The legend stopped showing the same category twice, because essentiality stopped being a field.** Transportation, Household, Travel and Home each appeared as two series, and the reason was structural rather than a bad row here and there: essentiality was stored as a *second free field* beside the category, so nothing obliged two "Transportation" rows to agree and each classifier decided independently. `_household_taxonomy.py` makes it a **function of the category** — one reading for each of the 23 curated categories, reachable only through `essentiality_for()`, and every classifier path now routes through it including Plaid's. Two of the four doublings turned out to be a single row each: **Home** held a $2,144.48 property tax and an HOA payment, its only "essential" rows, and those are what dragged the category between needs and wants depending which was read — `BILL_CONCEPTS` files property tax and HOA dues as **Bills**, after which Home is honestly discretionary. Raw Plaid labels are mapped instead of displayed ("General Services Insurance" → Insurance, "General Services Storage" → Household, "Bank Fees Other Bank Fees" → Bills). A category the household invented ("Girls") is **kept as written** and given a stable `mixed`, because flattening a real label into a fallback would be a worse lie than the doubling being fixed. Stored rows are repaired by `_canonicalize_stored_essentiality` inside `repair_transaction_system`, which rewrites essentiality only and never moves a transaction between categories. Live: **23 categories in 23 rows**, a second repair pass reports `essentiality_aligned = 0`, and `category_breakdown` returns six rows with no duplicate category and no Plaid leakage. It also sharpened 1.10 rather than easing it — Household is now one honest `mixed` series and the **largest** category at 24.6% of spend, so the bucket the needs/wants split hides is a quarter of the money. Gate green: 2457 backend tests. |
 | 2026-08-23 | Phase 1.7 | **Every spend total now publishes what it left out, and the household can argue with it.** Three things were missing and only one was the string list: there was no **total** (nothing said what exclusion cost), no **reason a person could read** (the ledger said `cash_movement`, which names a category of decision rather than the decision), and no **way to disagree** — which is what made the first two matter, because a number you can neither check nor appeal has to be trusted rather than believed. `spend_exclusions` now publishes the counterpart to every total: **139 of 1,000 rows ($448,762)**, grouped by the rule that held them, with the merchants under each rule named. That number required widening past the ticket: rolling up only the literal string list gave **11 rows**, because most exclusions never reach the string list — they are dropped earlier for flow type. Eleven answers "why is this Zelle payment missing?" and leaves "why is my spend total smaller than my transactions?" unanswered, and the second is the question people actually arrive with. The appeal is a nullable `spend_override` column (migration `b2c3d4e5f6a7`), three-valued on purpose — `include` restores, `exclude` drops, clearing hands the row back to the rules, because an appeal that cannot be withdrawn is a worse trap than the filter it corrects. It is a **column, not a metadata key**: the spend predicate is built in SQL across several queries, and an override invisible to SQL would apply on the Ledger and not the Dashboard — the exact defect class this phase exists to remove — so `non_spend_sql_predicate` applies it centrally rather than leaving each query to remember. Only rules that match on **wording** invite an appeal; a row excluded for being income is not a guess about a string, and offering to overrule it would be offering the wrong argument. Verified live end to end: appealing the $400 ATM withdrawal of 2026-03-16 moved the roll-up to **138 / $448,362** — exactly $400 — reported it as "1 restored, $400.00" under Cash withdrawals, and flipped that row's own SQL verdict from dropped to counted; withdrawing it restored 139 / $448,762, and the live data is as it was found. One defect surfaced during verification and was fixed in the same task: "income" is reachable both as a flow type and as a category, so the card listed **"Money coming in" twice** — P1-7's doubled legend, reproduced one surface over — so rules are now grouped by meaning rather than by which rule matched. Gate green: 2,468 backend tests, 269 frontend money tests, 0 console errors on the live page. |
+| 2026-08-24 | Phase 1.10 | **The split adds up to all of the money, not 90% of it.** Needs plus wants read $3,217 / $4,074 against $8,103 of average monthly spend, and the card called itself "Want vs need" while displaying needs first. The `mixed` bucket was computed nowhere and shown nowhere — the executive report summed the two named essentialities and never asked what the remainder was. `average_monthly_mixed` is now published as **the remainder** rather than as a third sum over a third label, so a category carrying some unforeseen essentiality surfaces as unclassified instead of vanishing, which is the failure mode itself. 1.6 made the slice bigger rather than smaller: with Household given one honest `mixed` reading it is the largest single category, so live the split is **needs $3,154 (30.8%) / wants $4,253 (41.6%) / mixed $2,823 (27.6%)**, summing to exactly $10,230.57 and **100.0%**. The hidden slice was a quarter of the money, not the $811 tail P1-8 describes. Card renamed **"Needs, wants and mixed"**, all three amounts and shares shown, and mixed explained rather than merely listed — a Household or Cash row can be a repair or a treat. Gate green: 2,470 backend tests, 273 frontend money tests, 0 console errors live. |

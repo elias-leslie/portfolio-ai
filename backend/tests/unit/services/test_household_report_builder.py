@@ -805,3 +805,64 @@ def test_build_household_reports_without_item_splits_matches_default() -> None:
     default = build_household_reports(report_rows=[dict(row) for row in rows], **kwargs)
     empty = build_household_reports(report_rows=[dict(row) for row in rows], item_splits={}, **kwargs)
     assert default == empty
+
+
+def test_the_three_essentiality_buckets_account_for_every_tracked_dollar() -> None:
+    """Needs plus wants used to be 90% of spend and still called itself a split.
+
+    The gap was the `mixed` bucket -- Household, Cash, Peer Payments -- which was
+    computed nowhere and displayed nowhere. Since 1.6 gave Household a single
+    honest `mixed` reading it is the largest category in this household, so the
+    missing slice is roughly a quarter of the money rather than a rounding tail.
+    """
+    previous_month_day = date.today().replace(day=1) - timedelta(days=1)
+    earlier_month_day = previous_month_day.replace(day=1) - timedelta(days=1)
+
+    reports = build_household_reports(
+        report_rows=[
+            _report_row(
+                row_date=previous_month_day, merchant="Publix", amount=300.0,
+                category="Groceries", essentiality="essential", document_id="doc-1",
+            ),
+            _report_row(
+                row_date=previous_month_day, merchant="Target", amount=200.0,
+                category="Retail", essentiality="discretionary", document_id="doc-2",
+            ),
+            _report_row(
+                row_date=earlier_month_day, merchant="Home Depot", amount=500.0,
+                category="Household", essentiality="mixed", document_id="doc-3",
+            ),
+        ],
+        cadence_for_dates=lambda _dates: None,
+        merchant_recommendation=lambda **_kwargs: "",
+    )
+
+    executive = reports.executive
+    assert executive.average_monthly_mixed == 250.0
+    assert (
+        executive.average_monthly_essentials
+        + executive.average_monthly_discretionary
+        + executive.average_monthly_mixed
+        == executive.average_monthly_spend
+    )
+
+
+def test_a_household_with_nothing_mixed_reports_zero_rather_than_a_gap() -> None:
+    previous_month_day = date.today().replace(day=1) - timedelta(days=1)
+
+    reports = build_household_reports(
+        report_rows=[
+            _report_row(
+                row_date=previous_month_day, merchant="Publix", amount=300.0,
+                category="Groceries", essentiality="essential", document_id="doc-1",
+            ),
+        ],
+        cadence_for_dates=lambda _dates: None,
+        merchant_recommendation=lambda **_kwargs: "",
+    )
+
+    assert reports.executive.average_monthly_mixed == 0.0
+    assert (
+        reports.executive.average_monthly_essentials
+        == reports.executive.average_monthly_spend
+    )

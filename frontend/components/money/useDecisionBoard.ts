@@ -130,16 +130,27 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
       : 'Not enough cash and commitment data to answer this yet.'
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
+  // Categories that are genuinely neither -- Household, Cash, Peer Payments.
+  // Showing it is what makes the three shares add to 100%; while it was hidden
+  // the card lost a quarter of the money and still called itself a split.
+  const mixedAmount = dashboard.reports.executive.averageMonthlyMixed
   const trackedMonthlySpend = dashboard.reports.executive.averageMonthlySpend
   const needsShare =
     trackedMonthlySpend > 0 ? (needsAmount / trackedMonthlySpend) * 100 : null
   const wantsShare =
     trackedMonthlySpend > 0 ? (wantsAmount / trackedMonthlySpend) * 100 : null
+  const mixedShare =
+    trackedMonthlySpend > 0 ? (mixedAmount / trackedMonthlySpend) * 100 : null
   const needCategories = dashboard.reports.categoryBreakdown.filter(
     (category) => category.essentiality === 'essential',
   )
   const wantCategories = dashboard.reports.categoryBreakdown.filter(
     (category) => category.essentiality === 'discretionary',
+  )
+  const mixedCategories = dashboard.reports.categoryBreakdown.filter(
+    (category) =>
+      category.essentiality !== 'essential' &&
+      category.essentiality !== 'discretionary',
   )
   const monthGap =
     dashboard.budgetSnapshot.monthToDatePlan != null
@@ -257,10 +268,13 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
     safeSpendSummary,
     needsAmount,
     wantsAmount,
+    mixedAmount,
     needsShare,
     wantsShare,
+    mixedShare,
     needCategories,
     wantCategories,
+    mixedCategories,
     monthGap,
     whyShortDrivers,
     whyShortStatus,

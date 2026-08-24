@@ -337,6 +337,7 @@ const DEMO_HOUSEHOLD_DASHBOARD: HouseholdFinanceDashboard = {
       averageMonthlySpend: 6050,
       averageMonthlyEssentials: 4100,
       averageMonthlyDiscretionary: 1350,
+      averageMonthlyMixed: 0,
       recent30DaySpend: 6020,
       recurringMerchantCount: 6,
       trackedExpenseCount: 128,

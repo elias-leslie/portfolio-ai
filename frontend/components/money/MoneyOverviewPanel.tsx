@@ -128,10 +128,13 @@ export function MoneyOverviewPanel({
           dueSoonTotal={board.dueSoonTotal}
           needsAmount={board.needsAmount}
           wantsAmount={board.wantsAmount}
+          mixedAmount={board.mixedAmount}
           needsShare={board.needsShare}
           wantsShare={board.wantsShare}
+          mixedShare={board.mixedShare}
           needCategories={board.needCategories}
           wantCategories={board.wantCategories}
+          mixedCategories={board.mixedCategories}
           saveNowLines={board.saveNowLines}
           priceInsights={board.priceInsights}
           merchantHighlights={board.merchantHighlights}

@@ -141,6 +141,7 @@ export interface HouseholdExecutiveReport {
   averageMonthlySpend: number
   averageMonthlyEssentials: number
   averageMonthlyDiscretionary: number
+  averageMonthlyMixed: number
   recent30DaySpend: number
   recurringMerchantCount: number
   trackedExpenseCount: number
