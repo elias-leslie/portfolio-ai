@@ -20,6 +20,8 @@ from app.models.household_finance import (
     HouseholdProfile,
     HouseholdProfileUpdate,
     HouseholdResolvedValue,
+    HouseholdSinkingFund,
+    HouseholdSinkingFundUpdate,
     HouseholdSpendingCategory,
     HouseholdSpendingView,
     HouseholdSpendOverrideUpdate,
@@ -31,7 +33,11 @@ from app.models.household_finance import (
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.services._household_dashboard_queries import fetch_inferred_value_rows
+from app.services._household_dashboard_builders import build_sinking_funds
+from app.services._household_dashboard_queries import (
+    fetch_inferred_value_rows,
+    fetch_sinking_fund_overrides,
+)
 from app.services._household_finance_document_methods import _HFDocumentMethods
 from app.services._household_finance_intake_methods import _HFIntakeMethods
 from app.services.household_account_registry_service import HouseholdAccountRegistryService
@@ -56,6 +62,7 @@ from app.services.household_purchase_item_service import HouseholdPurchaseItemSe
 from app.services.household_question_command_service import HouseholdQuestionCommandService
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
 from app.services.household_review_agent_service import HouseholdReviewAgentService
+from app.services.household_sinking_fund_service import HouseholdSinkingFundService
 from app.services.household_tracked_account_service import HouseholdTrackedAccountService
 from app.services.household_transaction_audit_service import HouseholdTransactionAuditService
 from app.services.household_transaction_rule_service import HouseholdTransactionRuleService
@@ -357,6 +364,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.purchase_item_service = HouseholdPurchaseItemService()
         self.transaction_audit_service = HouseholdTransactionAuditService()
         self.tracked_account_service = HouseholdTrackedAccountService()
+        self.sinking_fund_service = HouseholdSinkingFundService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
         self._ensure_dashboard_registry_sync(limit=1000)
@@ -416,6 +424,15 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
         return self.profile_service.update_profile(self, payload)
+
+    def update_sinking_fund(
+        self, *, fund_key: str, payload: HouseholdSinkingFundUpdate
+    ) -> list[HouseholdSinkingFund]:
+        self.sinking_fund_service.update_fund(self, fund_key=fund_key, payload=payload)
+        return build_sinking_funds(
+            spend_rows=self.transaction_service.spend_rows_for_window(months=12),
+            overrides=fetch_sinking_fund_overrides(self.storage),
+        )
 
     def get_planning_snapshot(self) -> HouseholdPlanningSnapshot:
         return self.planning_service.get_snapshot(self)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import statistics
 from datetime import UTC, date, datetime, timedelta
+from typing import Any, NamedTuple
 
 from dateutil.relativedelta import relativedelta
 
@@ -20,6 +21,7 @@ from app.models.household_finance import (
     HouseholdRetirementScenario,
     HouseholdSavingsPlan,
     HouseholdSinkingFund,
+    HouseholdSinkingFundSource,
 )
 from app.services._household_recurrence import (
     BILL,
@@ -146,28 +148,181 @@ def build_recurring_commitment(
     )
 
 
+class SinkingFundDefinition(NamedTuple):
+    """One of the four funds the household chose, and how to find its spend."""
+
+    key: str
+    label: str
+    categories: tuple[str, ...]
+    # Merchants that belong to this fund whatever category they were filed
+    # under. The property tax is filed under Home; it is a tax, not a repair,
+    # and a fund that quietly funds it twice is worse than one that misses it.
+    merchant_patterns: tuple[str, ...] = ()
+    note: str = ""
+
+
+# The household's own four (D18), not an inference over merchants. The old
+# merchant-inference proposed $7,104/mo of buffers, more than take-home.
+SINKING_FUND_DEFINITIONS: tuple[SinkingFundDefinition, ...] = (
+    SinkingFundDefinition(key="travel", label="Travel", categories=("Travel",)),
+    SinkingFundDefinition(
+        key="home_repair",
+        label="Home repair & appliances",
+        categories=("Home",),
+        note=(
+            "Costco appliance purchases are filed under Household, which also "
+            "holds grocery runs, so they are not counted here. Declare an "
+            "amount if this fund should carry them."
+        ),
+    ),
+    SinkingFundDefinition(
+        key="insurance_taxes_registration",
+        label="Insurance, taxes & registration",
+        categories=("Insurance",),
+        merchant_patterns=("tax collector", "dmv", "tag agency", "registration"),
+    ),
+    SinkingFundDefinition(
+        key="gifts_holidays",
+        label="Gifts & holidays",
+        categories=(),
+        note=(
+            "Nothing in the ledger is filed as gifts -- they sit inside Retail "
+            "with everything else -- so this one has to be declared."
+        ),
+    ),
+)
+
+
+def _fund_for_row(row: dict[str, Any]) -> str | None:
+    """Which fund a purchase belongs to, at most one.
+
+    Merchant patterns win over categories so a row cannot fund two buffers.
+    """
+    haystack = f"{row.get('merchant') or ''} {row.get('description') or ''}".lower()
+    for definition in SINKING_FUND_DEFINITIONS:
+        if any(pattern in haystack for pattern in definition.merchant_patterns):
+            return definition.key
+    category = str(row.get("category") or "")
+    for definition in SINKING_FUND_DEFINITIONS:
+        if category in definition.categories:
+            return definition.key
+    return None
+
+
 def build_sinking_funds(
-    *, recurring_commitments: list[HouseholdRecurringCommitment]
+    *,
+    spend_rows: list[dict[str, Any]] | None = None,
+    window_months: int = 12,
+    overrides: dict[str, dict[str, Any]] | None = None,
+    today: date | None = None,
 ) -> list[HouseholdSinkingFund]:
+    """The four chosen funds, each priced from its own trailing spend (D18).
+
+    Every fund prints the arithmetic that produced it, because the number this
+    replaces was inferred from merchant cadence and asked for more per month
+    than the household earns. Dividing by the months the window actually covers
+    rather than by 12 matters here: a fund whose category first appears in March
+    would otherwise be quoted at half its real rate.
+    """
+    today = today or date.today()
+    overrides = overrides or {}
+    rows = spend_rows or []
+    # Complete months only, and never the running one: a fund quoted from a
+    # third of August would be quoted at a third of its rate.
+    current_month = f"{today:%Y-%m}"
+    first_month = f"{today - relativedelta(months=window_months):%Y-%m}"
+
+    def in_window(row: dict[str, Any]) -> bool:
+        month = f"{row['date']:%Y-%m}"
+        return first_month <= month < current_month
+
+    months_covered = max(
+        len({f"{row['date']:%Y-%m}" for row in rows if in_window(row)}), 1
+    )
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if not in_window(row):
+            continue
+        amount = float(row.get("signed_amount", row["amount"]))
+        if amount <= 0:
+            continue
+        key = _fund_for_row(row)
+        if key is not None:
+            grouped.setdefault(key, []).append({**row, "amount": amount})
+
     funds: list[HouseholdSinkingFund] = []
-    for commitment in recurring_commitments:
-        # A sinking fund smooths an obligation the household owes. A merchant it
-        # simply visits often is not one, however large the yearly total looks.
-        if commitment.commitment_type not in _OBLIGATION_TYPES:
-            continue
-        normalized_cadence = _CADENCE_LABEL_MAP.get(commitment.cadence, commitment.cadence)
-        if normalized_cadence in {"weekly", "biweekly", "monthly"} and commitment.average_amount < 150:
-            continue
-        monthly_target = round(commitment.annualized_cost / 12, 2)
-        funds.append(
-            HouseholdSinkingFund(
-                name=f"{commitment.merchant} buffer",
-                monthly_target=monthly_target,
-                annual_cost=round(commitment.annualized_cost, 2),
-                rationale="Set aside a monthly buffer so periodic or lumpy household costs stop surprising the budget.",
+    for definition in SINKING_FUND_DEFINITIONS:
+        matched = grouped.get(definition.key, [])
+        override = overrides.get(definition.key, {})
+        drop_largest = bool(override.get("drop_largest"))
+        override_amount = override.get("monthly_override")
+        total = _money_round(sum(row["amount"] for row in matched))
+        largest_row = max(matched, key=lambda item: item["amount"], default=None)
+        largest = (
+            HouseholdSinkingFundSource(
+                transaction_id=str(largest_row["id"]),
+                date=largest_row["date"].isoformat(),
+                merchant=str(largest_row.get("merchant") or "Unknown"),
+                category=str(largest_row.get("category") or "Uncategorized"),
+                amount=_money_round(largest_row["amount"]),
             )
+            if largest_row is not None
+            else None
         )
-    return funds[:4]
+        counted = total - (largest.amount if drop_largest and largest else 0.0)
+        derived_monthly = _money_round(counted / months_covered) if matched else None
+        including_largest = _money_round(total / months_covered) if matched else None
+
+        fund = HouseholdSinkingFund(
+            key=definition.key,
+            label=definition.label,
+            note=definition.note,
+            window_total=total,
+            window_months=months_covered,
+            categories=list(definition.categories),
+            transaction_count=len(matched),
+            largest=largest,
+            largest_dropped=drop_largest and largest is not None,
+            monthly_target_including_largest=including_largest,
+            override_amount=override_amount,
+            override_set_on=override.get("override_set_on"),
+            override_note=override.get("override_note"),
+        )
+
+        window_label = f"{months_covered} month{'s' if months_covered != 1 else ''}"
+        if override_amount is not None:
+            fund.status = "declared"
+            fund.monthly_target = _money_round(float(override_amount))
+            fund.headline = f"{_money(override_amount)}/mo, declared."
+            fund.derivation = (
+                f"Trailing spend says {_money(derived_monthly)}/mo "
+                f"({_money(counted)} over {window_label})."
+                if derived_monthly is not None
+                else "Nothing in the trailing window to compare it against."
+            )
+        elif derived_monthly is not None:
+            fund.status = "derived"
+            fund.monthly_target = derived_monthly
+            fund.headline = f"{_money(derived_monthly)}/mo from what has been spent."
+            dropped = (
+                f" Excludes {largest.merchant} {_money(largest.amount)} on "
+                f"{largest.date}, set aside as one-time."
+                if drop_largest and largest
+                else ""
+            )
+            fund.derivation = (
+                f"{_money(counted)} over {window_label} -> "
+                f"{_money(derived_monthly)}/mo.{dropped}"
+            )
+        else:
+            fund.status = "no_history"
+            fund.headline = "Nothing to derive this from."
+            fund.derivation = (
+                f"No purchases matched this fund in the last {window_label}."
+            )
+        funds.append(fund)
+    return funds
 
 
 # Retirement spending phases, in the household's own recorded terms. Ages come

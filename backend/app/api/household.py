@@ -33,6 +33,8 @@ from app.models.household_finance import (
     HouseholdQuestion,
     HouseholdQuestionAnswer,
     HouseholdQuestionList,
+    HouseholdSinkingFund,
+    HouseholdSinkingFundUpdate,
     HouseholdSpendingView,
     HouseholdSpendOverrideUpdate,
     HouseholdTrackedAccount,
@@ -136,6 +138,21 @@ async def update_household_profile(payload: HouseholdProfileUpdate) -> Household
     profile = await run_in_threadpool(_service().update_profile, payload)
     _invalidate_household_cache()
     return profile
+
+
+@router.post("/sinking-funds/{fund_key}", response_model=list[HouseholdSinkingFund])
+async def update_household_sinking_fund(
+    fund_key: str, payload: HouseholdSinkingFundUpdate
+) -> list[HouseholdSinkingFund]:
+    """Declare a fund's monthly amount, or set aside its largest purchase."""
+    try:
+        funds = await run_in_threadpool(
+            _service().update_sinking_fund, fund_key=fund_key, payload=payload
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    _invalidate_household_cache()
+    return funds
 
 
 @router.get("/planning", response_model=HouseholdPlanningSnapshot)

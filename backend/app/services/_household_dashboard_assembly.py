@@ -49,6 +49,7 @@ from app.services._household_dashboard_queries import (
     fetch_monthly_retirement_contributions,
     fetch_primary_adult_age,
     fetch_retirement_activity_visible,
+    fetch_sinking_fund_overrides,
 )
 from app.services._household_dashboard_sections import (
     budget_input_status,
@@ -730,7 +731,12 @@ def assemble_finance_dashboard(
         jenny_needs=jenny_needs, reports=reports,
         categorization_queue=categorization_queue, recurring_commitments=recurring_commitments,
         transaction_date_issues=transaction_date_issues,
-        sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
+        # Four declared funds priced from their own trailing spend, not an
+        # inference over merchants: that one asked for $7,104/mo (D18).
+        sinking_funds=build_sinking_funds(
+            spend_rows=service.transaction_service.spend_rows_for_window(months=12),
+            overrides=fetch_sinking_fund_overrides(storage),
+        ),
         spend_exclusions=fetch_current_window_spend_exclusions(storage),
         retirement_contribution_tracker=build_retirement_contribution_tracker(
             profile=profile,

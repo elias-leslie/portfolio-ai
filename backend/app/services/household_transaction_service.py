@@ -13,6 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from dateutil.relativedelta import relativedelta
+
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.household_finance import (
@@ -965,6 +967,21 @@ class HouseholdTransactionService:
         with self.storage.connection() as conn:
             result = conn.execute(sql, params).fetchone()
         return float(result[0]) if result and result[0] is not None else 0.0
+
+    def spend_rows_for_window(
+        self, *, months: int = 12, end_date: date | None = None
+    ) -> list[dict[str, Any]]:
+        """Collapsed spend rows over a trailing window.
+
+        Public because the sinking funds price themselves off trailing spend and
+        must read it the way every total reads it -- import rows out, duplicate
+        evidence collapsed, reversals already netted -- rather than running
+        their own query and arriving at a fifth answer (P0-1).
+        """
+        end = end_date or date.today()
+        return self._spend_rows_between(
+            start_date=end - relativedelta(months=months), end_date=end
+        )
 
     def income_totals_by_month(self, *, end_date: date | None = None) -> dict[str, float]:
         """Household income per calendar month, on the same terms as the totals.

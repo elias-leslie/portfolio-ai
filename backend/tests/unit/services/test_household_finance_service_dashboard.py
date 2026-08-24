@@ -125,6 +125,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.transaction_service.build_reports.return_value = reports
     # The income anchor reads the ledger's own monthly income (D16).
     service.transaction_service.income_totals_by_month.return_value = {}
+    # The sinking funds price themselves off trailing spend (D18).
+    service.transaction_service.spend_rows_for_window.return_value = []
     service.get_planning_snapshot = cast(
         Any, Mock(return_value=empty_household_planning_snapshot())
     )

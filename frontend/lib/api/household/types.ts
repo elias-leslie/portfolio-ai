@@ -389,11 +389,38 @@ export interface HouseholdTransactionDateIssue {
   sourceExcerpt: string | null
 }
 
+export interface HouseholdSinkingFundSource {
+  transactionId: string
+  date: string
+  merchant: string
+  category: string
+  amount: number
+}
+
 export interface HouseholdSinkingFund {
-  name: string
-  monthlyTarget: number
-  annualCost: number
-  rationale: string
+  key: string
+  label: string
+  status: 'derived' | 'declared' | 'no_history'
+  monthlyTarget: number | null
+  headline: string
+  derivation: string
+  note: string
+  windowTotal: number
+  windowMonths: number
+  categories: string[]
+  transactionCount: number
+  largest: HouseholdSinkingFundSource | null
+  largestDropped: boolean
+  monthlyTargetIncludingLargest: number | null
+  overrideAmount: number | null
+  overrideSetOn: string | null
+  overrideNote: string | null
+}
+
+export interface HouseholdSinkingFundUpdate {
+  monthlyOverride?: number | null
+  overrideNote?: string | null
+  dropLargest?: boolean | null
 }
 
 export interface HouseholdRetirementContributionTracker {

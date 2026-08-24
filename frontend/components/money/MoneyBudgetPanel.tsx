@@ -36,6 +36,7 @@ import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import { normalizeTrustStatus } from './overview-helpers'
 import { RetirementPhaseCard } from './RetirementPhaseCard'
 import { SavingsPlanCard } from './SavingsPlanCard'
+import { SinkingFundsCard } from './SinkingFundsCard'
 import {
   type BudgetRowEntry,
   TREND_TOP_N,
@@ -391,6 +392,13 @@ export function MoneyBudgetPanel() {
           isLoading={isDashboardLoading}
         />
       </div>
+
+      {/* Priced off the same anchor above: what the lumpy costs need each
+          month, before any category cap divides up what is left. */}
+      <SinkingFundsCard
+        funds={dashboard?.sinkingFunds}
+        isLoading={isDashboardLoading}
+      />
 
       <MoneyInboxCard inbox={dashboard?.inbox} isLoading={isDashboardLoading} />
 

@@ -20,6 +20,8 @@ import type {
   HouseholdQuestion,
   HouseholdQuestionAnswer,
   HouseholdQuestionList,
+  HouseholdSinkingFund,
+  HouseholdSinkingFundUpdate,
   HouseholdSpendingView,
   HouseholdTrackedAccount,
   HouseholdTrackedAccountInput,
@@ -78,6 +80,15 @@ export const updateHouseholdProfile = postEndpoint<
   HouseholdProfileUpdate,
   HouseholdProfile
 >('/api/household/profile')
+export function updateHouseholdSinkingFund(
+  fundKey: string,
+  payload: HouseholdSinkingFundUpdate,
+) {
+  return post<HouseholdSinkingFund[]>(
+    `/api/household/sinking-funds/${fundKey}`,
+    payload,
+  )
+}
 export const fetchHouseholdPlanning = getEndpoint<HouseholdPlanningSnapshot>(
   '/api/household/planning',
 )

@@ -80,6 +80,7 @@ from app.models.household_finance_types import (
     HouseholdShoppingListSuggestionItem,
     HouseholdShoppingListSuggestions,
     HouseholdSinkingFund,
+    HouseholdSinkingFundSource,
     HouseholdSpendComparator,
     HouseholdSpendExclusionRule,
     HouseholdSpendExclusions,
@@ -205,6 +206,8 @@ __all__ = [
     "HouseholdShoppingListSuggestions",
     "HouseholdShoppingListsResponse",
     "HouseholdSinkingFund",
+    "HouseholdSinkingFundSource",
+    "HouseholdSinkingFundUpdate",
     "HouseholdSpendComparator",
     "HouseholdSpendExclusionRule",
     "HouseholdSpendExclusions",
@@ -389,6 +392,19 @@ class HouseholdSpendOverrideUpdate(BaseModel):
 
     counts_as_spend: bool | None = None
     reason: str | None = None
+
+
+class HouseholdSinkingFundUpdate(BaseModel):
+    """The household's judgement on one fund. Everything else is derived.
+
+    ``monthly_override`` set to null clears the declaration and hands the fund
+    back to trailing spend; ``drop_largest`` marks the biggest purchase in the
+    window as a one-time event that should not set a monthly rate.
+    """
+
+    monthly_override: float | None = None
+    override_note: str | None = None
+    drop_largest: bool | None = None
 
 
 class HouseholdFinanceDashboard(BaseModel):

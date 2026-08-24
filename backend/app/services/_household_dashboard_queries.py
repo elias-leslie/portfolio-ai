@@ -292,6 +292,32 @@ def fetch_retirement_activity_visible(storage: Any) -> bool:
     return bool(row is not None and int(row[0] or 0) > 0)
 
 
+def fetch_sinking_fund_overrides(storage: Any) -> dict[str, dict[str, Any]]:
+    """The household's per-fund judgements, keyed by fund.
+
+    Only what the ledger cannot derive lives here: a declared monthly amount
+    with the day it was declared, and whether the biggest purchase in the window
+    was one-time (D18). The monthly figure itself is recomputed every build.
+    """
+    with storage.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT fund_key, monthly_override, override_set_on, override_note,
+                   drop_largest
+            FROM household_sinking_funds
+            """
+        ).fetchall()
+    return {
+        str(row[0]): {
+            "monthly_override": float(row[1]) if row[1] is not None else None,
+            "override_set_on": row[2].isoformat() if row[2] is not None else None,
+            "override_note": str(row[3]) if row[3] is not None else None,
+            "drop_largest": bool(row[4]),
+        }
+        for row in rows
+    }
+
+
 def fetch_primary_adult_age(storage: Any, *, today: date | None = None) -> int | None:
     """The primary adult's age, read the same way the retirement planner reads it.
 

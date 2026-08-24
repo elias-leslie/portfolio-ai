@@ -842,11 +842,50 @@ class HouseholdTransactionDateIssue(BaseModel):
     source_excerpt: str | None = None
 
 
+class HouseholdSinkingFundSource(BaseModel):
+    """One purchase behind a fund's monthly figure."""
+
+    transaction_id: str
+    date: str
+    merchant: str
+    category: str
+    amount: float
+
+
 class HouseholdSinkingFund(BaseModel):
-    name: str
-    monthly_target: float
-    annual_cost: float
-    rationale: str
+    """One fund, its monthly amount, and the working that produced it.
+
+    The merchant inference this replaces proposed **$7,104/mo** of buffers --
+    more than the household takes home -- by treating any merchant it saw often
+    as an obligation. These four funds are the household's own choice (D18), and
+    each one's amount is trailing spend in named categories divided by the
+    months it covered, with the arithmetic printed beside it. A fund the ledger
+    cannot see says so and asks for an amount rather than reporting $0/mo as
+    though nothing were owed.
+    """
+
+    key: str
+    label: str
+    # derived | declared | no_history
+    status: str = "no_history"
+    monthly_target: float | None = None
+    headline: str = ""
+    # "$13,673 of travel over 12 months -> $1,139/mo", printed so it is checkable.
+    derivation: str = ""
+    # What the fund is not counting, and why -- a blind spot the household can act on.
+    note: str = ""
+    window_total: float = 0.0
+    window_months: int = 0
+    categories: list[str] = Field(default_factory=list)
+    transaction_count: int = 0
+    # The biggest single purchase in the window, and the rate with and without
+    # it: one cruise should not set a monthly travel contribution forever.
+    largest: HouseholdSinkingFundSource | None = None
+    largest_dropped: bool = False
+    monthly_target_including_largest: float | None = None
+    override_amount: float | None = None
+    override_set_on: str | None = None
+    override_note: str | None = None
 
 
 class HouseholdRetirementContributionTracker(BaseModel):

@@ -29,6 +29,7 @@ import {
   type HouseholdPlanningSnapshot,
   type HouseholdPlanningUpdate,
   type HouseholdProfileUpdate,
+  type HouseholdSinkingFundUpdate,
   type HouseholdTrackedAccountInput,
   type ManualHoldingsReplaceInput,
   type RetirementAllocationScenarioInput,
@@ -42,6 +43,7 @@ import {
   setHouseholdTransactionSpendOverride,
   updateHouseholdPlanning,
   updateHouseholdProfile,
+  updateHouseholdSinkingFund,
   updateHouseholdTrackedAccount,
   updateRetirementIncomeStreamOverride,
   uploadHouseholdDocument,
@@ -364,6 +366,29 @@ export function useUpdateHouseholdProfile() {
         error instanceof Error
           ? error.message
           : 'Failed to update household profile',
+      )
+    },
+  })
+}
+
+export function useUpdateHouseholdSinkingFund() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      fundKey,
+      payload,
+    }: {
+      fundKey: string
+      payload: HouseholdSinkingFundUpdate
+    }) => updateHouseholdSinkingFund(fundKey, payload),
+    onSuccess: async () => {
+      await invalidateHouseholdQueries(queryClient)
+      toast.success('Sinking fund updated.')
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to update the fund',
       )
     },
   })
