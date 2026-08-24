@@ -12,6 +12,7 @@ from typing import Any
 from app.config import settings
 from app.models.household_finance import (
     HouseholdBudgetVerdict,
+    HouseholdCapPlan,
     HouseholdConfirmedFact,
     HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
@@ -33,7 +34,12 @@ from app.models.household_finance import (
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
-from app.services._household_dashboard_builders import build_sinking_funds
+from app.services._household_dashboard_builders import (
+    build_cap_plan,
+    build_income_anchor,
+    build_savings_plan,
+    build_sinking_funds,
+)
 from app.services._household_dashboard_queries import (
     fetch_inferred_value_rows,
     fetch_sinking_fund_overrides,
@@ -116,6 +122,18 @@ def _confirmed_budget_from_meta(meta: dict[str, Any] | None) -> float | None:
     if isinstance(value, int | float) and math.isfinite(float(value)):
         return float(value)
     return None
+
+
+def _confirmed_caps_by_category(
+    facts: list[HouseholdConfirmedFact],
+) -> dict[str, float]:
+    """The caps the household has actually accepted, by category."""
+    caps: dict[str, float] = {}
+    for category, meta in _category_budget_meta(facts).items():
+        confirmed = _confirmed_budget_from_meta(meta)
+        if confirmed is not None and not bool(meta.get("disabled") is True):
+            caps[category] = confirmed
+    return caps
 
 
 # A verdict about a month has to be a verdict about most of the month. Past this
@@ -244,9 +262,25 @@ def _budget_verdict(
 def _with_budget_rollup(
     view: HouseholdSpendingView,
     facts: list[HouseholdConfirmedFact],
+    *,
+    cap_plan: HouseholdCapPlan | None = None,
 ) -> HouseholdSpendingView:
     meta_by_category = _category_budget_meta(facts)
     coverage_months = view.summary.coverage_months
+    # Suggested caps come from the income-anchored plan when one could be
+    # priced. The run-rate fallback below only applies when income cannot be
+    # measured at all -- a suggestion drawn from history is what D6 rejects.
+    # A row with no history to shape from gets no suggestion at all: a cap of
+    # $0.11 on a category that spends 29c/mo is a number nobody can act on, and
+    # accepting it would breach on the first purchase.
+    proposed_caps = {
+        row.category: row.proposed_cap
+        for row in (cap_plan.rows if cap_plan is not None else [])
+        if cap_plan is not None
+        and cap_plan.status != "no_anchor"
+        and row.source != "no_history"
+        and row.proposed_cap >= 1
+    }
     categories: list[HouseholdSpendingCategory] = []
     found_budget_total = 0.0
     confirmed_budget_total = 0.0
@@ -258,7 +292,10 @@ def _with_budget_rollup(
     for category in view.categories:
         meta = meta_by_category.get(category.category)
         disabled = bool((meta or {}).get("disabled") is True)
-        found_budget = _recommended_category_budget(category, coverage_months)
+        found_budget = proposed_caps.get(
+            category.category,
+            _recommended_category_budget(category, coverage_months) if not proposed_caps else None,
+        )
         confirmed_budget = _confirmed_budget_from_meta(meta)
         # A cap is suggested from the run-rate across every covered month, but
         # "over budget" is judged on the month being reported. The household says
@@ -277,9 +314,7 @@ def _with_budget_rollup(
                 confirmed_over_budget_count += 1
         elif found_budget is not None:
             budget_source = "found_unconfirmed"
-            budget_status = (
-                "found_over_budget" if actual > found_budget else "found_unconfirmed"
-            )
+            budget_status = "found_over_budget" if actual > found_budget else "found_unconfirmed"
             found_budget_total += found_budget
             found_budget_category_count += 1
             if actual > found_budget:
@@ -288,7 +323,9 @@ def _with_budget_rollup(
             budget_source = "no_budget"
             budget_status = "no_budget"
         effective_budget = (
-            None if disabled else (confirmed_budget if confirmed_budget is not None else found_budget)
+            None
+            if disabled
+            else (confirmed_budget if confirmed_budget is not None else found_budget)
         )
         categories.append(
             category.model_copy(
@@ -301,9 +338,7 @@ def _with_budget_rollup(
                     "budget_disabled": disabled,
                     "effective_monthly_budget": effective_budget,
                     "budget_variance": (
-                        None
-                        if effective_budget is None
-                        else round(actual - effective_budget, 2)
+                        None if effective_budget is None else round(actual - effective_budget, 2)
                     ),
                 }
             )
@@ -327,6 +362,7 @@ def _with_budget_rollup(
         update={
             "summary": summary,
             "categories": categories,
+            "cap_plan": cap_plan,
             "budget_verdict": verdict,
         }
     )
@@ -414,9 +450,34 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         )
 
     def get_spending(self, *, month: str | None = None) -> HouseholdSpendingView:
-        return _with_budget_rollup(
-            self.transaction_service.build_spending_view(month=month),
-            self.list_confirmed_facts(),
+        view = self.transaction_service.build_spending_view(month=month)
+        facts = self.list_confirmed_facts()
+        return _with_budget_rollup(view, facts, cap_plan=self._build_cap_plan(view, facts))
+
+    def _build_cap_plan(
+        self, view: HouseholdSpendingView, facts: list[HouseholdConfirmedFact]
+    ) -> HouseholdCapPlan:
+        """Price the caps off income, using the same anchor the screen shows.
+
+        Composed here rather than inside the rollup because the anchor, the
+        savings state and the fund accruals are each already built elsewhere;
+        rebuilding any of them here would be a second opinion on a number the
+        household is reading two cards up.
+        """
+        profile = self.get_profile()
+        anchor = build_income_anchor(
+            profile=profile,
+            monthly_income=self.transaction_service.income_totals_by_month(),
+        )
+        return build_cap_plan(
+            categories=view.categories,
+            anchor=anchor,
+            savings_plan=build_savings_plan(profile=profile, anchor=anchor),
+            sinking_funds=build_sinking_funds(
+                spend_rows=self.transaction_service.spend_rows_for_window(months=12),
+                overrides=fetch_sinking_fund_overrides(self.storage),
+            ),
+            confirmed_caps=_confirmed_caps_by_category(facts),
         )
 
     def get_net_worth_trend(self, *, days: int = 180) -> HouseholdNetWorthTrend:
@@ -437,7 +498,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     def get_planning_snapshot(self) -> HouseholdPlanningSnapshot:
         return self.planning_service.get_snapshot(self)
 
-    def update_planning_snapshot(self, payload: HouseholdPlanningUpdate) -> HouseholdPlanningSnapshot:
+    def update_planning_snapshot(
+        self, payload: HouseholdPlanningUpdate
+    ) -> HouseholdPlanningSnapshot:
         return self.planning_service.update_snapshot(self, payload)
 
     def list_property_valuation_histories(
@@ -467,16 +530,32 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     def refresh_due_property_valuations(self, *, max_age_days: int = 30) -> dict[str, object]:
         return self.property_valuation_service.refresh_due(self, max_age_days=max_age_days)
 
-    def merge_planning_items(self, *, items: list[dict[str, object]], provenance: str, source_document_id: str | None = None) -> None:
-        self.planning_service.merge_planning_items(self, items=items, provenance=provenance, source_document_id=source_document_id)
+    def merge_planning_items(
+        self,
+        *,
+        items: list[dict[str, object]],
+        provenance: str,
+        source_document_id: str | None = None,
+    ) -> None:
+        self.planning_service.merge_planning_items(
+            self, items=items, provenance=provenance, source_document_id=source_document_id
+        )
 
-    def update_transaction_category(self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate) -> bool:
-        return self.transaction_rule_service.update_transaction_category(self, transaction_id, payload)
+    def update_transaction_category(
+        self, transaction_id: str, payload: HouseholdTransactionCategoryUpdate
+    ) -> bool:
+        return self.transaction_rule_service.update_transaction_category(
+            self, transaction_id, payload
+        )
 
-    def update_transaction_owner(self, transaction_id: str, payload: HouseholdTransactionOwnerUpdate) -> bool:
+    def update_transaction_owner(
+        self, transaction_id: str, payload: HouseholdTransactionOwnerUpdate
+    ) -> bool:
         return self.transaction_rule_service.update_transaction_owner(self, transaction_id, payload)
 
-    def update_spend_override(self, transaction_id: str, payload: HouseholdSpendOverrideUpdate) -> bool:
+    def update_spend_override(
+        self, transaction_id: str, payload: HouseholdSpendOverrideUpdate
+    ) -> bool:
         return self.transaction_rule_service.update_spend_override(self, transaction_id, payload)
 
     def repair_transaction_system(self, *, limit: int = 5000) -> dict[str, int]:
@@ -510,12 +589,16 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         return self.tracked_account_service.delete_account(self, account_id)
 
     def sync_linked_tracked_accounts(self, *, limit: int = 500) -> int:
-        return int(self.account_registry_service.sync_registry(self, limit=limit).get("tracked_linked", 0))
+        return int(
+            self.account_registry_service.sync_registry(self, limit=limit).get("tracked_linked", 0)
+        )
 
     def _upload_root(self) -> Path:
         return settings.household_upload_dir
 
-    def get_resolved_values(self, *, profile: HouseholdProfile, questions: list[Any]) -> list[HouseholdResolvedValue]:
+    def get_resolved_values(
+        self, *, profile: HouseholdProfile, questions: list[Any]
+    ) -> list[HouseholdResolvedValue]:
         inferred_map = fetch_inferred_value_rows(self.storage)
         questions_by_field = {q.field_name: q for q in questions if q.field_name}
         resolved: list[HouseholdResolvedValue] = []
@@ -523,25 +606,47 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
             manual_value = getattr(profile, field_name)
             inferred = inferred_map.get(field_name)
             if manual_value is not None:
-                resolved.append(HouseholdResolvedValue(
-                    field_name=field_name, label=label, value=str(manual_value),
-                    confidence=1.0, status="confirmed", source="manual",
-                    rationale="You confirmed or overrode this value directly.",
-                ))
+                resolved.append(
+                    HouseholdResolvedValue(
+                        field_name=field_name,
+                        label=label,
+                        value=str(manual_value),
+                        confidence=1.0,
+                        status="confirmed",
+                        source="manual",
+                        rationale="You confirmed or overrode this value directly.",
+                    )
+                )
             elif inferred is not None:
                 conf = inferred["confidence"]
-                resolved.append(HouseholdResolvedValue(
-                    field_name=field_name, label=label, value=str(inferred["value"]),
-                    confidence=float(conf) if conf is not None else None, status=str(inferred["status"]),
-                    source="jenny_inference",
-                    rationale=str(inferred["rationale"]) if inferred["rationale"] is not None else None,
-                    question=questions_by_field[field_name].question if field_name in questions_by_field else None,
-                ))
+                resolved.append(
+                    HouseholdResolvedValue(
+                        field_name=field_name,
+                        label=label,
+                        value=str(inferred["value"]),
+                        confidence=float(conf) if conf is not None else None,
+                        status=str(inferred["status"]),
+                        source="jenny_inference",
+                        rationale=str(inferred["rationale"])
+                        if inferred["rationale"] is not None
+                        else None,
+                        question=questions_by_field[field_name].question
+                        if field_name in questions_by_field
+                        else None,
+                    )
+                )
             else:
                 question = questions_by_field.get(field_name)
-                resolved.append(HouseholdResolvedValue(
-                    field_name=field_name, label=label, value=None, confidence=None,
-                    status="missing", source="unknown", rationale=None,
-                    question=question.question if question is not None else None,
-                ))
+                resolved.append(
+                    HouseholdResolvedValue(
+                        field_name=field_name,
+                        label=label,
+                        value=None,
+                        confidence=None,
+                        status="missing",
+                        source="unknown",
+                        rationale=None,
+                        question=question.question if question is not None else None,
+                    )
+                )
         return resolved

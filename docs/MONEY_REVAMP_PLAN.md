@@ -5,12 +5,14 @@ pass (§7). Phase 0 landed 15 of 16 tasks; 0.13 (the staged receipts) waits on t
 household's approval and on the Costco/Walmart order-page parser in Phase 4.2.
 The review screen now answers the month in one place, and the screens that
 answered it a second time are gone. **Phase 3 is live**: the income anchor (3.1)
-is in, and the caps, savings state and sinking funds are priced off it.
+is in, and the caps (3.2), savings state (3.3) and sinking funds (3.4) are all
+priced off it. What remains in Phase 3 is card commitments and alerts.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
 **Last updated:** 2026-08-24 (Phase 3: income anchored to the median of the last
 three complete months, $6,067/mo; saving is a declared state; the four sinking
-funds are priced from their own trailing spend and print their arithmetic)
+funds are priced from their own trailing spend; and the category caps are now
+that anchor minus saving minus the funds, divided by historical shape)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -63,13 +65,15 @@ its own). **1.1–1.10 and 2.1–2.7 are all done.**
 
 Work top down through §7 Phase 3 — plan, funds, and alerts:
 
-1. **3.2 Income-anchored cap setup** (D6) — anchor (3.1, done) − savings (3.3,
-   done) − sinking funds (3.4, done, **$1,349/mo**), distributed across
-   categories by historical shape and adjusted in one pass. Re-propose on
-   material drift. Every input it subtracts now exists.
-2. **3.5 Card commitments in Plan** (P0-20) — annual-fee dates, welcome-bonus
+1. **3.5 Card commitments in Plan** (P0-20) — annual-fee dates, welcome-bonus
    deadlines, balances owed; adding a card must be routine (D22).
-3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+2. **3.6 Web push via the existing PWA** (D19) — `push` + `notificationclick`
+   in `frontend/public/sw.js`, subscription storage, per-device registration
+   for Elias and Mariana separately. Both are on Android, so no install
+   ceremony.
+3. **3.7 Alert kinds** (D19) — month projected over plan; novelty purchase;
+   category at 100% of cap. Better-price-found waits for Phase 5.
+4. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
 
@@ -90,6 +94,17 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 3.2 **The caps are a division of income now, not a summary of history.**
+  **$6,067 anchor − $0 saving − $1,349 fund accruals = $4,718**; essentials
+  take **$3,124 at cost**, leaving **$1,594** shared across 10 categories in
+  proportion to what each already spends. A category with a sinking fund is
+  capped at that fund's accrual rather than drawing on the same dollar twice.
+  The card prints the subtraction and states the gap: these categories run
+  **$2,631/mo above the pool**, so the proposal is a cut. Suggested caps still
+  wait to be accepted — the Budget screen's "Caps waiting on you" total moved
+  from **$6,650 to $4,035** because it is now quoting the plan, over 16 rows
+  rather than 17: a category spending 29c/mo gets no suggestion instead of an
+  11c cap.
 - 3.4 **The four sinking funds are priced from their own trailing spend**, each
   printing its arithmetic: Travel **$815/mo** ($9,785 over 12 months), Home
   repair **$291**, Insurance/taxes/registration **$243**, and Gifts & holidays
@@ -1970,9 +1985,18 @@ The screen in the artifact. All seven tasks landed.
     The $506.31/mo note income (P0-23) is **not** arriving: last paid
     2026-03-02, and classified `transfer_in` rather than income, so it could not
     have reached the anchor regardless (**P1-37**).
-3.2 **Income-anchored cap setup** (D6): anchor (3.1) − savings (3.3) − sinking-fund
-    accruals (3.4), distributed by historical shape, adjusted in one pass.
-    Re-propose on material drift.
+3.2 ✅ **Income-anchored cap setup** (D6) — the caps are now a division of
+    income, not a description of history. Live: **$6,067 anchor − $0 saving −
+    $1,349 fund accruals = $4,718**; essentials take **$3,124 at what they
+    actually cost**, leaving **$1,594** shaped across the 10 remaining
+    categories in proportion to what each already spends. Essentials are held
+    at cost rather than trimmed, a category with a sinking fund is capped at
+    that fund's accrual instead of drawing twice on the same dollar, and the
+    subtraction is printed on the card so the reader can check it. The gap to
+    what the household currently spends is stated plainly: these categories run
+    **$2,631/mo above the pool**, so the proposal is a cut, not a description.
+    Nothing auto-applies — a proposed cap becomes a confirmed one only when it
+    is accepted on the row.
 3.3 ✅ **Savings target as a phase-aware state** (D17) — four states, no grade:
     **active** (states what the amount leaves of the anchor), **paused** (with
     the day it was declared, the reason, and the income level that ends it),
@@ -2136,3 +2160,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 3.1 | **The plan stopped being priced off a number nobody receives.** The household's saved take-home target is **$6,283/mo**; the last three complete months brought in **$6,067, $7,985 and $2,804**. Everything Phase 3 caps — savings, sinking funds, category budgets — divides up that first number, which is $216/mo above what a normal month actually delivers and $3,479 above July. The anchor is now the **median of the last three complete calendar months** of ledger income: **$6,067/mo**, with the three months listed on the card so the arithmetic can be checked against a bank statement in a minute. A median rather than a mean, deliberately, and the ledger shows why: January and February hold $15,244 and $13,417 against a still-running August at $3,205, and a mean over the record is $7,750 — a cap the household could not have paid in four of the last eight months. The running month is never counted; nothing is reported until at least one complete month exists, and with none the card says so rather than showing $0. It reads the ledger's own `income_totals_by_month` — the same collapse the Budget screen reports, reversals netted and brokerage activity out — so the anchor and the month on screen cannot disagree about what income even is: July arrives as $2,804.36, already net of the Pinellas clawback. **A declared anchor** ("SummitFlow starts next month") is stored with the **day it was declared** and outranks the median, but never erases it: both sit on the card together. It is called out as stale after 120 days, or when it has drifted more than 15% from what arrives — but not in its first 60 days, because a declaration about a change the ledger has not seen is supposed to disagree with the months before it, and flagging that immediately would make the feature useless for the one case it exists for. An **undated** declaration is always flagged: it cannot be told apart from one that stopped being true. Verified live end to end: declaring $9,000 dated today flips the card to *Declared* with the measured $6,067 still under it, and clearing it returns to *Measured* — the profile row is back to null. **P1-37**, from confirming the plan's open question: the **$506.31/mo note income** (P0-23) is not arriving — last payment **2026-03-02**, the receiving account closed in March — and every one of those rows is classified `transfer_in`, not income, so it could not have reached the anchor even if it had continued. Reclassifying it needs to know Michael Wiley is not the household, which is the D15 ownership question; the dated declaration covers the gap in the meantime. Gate green: 2,536 backend tests (13 new), 478 frontend tests (8 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |
 | 2026-08-24 | Phase 3.3 | **A $0 savings target stopped counting as keeping up.** The live profile carries `monthly_savings_target: 0.0`, and zero trivially keeps up with zero — a pass awarded for having no plan, the same shape of answer the retirement block gave before 2.6, and it sat on screen while net worth grew roughly $19,800/mo on its own. Saving is now one of four declared states. **Active** states what the amount leaves rather than grading it: $1,500/mo *"leaves $4,567 of the $6,067 anchor for everything else"*, and a target above the anchor is told that one of the two is wrong instead of being quietly accepted. **Paused** carries the day it was declared, the reason, and the income level that ends it — *"Paused since Feb 01, 2026. On unemployment while SummitFlow is pending. Restarts at $8,000/mo of income. A normal month currently brings in $6,067 — $1,933 short."* **Restart due** fires when the anchor reaches that level and asks for an amount. **Undeclared** is what the live household reads today: *"The savings target is $0, which is not a plan."* Two deliberate refusals. A pause with no restart trigger is told outright that nothing will ever prompt it to resume, because a pause that cannot end is just a plan to stop saving with extra steps. And nothing here grades contributions: the retirement block already refuses to read $0 of visible retirement activity as $0 contributed (2.6), and repeating that mistake one card over would undo it. The trigger is evaluated against the **3.1 anchor**, declared value included, so the pause and the card above it cannot disagree about what income is; naming an amount clears the pause in the same write, so the two states can never both be on. Verified live end to end through the API: paused at an $8,000 trigger reads *paused, $1,933 short*; lowering the trigger to $5,000 flips it to *Time to resume* on screen; clearing returns the profile to its original state (target $0, no pause). Gate green: 2,545 backend tests (9 new), 485 frontend tests (7 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |
 | 2026-08-24 | Phase 3.4 | **The sinking funds stopped being an inference over merchants and became four numbers with their working shown.** What they replace proposed **$7,104/mo** of buffers — more than the household takes home — by treating any merchant it saw on a rhythm as an obligation, and none of it ever reached the UI. The four funds are now the household's own choice (D18), each priced from its own trailing spend over the **12 complete months before the running one** — never the current month, which would quote a fund at a third of its rate in early August. Live: **Travel $815/mo** ($9,785 over 12 months), **Home repair & appliances $291**, **Insurance, taxes & registration $243**, and **Gifts & holidays undeclared** — nothing in this ledger is filed as gifts, they sit inside Retail, so that fund asks for an amount instead of reporting $0/mo as though nothing were owed. Every figure prints the subtraction that produced it, so a number that looks wrong can be checked rather than argued with. The **largest purchase in each window is droppable**: Travel falls to **$639/mo** without the $2,111 Carnival charge, and the card keeps both figures — one cruise should not set a monthly contribution for a year, but hiding that it happened is worse. Two judgements are made out loud instead of guessed. The **$2,144.48 Pinellas County Tax Collector** row is filed under Home; it is a *tax*, not a repair, so a merchant match claims it for the taxes fund and it can only fund one buffer (D23's obligation, finally landing somewhere). And the **$11,633 air conditioner is filed under Household**, the mixed bucket that also holds Costco grocery runs, so home repair does not count it — the card says so and offers a declared amount, rather than quietly funding groceries as appliances. Overrides live in a new `household_sinking_funds` table holding only what the ledger cannot derive: a dated declaration and the one-time flag. The monthly figure is never cached — it is recomputed from `spend_rows_for_window`, the same collapse every total uses, so a fund cannot drift from the purchases it claims to be based on. Verified live end to end: setting aside the cruise moved Travel to $639 on screen and back to $815 when counted again; a $150 gifts declaration read *Declared, 2026-08-24* and cleared back to *Needs an amount*. Both verification writes were reverted. Gate green: 2,554 backend tests (9 new), 492 frontend tests (7 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |
+| 2026-08-24 | Phase 3.2 | **The category caps stopped being a description of what the household already spends and became a division of what it earns.** The old suggestion per row was `_recommended_category_budget` — trailing spend, rounded — so a category that overspent by $600 was handed a cap $600 higher, and the sum of those suggestions had no relationship to income at all: the Budget screen's *Caps waiting on you* quoted **$6,650/mo** against an anchor of $6,067, a plan that was already $583 underwater before a single dollar of saving or any sinking fund came out of it. The caps now start from the anchor and subtract, in order: **$6,067 anchor − $0 saving − $1,349 fund accruals = $4,718 available**. **Essentials are held at what they actually cost** — $3,124 across Groceries, Bills, Healthcare, Gas, Transportation and Education — because a groceries cap the household cannot shop under is not a plan, it is a number that will be broken every month. What is left, **$1,594**, is divided across the 10 remaining categories in proportion to what each already spends, so the shape of the household's own life sets the split while income sets the size. A category with a **sinking fund is capped at that fund's accrual** and taken out of the pool entirely — Travel at $815, not a second $815 shaped on top of the $815 the fund already holds — because funding the same dollar twice is exactly the error that produced $7,104/mo of buffers in 3.4. Two states refuse to propose rather than propose badly: **no_anchor**, when income is not measurable, says to declare one instead of quoting caps off nothing; and **essentials_exceed_income**, which names the shortfall instead of shrinking essentials to fit an income that cannot cover them. The card prints the whole subtraction as a list — anchor, less saving, less funds, less essentials, left to divide — and every row shows what it *runs at* beside what is *proposed*, so a cut is visible as a cut. And the gap is stated outright: **these categories run $2,631/mo above the pool**, so the proposal is a cut, not a description. **Nothing auto-applies.** A proposed cap is a suggestion until it is accepted on the row; confirmed caps stay untouched and are reported separately, which is why *Caps waiting on you* moved from **$6,650 to $4,035**, priced off income instead of off itself. One row left the suggestion list entirely: **Donations** spends **29c/mo**, so its share of the pool is **11c** — a cap nobody can act on and one that would breach on the first donation — and a row with no history to shape from now gets no suggestion at all rather than a token one (17 suggested rows → **16**). Verified live on the running backend and on `/money?tab=spending` after rebuild. Gate green: **2,563 backend tests** (9 new), **497 frontend tests** (5 new), ARCH/ruff/ty/biome/tsc clean; 0 console errors, 0 warnings, 0 failed requests. |

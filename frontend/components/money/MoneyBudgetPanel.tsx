@@ -22,6 +22,7 @@ import { AffordabilityCard } from './AffordabilityCard'
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
+import { CapPlanCard } from './CapPlanCard'
 import { CategoryTrendChart } from './CategoryTrendChart'
 import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
 import { IncomeAnchorCard } from './IncomeAnchorCard'
@@ -392,6 +393,11 @@ export function MoneyBudgetPanel() {
           isLoading={isDashboardLoading}
         />
       </div>
+
+      {/* The caps are priced off the anchor, not off history: a plan whose
+          caps sum above take-home lets "under budget" and "going broke" be
+          true at once (D6). */}
+      <CapPlanCard plan={spending?.capPlan} isLoading={isLoading} />
 
       {/* Priced off the same anchor above: what the lumpy costs need each
           month, before any category cap divides up what is left. */}

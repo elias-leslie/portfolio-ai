@@ -612,6 +612,8 @@ class HouseholdSpendingView(BaseModel):
     # Whether the month came in under the household's own caps, and the
     # per-category over/under it nets out of.
     budget_verdict: HouseholdBudgetVerdict | None = None
+    # Where the suggested caps came from: income first, history only for shape.
+    cap_plan: HouseholdCapPlan | None = None
     # Why the month differs from the one before it, and what is left of the
     # difference once the outliers are set aside.
     spend_variance: HouseholdSpendVariance | None = None
@@ -754,6 +756,57 @@ class HouseholdSavingsPlan(BaseModel):
     restart_detail: str = ""
     # Anchor minus target: what is left for everything else once saving is paid.
     leaves_for_spending: float | None = None
+
+
+class HouseholdCapPlanRow(BaseModel):
+    """One category's proposed cap, and how it compares to what it actually runs."""
+
+    category: str
+    essentiality: str
+    # essential | shaped | sinking_fund | no_history
+    source: str
+    proposed_cap: float
+    trailing_monthly: float
+    # Share of the discretionary pool this category was given, 0 for the rest.
+    share: float = 0.0
+    confirmed_cap: float | None = None
+    change_from_trailing: float = 0.0
+    detail: str = ""
+
+
+class HouseholdCapPlan(BaseModel):
+    """Caps priced from income, then shaped by history -- not the other way round.
+
+    The suggestion this replaces was each category's own run-rate nudged by a
+    factor, which makes "under budget" and "going broke" compatible: the caps
+    summed to more than the household takes home, so a month could clear every
+    one of them and still lose money (D6). Here the total is decided first --
+    anchor, less what saving is set aside, less what the sinking funds accrue --
+    and only its distribution comes from history.
+
+    Essentials are held at what they actually cost rather than trimmed by a
+    percentage: a groceries cap the household cannot live on is not a plan, it
+    is a number that will be broken every month. What is left after essentials
+    is what the discretionary categories divide.
+    """
+
+    # proposed | no_anchor | essentials_exceed_income
+    status: str = "no_anchor"
+    headline: str = ""
+    detail: str = ""
+    anchor_monthly_income: float | None = None
+    savings_target: float = 0.0
+    sinking_fund_total: float = 0.0
+    # anchor - savings - sinking funds: everything the categories may divide.
+    available_for_categories: float = 0.0
+    essentials_total: float = 0.0
+    discretionary_pool: float = 0.0
+    # What the same categories currently run at, so the cut is visible.
+    trailing_monthly_total: float = 0.0
+    gap_to_trailing: float = 0.0
+    rows: list[HouseholdCapPlanRow] = Field(default_factory=list)
+    confirmed_cap_total: float = 0.0
+    drift_detail: str = ""
 
 
 class HouseholdBudgetSnapshot(BaseModel):

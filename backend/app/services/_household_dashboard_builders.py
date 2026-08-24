@@ -12,6 +12,8 @@ from dateutil.relativedelta import relativedelta
 from app.models.household_finance import (
     HouseholdAffordability,
     HouseholdBudgetSnapshot,
+    HouseholdCapPlan,
+    HouseholdCapPlanRow,
     HouseholdIncomeAnchor,
     HouseholdIncomeAnchorMonth,
     HouseholdProfile,
@@ -1067,6 +1069,198 @@ def build_savings_plan(
         "A $0 target reports success for saving nothing. Set a monthly amount, "
         "or pause saving with the income level that should restart it."
     )
+    return plan
+
+
+
+# Categories whose spending is already funded by a sinking fund accrual. Giving
+# them a second cap out of the monthly pool would fund the same dollar twice.
+SINKING_FUND_CATEGORIES: dict[str, str] = {
+    category: definition.key
+    for definition in SINKING_FUND_DEFINITIONS
+    for category in definition.categories
+}
+
+
+def build_cap_plan(
+    *,
+    categories: list[Any],
+    anchor: HouseholdIncomeAnchor,
+    savings_plan: HouseholdSavingsPlan,
+    sinking_funds: list[HouseholdSinkingFund],
+    confirmed_caps: dict[str, float] | None = None,
+) -> HouseholdCapPlan:
+    """Decide the total from income first, then let history shape it (D6).
+
+    ``categories`` are spending-view rows: each carries the trailing monthly
+    run-rate this reads. Nothing here re-derives spend -- the shape comes from
+    the same collapse the month on screen is reported from.
+    """
+    confirmed_caps = confirmed_caps or {}
+    income = anchor.monthly_income
+    savings = (
+        savings_plan.monthly_target or 0.0
+        if savings_plan.status == "active"
+        else 0.0
+    )
+    fund_total = _money_round(
+        sum(fund.monthly_target or 0.0 for fund in sinking_funds)
+    )
+    fund_by_category = {
+        category: fund
+        for fund in sinking_funds
+        for definition in SINKING_FUND_DEFINITIONS
+        if definition.key == fund.key
+        for category in definition.categories
+    }
+
+    plan = HouseholdCapPlan(
+        anchor_monthly_income=income,
+        savings_target=_money_round(savings),
+        sinking_fund_total=fund_total,
+        confirmed_cap_total=_money_round(sum(confirmed_caps.values())),
+    )
+
+    shaped: list[Any] = []
+    funded: list[Any] = []
+    essentials: list[Any] = []
+    for category in categories:
+        trailing = float(
+            getattr(category, "gross_monthly_spend", 0.0)
+            or getattr(category, "average_monthly_spend", 0.0)
+            or 0.0
+        )
+        name = str(category.category)
+        if name in fund_by_category:
+            funded.append((category, trailing))
+        elif str(category.essentiality) == "essential":
+            essentials.append((category, trailing))
+        else:
+            shaped.append((category, trailing))
+
+    if income is None:
+        plan.status = "no_anchor"
+        plan.headline = "Caps cannot be priced until a normal month is measurable."
+        plan.detail = (
+            "The income anchor has no complete month to read yet, so there is "
+            "nothing to divide. Declare an anchor to propose caps now."
+        )
+        return plan
+
+    available = _money_round(income - savings - fund_total)
+    essentials_total = _money_round(sum(trailing for _, trailing in essentials))
+    pool = _money_round(available - essentials_total)
+    trailing_total = _money_round(
+        sum(trailing for _, trailing in essentials + shaped)
+    )
+
+    plan.available_for_categories = available
+    plan.essentials_total = essentials_total
+    plan.discretionary_pool = max(pool, 0.0)
+    plan.trailing_monthly_total = trailing_total
+    plan.gap_to_trailing = _money_round(available - trailing_total)
+
+    shaped_trailing = sum(trailing for _, trailing in shaped)
+    rows: list[HouseholdCapPlanRow] = []
+
+    for category, trailing in essentials:
+        rows.append(
+            HouseholdCapPlanRow(
+                category=str(category.category),
+                essentiality=str(category.essentiality),
+                source="essential",
+                proposed_cap=_money_round(trailing),
+                trailing_monthly=_money_round(trailing),
+                confirmed_cap=confirmed_caps.get(str(category.category)),
+                change_from_trailing=0.0,
+                detail=(
+                    "Held at what it actually costs. A cap the household cannot "
+                    "live on is not a plan."
+                ),
+            )
+        )
+
+    for category, trailing in shaped:
+        share = trailing / shaped_trailing if shaped_trailing > 0 else 0.0
+        proposed = _money_round(max(pool, 0.0) * share)
+        rows.append(
+            HouseholdCapPlanRow(
+                category=str(category.category),
+                essentiality=str(category.essentiality),
+                source="shaped" if trailing > 0 else "no_history",
+                proposed_cap=proposed,
+                trailing_monthly=_money_round(trailing),
+                share=round(share, 4),
+                confirmed_cap=confirmed_caps.get(str(category.category)),
+                change_from_trailing=_money_round(proposed - trailing),
+                detail=(
+                    f"{round(share * 100)}% of what the household spends outside "
+                    f"essentials, applied to {_money(max(pool, 0.0))}."
+                    if trailing > 0
+                    else "No trailing spend to shape a cap from."
+                ),
+            )
+        )
+
+    for category, trailing in funded:
+        fund = fund_by_category[str(category.category)]
+        rows.append(
+            HouseholdCapPlanRow(
+                category=str(category.category),
+                essentiality=str(category.essentiality),
+                source="sinking_fund",
+                proposed_cap=_money_round(fund.monthly_target or 0.0),
+                trailing_monthly=_money_round(trailing),
+                confirmed_cap=confirmed_caps.get(str(category.category)),
+                change_from_trailing=_money_round(
+                    (fund.monthly_target or 0.0) - trailing
+                ),
+                detail=(
+                    f"Funded by the {fund.label} sinking fund, which accrues "
+                    f"{_money(fund.monthly_target or 0.0)}/mo. A big month draws "
+                    "the fund down rather than breaking a cap."
+                ),
+            )
+        )
+
+    plan.rows = rows
+
+    if pool < 0:
+        plan.status = "essentials_exceed_income"
+        plan.headline = (
+            f"Essentials alone run {_money(abs(pool))} above what is left after "
+            "saving and the sinking funds."
+        )
+        plan.detail = (
+            f"{_money(income)} anchor, less {_money(savings)} saving and "
+            f"{_money(fund_total)} of fund accruals, leaves "
+            f"{_money(available)} -- against {_money(essentials_total)} of "
+            "essentials. Nothing is left to cap, so the fix is the essentials "
+            "themselves or the anchor."
+        )
+        return plan
+
+    plan.status = "proposed"
+    plan.headline = (
+        f"{_money(pool)}/mo to divide after essentials, saving and the funds."
+    )
+    plan.detail = (
+        f"{_money(income)} anchor - {_money(savings)} saving - "
+        f"{_money(fund_total)} fund accruals = {_money(available)}. "
+        f"Essentials take {_money(essentials_total)} at what they actually cost, "
+        f"leaving {_money(pool)} shaped across "
+        f"{sum(1 for _, trailing in shaped if trailing > 0)} categories."
+    )
+    if plan.gap_to_trailing < 0:
+        plan.drift_detail = (
+            f"These categories currently run {_money(abs(plan.gap_to_trailing))}/mo "
+            "above that, so the proposal is a cut, not a description."
+        )
+    else:
+        plan.drift_detail = (
+            f"{_money(plan.gap_to_trailing)}/mo of room against what these "
+            "categories currently run at."
+        )
     return plan
 
 

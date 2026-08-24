@@ -1561,6 +1561,35 @@ export interface HouseholdSpendingSummary {
   confirmedOverBudgetCount: number
 }
 
+export interface HouseholdCapPlanRow {
+  category: string
+  essentiality: string
+  source: 'essential' | 'shaped' | 'sinking_fund' | 'no_history'
+  proposedCap: number
+  trailingMonthly: number
+  share: number
+  confirmedCap: number | null
+  changeFromTrailing: number
+  detail: string
+}
+
+export interface HouseholdCapPlan {
+  status: 'proposed' | 'no_anchor' | 'essentials_exceed_income'
+  headline: string
+  detail: string
+  anchorMonthlyIncome: number | null
+  savingsTarget: number
+  sinkingFundTotal: number
+  availableForCategories: number
+  essentialsTotal: number
+  discretionaryPool: number
+  trailingMonthlyTotal: number
+  gapToTrailing: number
+  rows: HouseholdCapPlanRow[]
+  confirmedCapTotal: number
+  driftDetail: string
+}
+
 export interface HouseholdSpendingView {
   generatedAt: string
   summary: HouseholdSpendingSummary
@@ -1568,6 +1597,7 @@ export interface HouseholdSpendingView {
   comparators: HouseholdSpendComparator[]
   oneTimePurchases: HouseholdOneTimePurchase[]
   budgetVerdict?: HouseholdBudgetVerdict | null
+  capPlan?: HouseholdCapPlan | null
   spendVariance?: HouseholdSpendVariance | null
   newThisMonth?: HouseholdNoveltyCluster[]
   categories: HouseholdSpendingCategory[]
