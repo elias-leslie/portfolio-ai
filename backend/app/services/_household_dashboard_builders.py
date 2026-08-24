@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import statistics
 from datetime import UTC, date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
@@ -10,6 +11,8 @@ from dateutil.relativedelta import relativedelta
 from app.models.household_finance import (
     HouseholdAffordability,
     HouseholdBudgetSnapshot,
+    HouseholdIncomeAnchor,
+    HouseholdIncomeAnchorMonth,
     HouseholdProfile,
     HouseholdRecurringCommitment,
     HouseholdReports,
@@ -591,6 +594,223 @@ def _spoken_list(items: list[str]) -> str:
     if len(items) == 1:
         return items[0]
     return f"{', '.join(items[:-1])} or {items[-1]}"
+
+
+# Three complete months: long enough that one payroll spike or one clawback
+# cannot set the caps, short enough that a job change shows up in a quarter
+# rather than a year (D16).
+INCOME_ANCHOR_MONTHS = 3
+# A declared anchor older than this is reported beside the measurement rather
+# than instead of it -- "SummitFlow starts next month" is a fact for a while and
+# then it is either true or it is not.
+OVERRIDE_STALE_AFTER_DAYS = 120
+# Or sooner, if what actually arrives has moved this far away from it -- but
+# only once enough complete months have passed for the declared change to have
+# shown up. A declaration made this month is *supposed* to disagree with the
+# months before it; that is what declaring it was for.
+OVERRIDE_DRIFT_TOLERANCE = 0.15
+OVERRIDE_DRIFT_GRACE_DAYS = 60
+
+
+def _month_label(month: str) -> str:
+    """'2026-07' -> 'July 2026'. Returns the key unchanged if it is not one."""
+    try:
+        return datetime.strptime(month, "%Y-%m").strftime("%B %Y")
+    except ValueError:
+        return month
+
+
+def _and_list(items: list[str]) -> str:
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def _override_staleness(
+    *,
+    override: float,
+    median: float | None,
+    set_on: date | None,
+    today: date,
+) -> tuple[bool, str, int | None, float | None]:
+    """Whether a declared anchor still deserves to outrank the measurement."""
+    age_days = (today - set_on).days if set_on is not None else None
+    drift = None if median is None else round(override - median, 2)
+
+    if set_on is None:
+        return (
+            True,
+            "This figure was declared without a date, so there is no way to "
+            "tell whether it is current. Re-declare it to date it.",
+            None,
+            drift,
+        )
+    if age_days is not None and age_days > OVERRIDE_STALE_AFTER_DAYS:
+        months = age_days // 30
+        return (
+            True,
+            f"Declared {months} month{'s' if months != 1 else ''} ago, on "
+            f"{set_on:%b %d, %Y}. Confirm it still holds or clear it.",
+            age_days,
+            drift,
+        )
+    if (
+        median is not None
+        and median > 0
+        and drift is not None
+        and age_days is not None
+        and age_days >= OVERRIDE_DRIFT_GRACE_DAYS
+        and abs(drift) / median > OVERRIDE_DRIFT_TOLERANCE
+    ):
+        direction = "above" if drift > 0 else "below"
+        return (
+            True,
+            f"Declared on {set_on:%b %d, %Y} and still {_money(abs(drift))} "
+            f"{direction} what has actually arrived over the last "
+            f"{INCOME_ANCHOR_MONTHS} complete months ({_money(median)}).",
+            age_days,
+            drift,
+        )
+    return (False, "", age_days, drift)
+
+
+def build_income_anchor(
+    *,
+    profile: HouseholdProfile,
+    monthly_income: dict[str, float],
+    today: date | None = None,
+) -> HouseholdIncomeAnchor:
+    """What a normal month brings in -- the number every cap is priced off.
+
+    The median, not the mean, and only complete months: this ledger holds
+    $15,244 in January against $3,205 in a part-finished August, and a mean of
+    that pair would set a cap neither month could pay. The months behind the
+    answer are returned with it, because a household that cannot check the
+    arithmetic is being asked to trust it (D16).
+    """
+    today = today or date.today()
+    current_month = f"{today:%Y-%m}"
+    complete = sorted(
+        (month, amount) for month, amount in monthly_income.items() if month < current_month
+    )
+    window = complete[-INCOME_ANCHOR_MONTHS:]
+
+    median = round(statistics.median([amount for _, amount in window]), 2) if window else None
+    months_used = [
+        HouseholdIncomeAnchorMonth(
+            month=month,
+            label=_month_label(month),
+            amount=_money_round(amount),
+            # Only an odd window has a month that *is* the median; on an even
+            # one the answer is between two months and belongs to neither.
+            is_median=(
+                median is not None
+                and len(window) % 2 == 1
+                and _money_round(amount) == median
+            ),
+        )
+        for month, amount in window
+    ]
+
+    override = profile.income_anchor_override
+    set_on = _parse_date(profile.income_anchor_override_set_on)
+    note = (profile.income_anchor_override_note or "").strip() or None
+
+    target = profile.monthly_net_income_target
+    anchor = HouseholdIncomeAnchor(
+        median_monthly_income=median,
+        months_used=months_used,
+        complete_months_available=len(complete),
+        override_amount=override,
+        override_set_on=set_on.isoformat() if set_on is not None else None,
+        override_note=note,
+        profile_target=target,
+    )
+
+    window_label = _and_list([month.label for month in months_used])
+    amounts_label = ", ".join(_money(month.amount) for month in months_used)
+
+    if override is not None:
+        stale, stale_detail, age_days, drift = _override_staleness(
+            override=override, median=median, set_on=set_on, today=today
+        )
+        anchor.status = "declared"
+        anchor.source = "override"
+        anchor.source_label = (
+            f"Declared {set_on:%b %d, %Y}" if set_on is not None else "Declared"
+        )
+        anchor.monthly_income = _money_round(override)
+        anchor.override_age_days = age_days
+        anchor.override_drift = drift
+        anchor.override_stale = stale
+        anchor.override_stale_detail = stale_detail
+        anchor.headline = f"{_money(override)}/mo, declared."
+        if median is not None:
+            anchor.detail = (
+                f"{note + '. ' if note else ''}What has actually arrived over "
+                f"{window_label}: {amounts_label}, a median of {_money(median)}."
+            )
+        else:
+            anchor.detail = (
+                f"{note + '. ' if note else ''}No complete month of income is on "
+                "record to measure this against yet."
+            )
+    elif median is not None:
+        anchor.status = "measured"
+        anchor.source = "median"
+        anchor.source_label = f"Median of {len(months_used)} complete months"
+        anchor.monthly_income = median
+        anchor.headline = f"{_money(median)}/mo is what a normal month brings in."
+        anchor.detail = (
+            f"Median of {window_label}: {amounts_label}. The median, not the "
+            "average, so one large or missing deposit cannot set the caps."
+        )
+    else:
+        anchor.status = "insufficient_history"
+        anchor.source = "median"
+        anchor.source_label = "Not measurable yet"
+        anchor.headline = "Not enough history to say what a normal month brings in."
+        anchor.detail = (
+            "No complete calendar month of income is on record. "
+            f"{_month_label(current_month)} is still running and is not counted."
+        )
+
+    if target is not None and anchor.monthly_income is not None:
+        gap = round(target - anchor.monthly_income, 2)
+        anchor.profile_target_gap = gap
+        if abs(gap) < 1:
+            anchor.profile_target_detail = (
+                f"The saved take-home target of {_money(target)} matches the anchor."
+            )
+        else:
+            direction = "above" if gap > 0 else "below"
+            anchor.profile_target_detail = (
+                f"The saved take-home target of {_money(target)} is "
+                f"{_money(abs(gap))} {direction} the anchor. Caps built on the "
+                "target would be spending money that does not arrive."
+                if gap > 0
+                else f"The saved take-home target of {_money(target)} is "
+                f"{_money(abs(gap))} {direction} the anchor."
+            )
+    elif target is not None:
+        anchor.profile_target_detail = (
+            f"The saved take-home target is {_money(target)}, with nothing "
+            "measured to compare it against."
+        )
+
+    return anchor
+
+
+def _parse_date(value: str | None) -> date | None:
+    """Accept a date, a datetime, or nothing -- the column stores a DATE."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).date()
+    except ValueError:
+        return None
 
 
 def _budget_analysis(

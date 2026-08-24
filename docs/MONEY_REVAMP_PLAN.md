@@ -4,12 +4,12 @@
 pass (§7). Phase 0 landed 15 of 16 tasks; 0.13 (the staged receipts) waits on the
 household's approval and on the Costco/Walmart order-page parser in Phase 4.2.
 The review screen now answers the month in one place, and the screens that
-answered it a second time are gone. **Phase 3 is next: plan, funds, and alerts.**
+answered it a second time are gone. **Phase 3 is live**: the income anchor (3.1)
+is in, and the caps, savings state and sinking funds are priced off it.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-24 (Phase 2 closed: the review screen owns the month,
-the Decision Board's duplicate answers are deleted, and allocation moved to
-Investing)
+**Last updated:** 2026-08-24 (Phase 3 open: the plan is anchored to the median
+of the last three complete months of income, $6,067/mo, not to a $6,283 target)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -62,14 +62,15 @@ its own). **1.1–1.10 and 2.1–2.7 are all done.**
 
 Work top down through §7 Phase 3 — plan, funds, and alerts:
 
-1. **3.1 Income anchor** (D16) — trailing 3-month **median** of deposits,
-   recomputed monthly, with a dated manual override that wins until cleared,
-   both values shown side by side so the override is never silently stale.
-   Everything Phase 3 caps is priced off this number, so it comes first.
-   Confirm whether the $506.31/mo note income (P0-23) is still arriving.
-2. **3.2 Income-anchored cap setup** (D6) — needs 3.1 and 3.3 before it can
-   subtract anything.
-3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+1. **3.3 Savings target as a phase-aware state** (D17) — `paused` as a
+   first-class state with a declared restart trigger on the income anchor,
+   instead of a $0 target reporting "on track". 3.2 subtracts this from the
+   anchor, so it lands before 3.2.
+2. **3.4 Sinking funds** (D18) — the four chosen funds, amounts derived from
+   trailing 12 months with the derivation shown inline. 3.2 subtracts these too.
+3. **3.2 Income-anchored cap setup** (D6) — anchor (3.1, done) − savings (3.3)
+   − sinking funds (3.4), distributed by historical shape.
+4. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
 
@@ -90,6 +91,14 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 3.1 **The income anchor is the median of the last three complete months**:
+  **$6,067/mo** from May ($6,067), June ($7,985) and July ($2,804), with the
+  months listed so the arithmetic can be checked. The saved take-home target of
+  $6,283 is shown beside it, $216 above what actually arrives. A declared
+  anchor is dated and outranks the median without replacing it on screen.
+  **P1-37**: the $506.31/mo note income (P0-23) stopped on 2026-03-02 and its
+  rows are `transfer_in`, not income, so it could not have reached the anchor
+  even if it had continued.
 - 2.7 **The second copies are gone.** The Decision Board is deleted: its Free to
   spend card was the same figure 2.5 had already put on the review screen, and
   its watch list re-printed the pace sentence sitting three inches above it. The
@@ -1014,6 +1023,33 @@ repairs `household_purchase_items` alongside `household_transactions`. Live:
 spending view, and July's total unchanged at $16,708.01 — Household is now one
 row at $13,056.35.
 
+### P1-37 — The note income the anchor was told to look for is not arriving, and could not have been seen if it were
+
+**[confirmed — no code change; the household has to answer the second half]**
+
+3.1 was told to confirm whether the **$506.31/mo seller-financed note** from
+Michael Wiley (P0-23) is still being paid, and to include it in the income
+anchor if it is. It is not: the last payment in the ledger is **2026-03-02**,
+five complete months before the anchor's window opens, and nothing since has
+landed on any tracked account. The receiving Wells Fargo account closed in
+March, so either the note ended or the money now lands somewhere the system
+cannot see. Only the household can say which.
+
+The second half is the part worth keeping. Every one of those payments is
+classified **`transfer_in`**, not `income` — the Zelle and recurring-transfer
+descriptions that P0-23 stopped the *spend* filters from eating still keep the
+row out of `flow_type = 'income'`. So even if the note resumed tomorrow on a
+tracked account, the income anchor would not see it, because the anchor reads
+income and this arrives as a transfer. That is the right behaviour for the
+transfer between the household's own accounts it looks like, and the wrong
+answer for money a third party pays them.
+
+Not fixed here, deliberately: reclassifying it requires knowing that Michael
+Wiley is not the household, which is exactly the account-ownership question D15
+is blocked on. The **declared anchor** covers the case in the meantime — a
+household that knows $506.31 is arriving somewhere untracked can say so, dated,
+and the card will show it beside what the ledger can actually measure.
+
 ---
 
 ## 4. Diagnosis in one line
@@ -1910,10 +1946,17 @@ The screen in the artifact. All seven tasks landed.
 ---
 
 ### Phase 3 — Plan, funds, and alerts
-3.1 **Income anchor** (D16): trailing 3-month **median** of deposits, recomputed
-    monthly, with a dated manual override that wins until cleared. Show both
-    values side by side so the override is never silently stale. Confirm whether
-    the $506.31/mo note income (P0-23) is still arriving and include it if so.
+3.1 ✅ **Income anchor** (D16) — the median of the last three **complete**
+    months of ledger income, with those months listed beside it. Live:
+    **$6,067/mo** from May/June/July 2026, against a saved take-home target of
+    $6,283. A declared override is stored with the day it was declared and wins
+    until cleared, and the measured median stays on screen underneath it; the
+    card says so when a declaration has aged past 120 days or drifted more than
+    15% from what arrives — but not in its first 60 days, because a declaration
+    about a change the ledger has not seen yet is *supposed* to disagree with it.
+    The $506.31/mo note income (P0-23) is **not** arriving: last paid
+    2026-03-02, and classified `transfer_in` rather than income, so it could not
+    have reached the anchor regardless (**P1-37**).
 3.2 **Income-anchored cap setup** (D6): anchor (3.1) − savings (3.3) − sinking-fund
     accruals (3.4), distributed by historical shape, adjusted in one pass.
     Re-propose on material drift.
@@ -2068,3 +2111,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 2.5 | **The affordability figure moved to the screen where the month is judged, and stopped being graded twice.** Free to spend was on the Decision Board, one tab from the review screen, so the screen that says "August came in over your caps" could not say whether there was money to act on it. It now sits beside the verdict as the whole subtraction rather than a single confident number: **30,495 − 88 − 1,129 − 17,336 = $11,941**, each line a thing the household can go look at. Two things moved to the server while doing it. The word over the figure (`estimate` / `tight` / `hold`, never *safe*) was a `weekendSpendAllowance < 150` ladder inside a React hook; putting the same dollar amount on a second screen would have meant a second copy of that threshold, so `build_affordability` now returns `status`, `headline` and `detail` and both surfaces read them. And the stale-data treatment was replacing the explaining sentence with "Stale account data; refresh before relying on this." while still printing the number — the worst of both. The card now always shows the figure and what it means, and names the input that is behind: **"Cash and card balances need a refresh."** / **"This month's essentials are still an estimate."** Live on both surfaces at $11,941 with identical inputs. |
 | 2026-08-24 | Phase 2.6 | **Asking the retirement question properly answered it: the plan's retirement age has already arrived.** The old block graded contribution compliance and reported `on_track` from a $0 target against $0 contributions — a pass earned by having no inputs — while net worth grew at roughly 66× the $300/mo it was measuring. It now picks its question from the primary adult's age against `target_retirement_age`, both read live: **Elias turned 49 in January and the plan's retirement age is 49**, so the block is in drawdown and asks whether the withdrawal holds. It does not: **$10,231/mo of actual spending against the $6,428/mo that $1,542,811 of investable assets supports at the household's own recorded 5% rule**, with the plan assuming $7,500/mo — D13's two-way link, found on a budget screen exactly as predicted. Three things it refuses to do. It will not call that a *withdrawal* verdict: no account in the ledger is labelled as an IRA, 401(k), Roth or HSA, so whether a drawdown has actually started is invisible and the block says so rather than reading a $0 as a measurement. It will not state a required $/mo contribution in the accumulating-and-short phase, because that needs a return assumption and the Retirement tab's projection stays the only one — the gap is stated in **assets** ($257,189) instead. And with no birth year or no target age it returns `phase_unknown` rather than picking a phase. Ages come from `_split_members`, borrowed from the retirement planner rather than re-derived, so the boundary cannot move on one screen and not the other. The block renders on the review screen and in the planning drawer from the same object. |
 | 2026-08-24 | Phase 2.7 | **Deleted the screen that answered the same questions a second time, and Phase 2 closed with it.** The Decision Board's four cards were each a duplicate by the time 2.5 landed: Free to spend was already on the review screen as the full subtraction, and the board's own watch list re-printed `paceDetail` — the exact sentence rendered three inches above it in the same card — which is why the panel test had been asserting *two* copies of "Month-to-date spend is ahead of plan by $500." Both copies are gone; the sentence is printed once. The allocation donut moved to **Investing → Holdings**, because where the assets sit is an Investing question and Money's job is what came in and what went out; it took its state with it (`AccountAllocationSection` self-fetches and owns `selectedAssetGroup`), so nothing had to drag the old hook across. Moving it surfaced one thing worth fixing: inside a tab panel the donut mounts for a frame at zero width, and recharts answered that with `width(-1) and height(-1)` on the console — the chart now waits for a measured box, and `/portfolio?tab=holdings` reports 0 errors, 0 warnings, donut 509×288. The budget stat row went **ten tiles → three** (Unknown purchases · Caps waiting on you · Connected MTD spend), which on live data reads *0 purchases to categorize*, *17 suggested rows not accepted yet · $6,650*, and *$7,488 Plaid/SnapTrade through Aug 24, 3 pending transactions included ($145)*. **One thing the board carried that nothing else did**: `dashboard.inbox` reached the UI only through its 2-item "Refresh blockers" list, so deleting the board would have silently removed the only place those items appear. They are now the **Waiting on you** card on the Budget screen, uncapped — **5 items** on live data, each naming what it blocks ("Blocks net worth"), where 2 showed before. `useDecisionBoard` became `useMoneyOverview` and returns only what the surviving cards read. Gate green: 2,523 backend tests, 470 frontend tests, ARCH/ruff/ty/biome/tsc clean; `/money?tab=dashboard`, `/money?tab=spending`, `/portfolio?tab=holdings` all verified after rebuild with 0 console errors and 0 warnings. **Phase 2 closed.** |
+| 2026-08-24 | Phase 3.1 | **The plan stopped being priced off a number nobody receives.** The household's saved take-home target is **$6,283/mo**; the last three complete months brought in **$6,067, $7,985 and $2,804**. Everything Phase 3 caps — savings, sinking funds, category budgets — divides up that first number, which is $216/mo above what a normal month actually delivers and $3,479 above July. The anchor is now the **median of the last three complete calendar months** of ledger income: **$6,067/mo**, with the three months listed on the card so the arithmetic can be checked against a bank statement in a minute. A median rather than a mean, deliberately, and the ledger shows why: January and February hold $15,244 and $13,417 against a still-running August at $3,205, and a mean over the record is $7,750 — a cap the household could not have paid in four of the last eight months. The running month is never counted; nothing is reported until at least one complete month exists, and with none the card says so rather than showing $0. It reads the ledger's own `income_totals_by_month` — the same collapse the Budget screen reports, reversals netted and brokerage activity out — so the anchor and the month on screen cannot disagree about what income even is: July arrives as $2,804.36, already net of the Pinellas clawback. **A declared anchor** ("SummitFlow starts next month") is stored with the **day it was declared** and outranks the median, but never erases it: both sit on the card together. It is called out as stale after 120 days, or when it has drifted more than 15% from what arrives — but not in its first 60 days, because a declaration about a change the ledger has not seen is supposed to disagree with the months before it, and flagging that immediately would make the feature useless for the one case it exists for. An **undated** declaration is always flagged: it cannot be told apart from one that stopped being true. Verified live end to end: declaring $9,000 dated today flips the card to *Declared* with the measured $6,067 still under it, and clearing it returns to *Measured* — the profile row is back to null. **P1-37**, from confirming the plan's open question: the **$506.31/mo note income** (P0-23) is not arriving — last payment **2026-03-02**, the receiving account closed in March — and every one of those rows is classified `transfer_in`, not income, so it could not have reached the anchor even if it had continued. Reclassifying it needs to know Michael Wiley is not the household, which is the D15 ownership question; the dated declaration covers the gap in the meantime. Gate green: 2,536 backend tests (13 new), 478 frontend tests (8 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |

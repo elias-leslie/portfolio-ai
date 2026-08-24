@@ -85,7 +85,7 @@ const assumptionFields: AssumptionFieldDef[] = [
     profileKey: 'monthlyNetIncomeTarget',
     label: 'Take-home income',
     type: 'currency',
-    hint: 'The income figure Jenny should budget against.',
+    hint: 'What the household aims to take home. Caps are priced off the income anchor on the Budget screen — the median of the last three complete months — not off this figure.',
     placeholder: '12500',
     supportsCadence: true,
   },

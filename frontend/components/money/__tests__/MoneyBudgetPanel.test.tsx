@@ -18,6 +18,7 @@ const categorizeMutateAsync = vi.fn()
 const setTransactionOwnerMutateAsync = vi.fn()
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
+  useUpdateHouseholdProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useCategorizeHouseholdTransaction: () => ({
     mutateAsync: categorizeMutateAsync,
     isPending: false,

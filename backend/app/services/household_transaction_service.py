@@ -966,6 +966,16 @@ class HouseholdTransactionService:
             result = conn.execute(sql, params).fetchone()
         return float(result[0]) if result and result[0] is not None else 0.0
 
+    def income_totals_by_month(self, *, end_date: date | None = None) -> dict[str, float]:
+        """Household income per calendar month, on the same terms as the totals.
+
+        Public because the income anchor (D16) is a median of these months. It
+        reads them from here rather than running its own SQL so the anchor and
+        the month a household is looking at cannot disagree about what income
+        even is -- reversals netted, brokerage activity out.
+        """
+        return self._income_totals_by_month(end_date=end_date or date.today())
+
     def _income_totals_by_month(self, *, end_date: date) -> dict[str, float]:
         """Household income per calendar month, on the same terms as the totals.
 

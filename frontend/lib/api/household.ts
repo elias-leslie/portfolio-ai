@@ -96,6 +96,8 @@ export type {
   HouseholdExecutiveReport,
   HouseholdFinanceDashboard,
   HouseholdInboxItem,
+  HouseholdIncomeAnchor,
+  HouseholdIncomeAnchorMonth,
   HouseholdLedger,
   HouseholdLedgerEntry,
   HouseholdLedgerParams,

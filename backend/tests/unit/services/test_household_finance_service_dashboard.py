@@ -123,6 +123,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     service.portfolio_mgr.get_positions.return_value = []
     service.transaction_service = Mock()
     service.transaction_service.build_reports.return_value = reports
+    # The income anchor reads the ledger's own monthly income (D16).
+    service.transaction_service.income_totals_by_month.return_value = {}
     service.get_planning_snapshot = cast(
         Any, Mock(return_value=empty_household_planning_snapshot())
     )

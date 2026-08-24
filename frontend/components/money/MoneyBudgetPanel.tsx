@@ -24,6 +24,7 @@ import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
 import { CategoryTrendChart } from './CategoryTrendChart'
 import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
+import { IncomeAnchorCard } from './IncomeAnchorCard'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { MoneyInboxCard } from './MoneyInboxCard'
 import { MonthComparatorRow } from './MonthComparatorRow'
@@ -376,7 +377,19 @@ export function MoneyBudgetPanel() {
         </div>
       </SectionCard>
 
-      <MoneyInboxCard inbox={dashboard?.inbox} isLoading={isDashboardLoading} />
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        {/* What a normal month brings in sits on the review screen because
+            every cap Phase 3 sets is priced off it, and because the saved
+            take-home target it replaces is above what actually arrives. */}
+        <IncomeAnchorCard
+          anchor={dashboard?.incomeAnchor}
+          isLoading={isDashboardLoading}
+        />
+        <MoneyInboxCard
+          inbox={dashboard?.inbox}
+          isLoading={isDashboardLoading}
+        />
+      </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <NeedsWantsMixedCard

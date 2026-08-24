@@ -33,6 +33,7 @@ from app.services._household_account_status import (
 from app.services._household_coverage import build_coverage
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
+    build_income_anchor,
     build_retirement_contribution_tracker,
     build_retirement_scenarios,
     build_sinking_funds,
@@ -702,6 +703,12 @@ def assemble_finance_dashboard(
         profile=profile,
         resolved_values=resolved_values,
         budget_readiness=build_budget_readiness(resolved_values=resolved_values, documents=documents, service=service),
+        income_anchor=build_income_anchor(
+            profile=profile,
+            # The ledger's own monthly income, not a second query: the anchor
+            # and the month on screen must mean the same thing by "income".
+            monthly_income=service.transaction_service.income_totals_by_month(),
+        ),
         budget_snapshot=build_budget_snapshot(
             profile=profile, reports=reports,
             month_to_date_spend=fetch_current_month_spend(storage),

@@ -29,6 +29,8 @@ from app.models.household_finance_types import (
     HouseholdEvidenceAccount,
     HouseholdExecutiveReport,
     HouseholdInboxItem,
+    HouseholdIncomeAnchor,
+    HouseholdIncomeAnchorMonth,
     HouseholdLedger,
     HouseholdLedgerEntry,
     HouseholdMerchantInsight,
@@ -148,6 +150,8 @@ __all__ = [
     "HouseholdExecutiveReport",
     "HouseholdFinanceDashboard",
     "HouseholdInboxItem",
+    "HouseholdIncomeAnchor",
+    "HouseholdIncomeAnchorMonth",
     "HouseholdLedger",
     "HouseholdLedgerEntry",
     "HouseholdMerchantInsight",
@@ -275,6 +279,11 @@ class HouseholdProfile(BaseModel):
     spouse_net_monthly_income: float | None = None
     partial_retirement_monthly_spend: float | None = None
     spouse_gross_annual_income: float | None = None
+    # The declared income anchor, the day it was declared, and why. The measured
+    # median is never overwritten by it -- both are reported (D16).
+    income_anchor_override: float | None = None
+    income_anchor_override_set_on: str | None = None
+    income_anchor_override_note: str | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -329,15 +338,18 @@ class HouseholdProfileUpdate(BaseModel):
     # DB column for the SET clause in update_profile.
     aca_premium_age21_override: float | None = Field(
         None,
-        validation_alias=AliasChoices(
-            "aca_premium_age21_override", "aca_premium_age_21_override"
-        ),
+        validation_alias=AliasChoices("aca_premium_age21_override", "aca_premium_age_21_override"),
     )
     aca_oop_monthly: float | None = None
     medicare_monthly_per_person: float | None = None
     spouse_net_monthly_income: float | None = None
     partial_retirement_monthly_spend: float | None = None
     spouse_gross_annual_income: float | None = None
+    # The declared income anchor, the day it was declared, and why. The measured
+    # median is never overwritten by it -- both are reported (D16).
+    income_anchor_override: float | None = None
+    income_anchor_override_set_on: str | None = None
+    income_anchor_override_note: str | None = None
     notes: str | None = None
 
 
@@ -377,6 +389,8 @@ class HouseholdFinanceDashboard(BaseModel):
     resolved_values: list[HouseholdResolvedValue] = Field(default_factory=list)
     budget_readiness: BudgetReadiness
     budget_snapshot: HouseholdBudgetSnapshot
+    # What a normal month brings in, which is what every cap is priced off (D16).
+    income_anchor: HouseholdIncomeAnchor = Field(default_factory=HouseholdIncomeAnchor)
     retirement_preparedness: RetirementPreparedness
     jenny_needs: list[JennyNeed] = Field(default_factory=list)
     reports: HouseholdReports
@@ -385,9 +399,7 @@ class HouseholdFinanceDashboard(BaseModel):
     transaction_date_issues: list[HouseholdTransactionDateIssue] = Field(default_factory=list)
     sinking_funds: list[HouseholdSinkingFund] = Field(default_factory=list)
     # What the spend filters held out of every total above, and why.
-    spend_exclusions: HouseholdSpendExclusions = Field(
-        default_factory=HouseholdSpendExclusions
-    )
+    spend_exclusions: HouseholdSpendExclusions = Field(default_factory=HouseholdSpendExclusions)
     retirement_contribution_tracker: HouseholdRetirementContributionTracker
     retirement_scenarios: list[HouseholdRetirementScenario] = Field(default_factory=list)
     import_center: ImportCenter

@@ -97,6 +97,10 @@ export interface HouseholdProfile {
   spouseNetMonthlyIncome?: number | null
   partialRetirementMonthlySpend?: number | null
   spouseGrossAnnualIncome?: number | null
+  /** The declared income anchor, the day it was declared, and why (D16). */
+  incomeAnchorOverride?: number | null
+  incomeAnchorOverrideSetOn?: string | null
+  incomeAnchorOverrideNote?: string | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -1582,6 +1586,35 @@ export interface PortfolioHouseholdContext {
   insights: string[]
 }
 
+export interface HouseholdIncomeAnchorMonth {
+  month: string
+  label: string
+  amount: number
+  isMedian: boolean
+}
+
+export interface HouseholdIncomeAnchor {
+  status: 'measured' | 'declared' | 'insufficient_history'
+  headline: string
+  detail: string
+  monthlyIncome: number | null
+  source: 'median' | 'override'
+  sourceLabel: string
+  medianMonthlyIncome: number | null
+  monthsUsed: HouseholdIncomeAnchorMonth[]
+  completeMonthsAvailable: number
+  overrideAmount: number | null
+  overrideSetOn: string | null
+  overrideNote: string | null
+  overrideAgeDays: number | null
+  overrideDrift: number | null
+  overrideStale: boolean
+  overrideStaleDetail: string
+  profileTarget: number | null
+  profileTargetGap: number | null
+  profileTargetDetail: string
+}
+
 export interface HouseholdFinanceDashboard {
   generatedAt: string
   overview: HouseholdOverview
@@ -1590,6 +1623,7 @@ export interface HouseholdFinanceDashboard {
   resolvedValues: HouseholdResolvedValue[]
   budgetReadiness: BudgetReadiness
   budgetSnapshot: HouseholdBudgetSnapshot
+  incomeAnchor: HouseholdIncomeAnchor
   retirementPreparedness: RetirementPreparedness
   jennyNeeds: JennyNeed[]
   importCenter: ImportCenter
@@ -1660,6 +1694,9 @@ export interface HouseholdProfileUpdate {
   spouseNetMonthlyIncome?: number | null
   partialRetirementMonthlySpend?: number | null
   spouseGrossAnnualIncome?: number | null
+  incomeAnchorOverride?: number | null
+  incomeAnchorOverrideSetOn?: string | null
+  incomeAnchorOverrideNote?: string | null
   notes?: string | null
 }
 

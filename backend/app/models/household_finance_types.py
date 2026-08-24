@@ -676,6 +676,59 @@ class HouseholdAffordability(BaseModel):
     detail: str = ""
 
 
+class HouseholdIncomeAnchorMonth(BaseModel):
+    """One complete month of income, named so the median can be checked."""
+
+    month: str
+    label: str
+    amount: float
+    # True for the month that landed on the median.
+    is_median: bool = False
+
+
+class HouseholdIncomeAnchor(BaseModel):
+    """What the household can plan against each month, and where it came from.
+
+    A mean would let one payroll spike or one clawback set the caps for the next
+    quarter, which is exactly what this ledger does to a mean: Jan/Feb hold
+    $15,244 and $13,417 against $3,205 in August. A median of the last three
+    complete months answers the question the caps actually ask -- what does a
+    normal month bring in -- and the months it used are listed so the answer can
+    be checked rather than trusted (D16).
+
+    The declared override never replaces the measurement. Both are reported,
+    with the day the override was declared, because a declared anchor is a fact
+    on the day it is made and a guess some months later.
+    """
+
+    # measured | declared | insufficient_history
+    status: str = "insufficient_history"
+    headline: str = ""
+    detail: str = ""
+    # The number every cap should be priced off, whichever source won.
+    monthly_income: float | None = None
+    # median | override
+    source: str = "median"
+    source_label: str = ""
+    median_monthly_income: float | None = None
+    months_used: list[HouseholdIncomeAnchorMonth] = Field(default_factory=list)
+    complete_months_available: int = 0
+    override_amount: float | None = None
+    override_set_on: str | None = None
+    override_note: str | None = None
+    override_age_days: int | None = None
+    # override - median, and whether that gap is old or wide enough to say so.
+    override_drift: float | None = None
+    override_stale: bool = False
+    override_stale_detail: str = ""
+    # The profile's take-home target, which predates this block and is not the
+    # anchor: it is what the household hoped for, kept visible so the two can
+    # be compared instead of quietly disagreeing.
+    profile_target: float | None = None
+    profile_target_gap: float | None = None
+    profile_target_detail: str = ""
+
+
 class HouseholdBudgetSnapshot(BaseModel):
     status: str
     summary: str
