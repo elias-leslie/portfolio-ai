@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 from app.models.household_finance import (
     HouseholdAccountControl,
     HouseholdAccountSummary,
+    HouseholdCoverage,
     HouseholdDocumentList,
     HouseholdExecutiveReport,
     HouseholdProfile,
@@ -20,7 +21,6 @@ from app.models.household_finance import (
 )
 from app.models.household_planning import empty_household_planning_snapshot
 from app.services._household_dashboard_assembly import (
-    _apply_account_freshness_visibility_cap,
     _monthly_spend_trust,
     _net_worth_trust,
     build_overview,
@@ -107,6 +107,8 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         (0, None, None),
         (0, None, None),
         (None, 0, None),
+        # Coverage asks how many expense rows are still awaiting a category.
+        (0,),
     ]
     mock_conn.__enter__ = Mock(return_value=mock_conn)
     mock_conn.__exit__ = Mock(return_value=False)
@@ -131,8 +133,12 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         issues=[],
     )
     with (
-        patch(f"{assembly_path}.compute_visibility_score", return_value=88),
-        patch(f"{assembly_path}.visibility_label", return_value="High"),
+        patch(
+            f"{assembly_path}.build_coverage",
+            return_value=HouseholdCoverage(
+                score=88, label="Strong coverage", summary="Strong coverage: all good.",
+            ),
+        ),
         patch(f"{assembly_path}.next_best_action", return_value="Review the dashboard."),
         patch(f"{assembly_path}.budget_input_status", return_value={"budget_ready": True, "priorities": [], "missing_inputs": []}),
         patch(f"{assembly_path}.retirement_ready", return_value=True),
@@ -291,28 +297,6 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service._ensure_dashboard_registry_sync.assert_called_once_with(limit=1000)
     service.account_registry_service.sync_registry.assert_not_called()
     service.price_fetcher.fetch_cached_price_data.assert_not_called()
-
-
-def test_visibility_score_is_capped_when_account_freshness_is_degraded() -> None:
-    accounts = [
-        Mock(freshness_status="fresh"),
-        Mock(freshness_status="stale"),
-        Mock(freshness_status="needs_evidence"),
-    ]
-
-    assert _apply_account_freshness_visibility_cap(100, accounts) == 79
-    assert _apply_account_freshness_visibility_cap(
-        100,
-        [Mock(freshness_status="fresh"), Mock(freshness_status="aging")],
-    ) == 79
-    assert _apply_account_freshness_visibility_cap(
-        100,
-        [
-            Mock(freshness_status="fresh"),
-            Mock(freshness_status="fresh"),
-            Mock(freshness_status="stale"),
-        ],
-    ) == 99
 
 
 def test_net_worth_trust_marks_stale_when_all_balances_are_known_but_old() -> None:

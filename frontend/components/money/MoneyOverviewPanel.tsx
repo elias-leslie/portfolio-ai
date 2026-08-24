@@ -12,6 +12,7 @@ import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
 import { formatRelativeTime } from '@/lib/utils'
 import { AllocationCard } from './AllocationCard'
 import { BudgetPulseCard } from './BudgetPulseCard'
+import { CoverageCard } from './CoverageCard'
 import { DecisionBoard } from './DecisionBoard'
 import { ExcludedFromSpendCard } from './ExcludedFromSpendCard'
 import type { MoneyOverviewSection } from './overview-helpers'
@@ -211,7 +212,12 @@ export function MoneyOverviewPanel({
       ) : null}
 
       {showCategories ? (
-        <ExcludedFromSpendCard exclusions={dashboard.spendExclusions} />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ExcludedFromSpendCard exclusions={dashboard.spendExclusions} />
+          {dashboard.overview.coverage ? (
+            <CoverageCard coverage={dashboard.overview.coverage} />
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

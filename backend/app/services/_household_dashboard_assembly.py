@@ -30,6 +30,7 @@ from app.services._household_account_status import (
     fetch_registry_account_masks,
     fetch_registry_account_overrides,
 )
+from app.services._household_coverage import build_coverage
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
     build_retirement_contribution_tracker,
@@ -46,15 +47,12 @@ from app.services._household_dashboard_queries import (
     fetch_monthly_retirement_contributions,
 )
 from app.services._household_dashboard_sections import (
-    VISIBILITY_STRONG_THRESHOLD,
     budget_input_status,
-    compute_visibility_score,
     next_best_action,
     retirement_blockers,
     retirement_next_steps,
     retirement_ready,
     retirement_strengths,
-    visibility_label,
 )
 from app.services._household_finance_utils import (
     RETIREMENT_ACCOUNT_TYPES,
@@ -166,20 +164,6 @@ def build_import_center(documents: list[Any], planning: Any) -> ImportCenter:
 
 def update_overview_action(overview: HouseholdOverview, title: str) -> HouseholdOverview:
     return overview.model_copy(update={"next_best_action": title})
-
-
-def _apply_account_freshness_visibility_cap(
-    visibility_score: int,
-    account_summaries: list[Any],
-) -> int:
-    if not account_summaries:
-        return visibility_score
-    degraded_count = sum(1 for a in account_summaries if a.freshness_status in _DEGRADED_ACCOUNT_FRESHNESS_STATUSES)
-    if degraded_count == 0:
-        return visibility_score
-    if degraded_count * 2 >= len(account_summaries):
-        return min(visibility_score, VISIBILITY_STRONG_THRESHOLD - 1)
-    return min(visibility_score, 99)
 
 
 def _pluralize(n: int, singular: str, plural: str | None = None) -> str:
@@ -400,6 +384,8 @@ def build_overview(
     statement_freshness: dict[str, Any], reports: HouseholdReports,
     holdings_by_account: dict[str, float], documents: list[Any],
     questions: list[Any], resolved_values: list[HouseholdResolvedValue],
+    discovered_accounts: list[Any] | None = None,
+    unclassified_spend_count: int = 0,
     account_control: Any | None = None, service: Any | None = None,
 ) -> tuple[HouseholdOverview, float, float, float, float]:
     invested, cash, retirement, taxable, total, liabilities = _compute_asset_totals(
@@ -407,17 +393,17 @@ def build_overview(
         holdings_by_account=holdings_by_account, service=service,
     )
     rnv = lambda field: resolved_numeric_value(resolved_values, field)  # noqa: E731
-    n_accounts = len(account_summaries) or len(accounts) or len(evidence_accounts)
-    n_positions = len(live_positions) or (service.evidence_service.investment_like_count(evidence_accounts) if service is not None else 0)
-    visibility_score = _apply_account_freshness_visibility_cap(
-        _call_service_override(
-            service, "_compute_visibility_score", compute_visibility_score,
-            account_count=n_accounts, position_count=n_positions,
-            cash_reserve=cash, retirement_assets=retirement, taxable_assets=taxable,
-            resolved_numeric_value=rnv, document_count=len(documents),
-        ),
-        account_summaries,
+    # The score used to be a setup checklist -- points for having told the
+    # system a retirement age -- which is why it read 99 beside a stale net
+    # worth. It now measures what the system can actually see, and publishes
+    # the components so the number can be checked.
+    coverage = build_coverage(
+        account_summaries=account_summaries,
+        discovered_accounts=discovered_accounts or [],
+        tracked_expense_count=reports.executive.tracked_expense_count,
+        unclassified_count=unclassified_spend_count,
     )
+    visibility_score = coverage.score
     latest_txn = max((txn.date for txn in reports.recent_transactions), default=None)
     last_transaction_date = latest_txn or (str(statement_freshness.get("most_recent_date")) if statement_freshness.get("most_recent_date") else None)
     allocation_totals: dict[str, float] = {}
@@ -447,7 +433,8 @@ def build_overview(
         gap_count=sum(len(a.gap_flags) for a in account_summaries), inbox_count=len(inbox),
         coverage_months=max(int(statement_freshness.get("coverage_months") or 0), reports.executive.coverage_months),
         last_transaction_date=last_transaction_date, visibility_score=visibility_score,
-        visibility_label=_call_service_override(service, "_visibility_label", visibility_label, visibility_score),
+        visibility_label=coverage.label,
+        coverage=coverage,
         monthly_spend_status=monthly_spend_status, monthly_spend_detail=monthly_spend_detail,
         next_best_action=_call_service_override(
             service, "_next_best_action", next_best_action, documents, visibility_score,

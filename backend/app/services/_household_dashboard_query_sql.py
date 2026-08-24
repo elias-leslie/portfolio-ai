@@ -23,6 +23,21 @@ _INVESTMENT_ACTIVITY_SQL = investment_activity_sql_predicate(
     text_expressions=["description", "raw_merchant"],
 )
 
+# The same predicate as CATEGORIZATION_SQL without its LIMIT: the coverage
+# measure needs how many rows are waiting, not the six it can show.
+UNCLASSIFIED_SPEND_COUNT_SQL = f"""
+    SELECT COUNT(*)
+    FROM household_transactions t
+    WHERE t.flow_type = 'expense'
+      AND t.removed IS NOT TRUE
+      AND {current_transaction_date_predicate("t")}
+      AND NOT {_NON_SPEND_TRANSACTION_SQL}
+      AND (
+            COALESCE(t.confidence, 0) < 0.60
+         OR COALESCE(t.metadata->'audit'->>'status', '') = 'needs_review'
+      )
+"""
+
 CATEGORIZATION_SQL = f"""
     SELECT
         t.id,

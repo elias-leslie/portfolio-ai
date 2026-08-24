@@ -19,6 +19,7 @@ export interface HouseholdOverview {
   lastTransactionDate: string | null
   visibilityScore: number
   visibilityLabel: string
+  coverage?: HouseholdCoverage | null
   monthlySpendStatus: string
   monthlySpendDetail: string
   nextBestAction: string
@@ -1234,6 +1235,21 @@ export interface HouseholdLedgerEntry {
   exclusionIsAppealable?: boolean
   spendOverride?: string | null
   spendOverrideReason?: string | null
+}
+
+export interface HouseholdCoverageComponent {
+  key: string
+  label: string
+  score: number
+  weight: number
+  detail: string
+}
+
+export interface HouseholdCoverage {
+  score: number
+  label: string
+  summary: string
+  components: HouseholdCoverageComponent[]
 }
 
 export interface HouseholdSpendExclusionRule {

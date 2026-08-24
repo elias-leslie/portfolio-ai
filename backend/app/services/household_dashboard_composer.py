@@ -44,6 +44,7 @@ from app.services._household_dashboard_queries import (
     fetch_latest_transaction_dates_by_household_account,
     fetch_monthly_retirement_contributions,
     fetch_recurring_commitments,
+    fetch_unclassified_spend_count,
 )
 from app.services._household_dashboard_unknown_accounts import (
     detect_unknown_accounts,
@@ -118,6 +119,8 @@ class HouseholdDashboardComposer:
             reports=d["reports"],
             holdings_by_account=d["holdings_by_account"], documents=d["documents"],
             questions=visible_questions, resolved_values=resolved_values,
+            discovered_accounts=discovered_accounts,
+            unclassified_spend_count=fetch_unclassified_spend_count(service.storage),
             account_control=d["account_control"],
             service=service,
         )

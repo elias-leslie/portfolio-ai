@@ -19,6 +19,28 @@ class HouseholdAssetAllocationSlice(BaseModel):
     total_value: float
 
 
+class HouseholdCoverageComponent(BaseModel):
+    """One observable fact behind the coverage score.
+
+    Published so the score can be checked rather than trusted: a single number
+    that cannot be broken down is exactly how "99% visibility" survived beside a
+    stale net worth for as long as it did.
+    """
+
+    key: str
+    label: str
+    score: int
+    weight: int
+    detail: str
+
+
+class HouseholdCoverage(BaseModel):
+    score: int
+    label: str
+    summary: str
+    components: list[HouseholdCoverageComponent] = Field(default_factory=list)
+
+
 class HouseholdOverview(BaseModel):
     invested_assets: float
     retirement_assets: float
@@ -37,6 +59,10 @@ class HouseholdOverview(BaseModel):
     last_transaction_date: str | None = None
     visibility_score: int
     visibility_label: str
+    # The working behind visibility_score: which balances are current, which
+    # spending feeds still report, which known accounts are connected, and how
+    # much spend carries a category.
+    coverage: HouseholdCoverage | None = None
     next_best_action: str
     net_worth_status: str = "current"
     net_worth_detail: str = "Net worth reflects current covered accounts."

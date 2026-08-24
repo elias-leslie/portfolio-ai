@@ -502,6 +502,50 @@ Merchant Drag / merchant aggregation therefore treat one biller as several.
 `net_worth_status = "stale"` with 2 accounts needing refresh. The confidence
 signal is anti-correlated with actual coverage.
 
+**RESOLVED in 1.9.** The score was anti-correlated because it was never a
+coverage measure. It was a **setup checklist**: 10 points for having told the
+system an income target, 5 for a retirement age, 10 for owning taxable assets.
+80 of its 100 points were reachable without a single account being current, so
+answering questions raised "visibility" while the accounts behind the numbers
+went stale.
+
+`_household_coverage.py` measures observable facts instead, in four published
+components:
+
+| Component | Weight | What it observes |
+|---|---|---|
+| Balances current | 30 | Share of tracked asset **value** in accounts whose balance is fresh |
+| Spending feeds reporting | 30 | Share of `spend_driver` accounts still delivering transactions |
+| Known accounts connected | 20 | Connected accounts against connected + discovered-but-unlinked |
+| Spend classified | 20 | Share of expense rows carrying a category |
+
+Two of the weightings are deliberate opposites. Balances are weighted **by
+money**, because a $572,782 brokerage going stale and a $0 rollover going stale
+are not the same event and counting accounts would call them equal. Spending
+feeds are weighted **by account**, because weighting those by balance would rank
+a card by what is owed on it rather than by how much spending flows through it —
+a paid-off card can still be the one the household actually uses.
+
+A component only reads 100 when nothing about it is wrong. Money-weighting alone
+rounded $6,793 of stale balances against $1.56M to 100%, which would have printed
+a perfect score directly above a line naming two stale accounts — the same
+anti-correlation one level down. Small is not absent.
+
+Live the score is **91, "Strong coverage"**, and every component states its own
+evidence: balances 99 (*2 of 15 accounts are stale, holding $6,793 of
+$1,561,142*), spending feeds 75 (*1 of 4 spending accounts has gone quiet — Chase
+Sapphire Preferred ·8054*), connected accounts 94 (*Visa Credit ****4635 is not
+connected*), spend classified 100 (*all 641 rows carry a category*). The summary
+names the **weakest component rather than the score**, because "91%" tells nobody
+what to do and "a spending account has gone quiet" does.
+
+The old checklist scorer, its label function and the freshness cap that existed
+to stop it claiming strength over stale accounts are **deleted**, not left
+beside the new one. The card — *"What we can see"* — publishes the components,
+for the same reason the spend exclusions publish their roll-up: a single figure
+that cannot be broken down is exactly how "99% visibility" survived beside a
+stale net worth for as long as it did.
+
 ### P2-14 — Account registry has duplicates and test junk
 
 `household_accounts` (25 rows) contains: **"Wells Fargo checking activity
@@ -1657,7 +1701,7 @@ Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
     surface, a total, and per-row override.
 1.8 ✅ **Merchant normalisation for statement rows** (P1-12) — "DIRECT DEBIT
     DUKEENERGY BILL PAY (Cash)" → "Duke Energy".
-1.9 Replace `visibility_score: 99` with a coverage measure that tracks actual
+1.9 ✅ Replace `visibility_score: 99` with a coverage measure that tracks actual
     account coverage (P1-13).
 1.10 ✅ Show the **mixed** bucket in needs/wants so the split sums to 100% (P1-8).
 
@@ -1851,3 +1895,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-23 | Phase 1.6 | **The legend stopped showing the same category twice, because essentiality stopped being a field.** Transportation, Household, Travel and Home each appeared as two series, and the reason was structural rather than a bad row here and there: essentiality was stored as a *second free field* beside the category, so nothing obliged two "Transportation" rows to agree and each classifier decided independently. `_household_taxonomy.py` makes it a **function of the category** — one reading for each of the 23 curated categories, reachable only through `essentiality_for()`, and every classifier path now routes through it including Plaid's. Two of the four doublings turned out to be a single row each: **Home** held a $2,144.48 property tax and an HOA payment, its only "essential" rows, and those are what dragged the category between needs and wants depending which was read — `BILL_CONCEPTS` files property tax and HOA dues as **Bills**, after which Home is honestly discretionary. Raw Plaid labels are mapped instead of displayed ("General Services Insurance" → Insurance, "General Services Storage" → Household, "Bank Fees Other Bank Fees" → Bills). A category the household invented ("Girls") is **kept as written** and given a stable `mixed`, because flattening a real label into a fallback would be a worse lie than the doubling being fixed. Stored rows are repaired by `_canonicalize_stored_essentiality` inside `repair_transaction_system`, which rewrites essentiality only and never moves a transaction between categories. Live: **23 categories in 23 rows**, a second repair pass reports `essentiality_aligned = 0`, and `category_breakdown` returns six rows with no duplicate category and no Plaid leakage. It also sharpened 1.10 rather than easing it — Household is now one honest `mixed` series and the **largest** category at 24.6% of spend, so the bucket the needs/wants split hides is a quarter of the money. Gate green: 2457 backend tests. |
 | 2026-08-23 | Phase 1.7 | **Every spend total now publishes what it left out, and the household can argue with it.** Three things were missing and only one was the string list: there was no **total** (nothing said what exclusion cost), no **reason a person could read** (the ledger said `cash_movement`, which names a category of decision rather than the decision), and no **way to disagree** — which is what made the first two matter, because a number you can neither check nor appeal has to be trusted rather than believed. `spend_exclusions` now publishes the counterpart to every total: **139 of 1,000 rows ($448,762)**, grouped by the rule that held them, with the merchants under each rule named. That number required widening past the ticket: rolling up only the literal string list gave **11 rows**, because most exclusions never reach the string list — they are dropped earlier for flow type. Eleven answers "why is this Zelle payment missing?" and leaves "why is my spend total smaller than my transactions?" unanswered, and the second is the question people actually arrive with. The appeal is a nullable `spend_override` column (migration `b2c3d4e5f6a7`), three-valued on purpose — `include` restores, `exclude` drops, clearing hands the row back to the rules, because an appeal that cannot be withdrawn is a worse trap than the filter it corrects. It is a **column, not a metadata key**: the spend predicate is built in SQL across several queries, and an override invisible to SQL would apply on the Ledger and not the Dashboard — the exact defect class this phase exists to remove — so `non_spend_sql_predicate` applies it centrally rather than leaving each query to remember. Only rules that match on **wording** invite an appeal; a row excluded for being income is not a guess about a string, and offering to overrule it would be offering the wrong argument. Verified live end to end: appealing the $400 ATM withdrawal of 2026-03-16 moved the roll-up to **138 / $448,362** — exactly $400 — reported it as "1 restored, $400.00" under Cash withdrawals, and flipped that row's own SQL verdict from dropped to counted; withdrawing it restored 139 / $448,762, and the live data is as it was found. One defect surfaced during verification and was fixed in the same task: "income" is reachable both as a flow type and as a category, so the card listed **"Money coming in" twice** — P1-7's doubled legend, reproduced one surface over — so rules are now grouped by meaning rather than by which rule matched. Gate green: 2,468 backend tests, 269 frontend money tests, 0 console errors on the live page. |
 | 2026-08-24 | Phase 1.10 | **The split adds up to all of the money, not 90% of it.** Needs plus wants read $3,217 / $4,074 against $8,103 of average monthly spend, and the card called itself "Want vs need" while displaying needs first. The `mixed` bucket was computed nowhere and shown nowhere — the executive report summed the two named essentialities and never asked what the remainder was. `average_monthly_mixed` is now published as **the remainder** rather than as a third sum over a third label, so a category carrying some unforeseen essentiality surfaces as unclassified instead of vanishing, which is the failure mode itself. 1.6 made the slice bigger rather than smaller: with Household given one honest `mixed` reading it is the largest single category, so live the split is **needs $3,154 (30.8%) / wants $4,253 (41.6%) / mixed $2,823 (27.6%)**, summing to exactly $10,230.57 and **100.0%**. The hidden slice was a quarter of the money, not the $811 tail P1-8 describes. Card renamed **"Needs, wants and mixed"**, all three amounts and shares shown, and mixed explained rather than merely listed — a Household or Cash row can be a repair or a treat. Gate green: 2,470 backend tests, 273 frontend money tests, 0 console errors live. |
+| 2026-08-24 | Phase 1.9 | **The confidence signal stopped moving opposite to the coverage.** `visibility_score` read **99 / "Strong household visibility"** beside a stale net worth, three accounts needing refresh and a spending feed gone quiet — because it was never a coverage measure. It was a **setup checklist**: 10 points for having told the system an income target, 5 for a retirement age, 10 for owning taxable assets. 80 of its 100 points were reachable without a single account being current, so answering questions raised "visibility" while the accounts behind the numbers went stale. `_household_coverage.py` measures observable facts in four published components — balances current (30), spending feeds reporting (30), known accounts connected (20), spend classified (20). Two weightings are deliberate opposites: balances go **by money**, because a $572,782 brokerage going stale and a $0 rollover going stale are not the same event; spending feeds go **by account**, because weighting those by balance would rank a card by what is owed on it rather than by how much spending flows through it. A component only reads 100 when nothing about it is wrong — money-weighting alone rounded $6,793 of stale balances against $1.56M to 100%, printing a perfect score directly above a line naming two stale accounts, the same anti-correlation one level down. Live: **91, "Strong coverage"**, with balances 99, feeds 75 (*Chase Sapphire Preferred ·8054 has gone quiet*), connected 94 (*Visa Credit ****4635 is not connected*), classified 100. The summary names the **weakest component rather than the score**, because "91%" tells nobody what to do. The old scorer, its label function and the freshness cap that existed to stop it claiming strength over stale accounts are deleted rather than left beside the new one, and the card publishes the working — a figure that cannot be broken down is how "99%" survived this long. Gate green: 2,479 backend tests, 277 frontend money tests, 0 console errors live. |

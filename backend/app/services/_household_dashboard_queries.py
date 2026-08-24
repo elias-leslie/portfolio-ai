@@ -32,6 +32,7 @@ from app.services._household_dashboard_query_sql import (
     RECURRING_SQL,
     RETIREMENT_CONTRIBUTION_SQL,
     STATEMENT_FRESHNESS_SQL,
+    UNCLASSIFIED_SPEND_COUNT_SQL,
 )
 from app.services._household_dashboard_unknown_accounts import (
     detect_unknown_accounts as _detect_unknown_accounts_impl,
@@ -286,6 +287,13 @@ def fetch_current_month_spend(storage: Any) -> float:
         start_date=today.replace(day=1),
         end_date=today,
     )
+
+
+def fetch_unclassified_spend_count(storage: Any) -> int:
+    """How many expense rows are still waiting on a category decision."""
+    with storage.connection() as conn:
+        row = conn.execute(UNCLASSIFIED_SPEND_COUNT_SQL).fetchone()
+    return int(row[0] or 0) if row is not None else 0
 
 
 def fetch_current_month_essential_spend(storage: Any) -> float:

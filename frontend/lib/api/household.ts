@@ -76,6 +76,8 @@ export type {
   HouseholdCategoryBreakdown,
   HouseholdCategoryMonthlyTrendPoint,
   HouseholdConfirmedFact,
+  HouseholdCoverage,
+  HouseholdCoverageComponent,
   HouseholdDiscoveredAccount,
   HouseholdDocument,
   HouseholdDocumentList,
