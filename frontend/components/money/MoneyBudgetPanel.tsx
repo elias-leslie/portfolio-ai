@@ -32,6 +32,7 @@ import { MonthVerdictLine } from './MonthVerdictLine'
 import { NewThisMonthCard } from './NewThisMonthCard'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import { normalizeTrustStatus } from './overview-helpers'
+import { RetirementPhaseCard } from './RetirementPhaseCard'
 import {
   type BudgetRowEntry,
   TREND_TOP_N,
@@ -404,6 +405,11 @@ export function MoneyBudgetPanel() {
           />
         </div>
       </SectionCard>
+
+      <RetirementPhaseCard
+        block={dashboard?.retirementContributionTracker}
+        isLoading={isDashboardLoading}
+      />
 
       <WhatChangedCard variance={spending?.spendVariance} />
 

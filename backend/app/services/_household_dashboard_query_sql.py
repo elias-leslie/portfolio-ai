@@ -120,6 +120,18 @@ RETIREMENT_CONTRIBUTION_SQL = f"""
     ) monthly_contributions
 """
 
+# Any ledger sighting of a retirement account at all, in either direction. A $0
+# contribution figure means one of two very different things -- nothing was
+# contributed, or nothing is visible -- and this is what tells them apart.
+RETIREMENT_ACCOUNT_ACTIVITY_SQL = """
+    SELECT COUNT(*)
+    FROM household_transactions
+    WHERE COALESCE(account_label, '') ILIKE '%ira%'
+       OR COALESCE(account_label, '') ILIKE '%401%'
+       OR COALESCE(account_label, '') ILIKE '%roth%'
+       OR COALESCE(account_label, '') ILIKE '%hsa%'
+"""
+
 MONTH_SPEND_SQL = f"""
     SELECT COALESCE(SUM(CAST(amount AS DOUBLE PRECISION)), 0)
     FROM household_transactions t

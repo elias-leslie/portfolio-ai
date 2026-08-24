@@ -45,6 +45,8 @@ from app.services._household_dashboard_queries import (
     fetch_current_month_spend,
     fetch_inferred_value_rows,
     fetch_monthly_retirement_contributions,
+    fetch_primary_adult_age,
+    fetch_retirement_activity_visible,
 )
 from app.services._household_dashboard_sections import (
     budget_input_status,
@@ -719,7 +721,14 @@ def assemble_finance_dashboard(
         sinking_funds=build_sinking_funds(recurring_commitments=recurring_commitments),
         spend_exclusions=fetch_current_window_spend_exclusions(storage),
         retirement_contribution_tracker=build_retirement_contribution_tracker(
-            profile=profile, estimated_monthly_contributions=fetch_monthly_retirement_contributions(storage),
+            profile=profile,
+            estimated_monthly_contributions=fetch_monthly_retirement_contributions(storage),
+            current_age=fetch_primary_adult_age(storage),
+            # Cash is the emergency fund, not retirement funding; counting it
+            # here would let the same dollars answer two different questions.
+            investable_assets=retirement_assets + taxable_assets,
+            retirement_activity_visible=fetch_retirement_activity_visible(storage),
+            average_monthly_spend=reports.executive.average_monthly_spend,
         ),
         retirement_scenarios=build_retirement_scenarios(
             retirement_assets=retirement_assets, target_retirement_spend=profile.target_retirement_spend,

@@ -622,4 +622,49 @@ describe('MoneyBudgetPanel', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('$11,828 free to spend.')).toBeInTheDocument()
   })
+  it('puts the retirement plan on the screen where the month is reviewed', () => {
+    // D13's two-way link: the plan assumes a monthly retirement spend and the
+    // month being reviewed shows what actually goes out. This is the one screen
+    // that has both, so it is where the gap gets noticed.
+    useHouseholdDashboardMock.mockReturnValue({
+      isLoading: false,
+      data: {
+        overview: { monthlySpendStatus: 'trusted', netWorthStatus: 'trusted' },
+        budgetSnapshot: { affordability: null },
+        retirementContributionTracker: {
+          status: 'short',
+          monthlyTarget: null,
+          estimatedMonthlyContributions: 0,
+          monthlyGap: 0,
+          phase: 'drawing_down',
+          phaseLabel: 'Go-go years - 26 years to the next',
+          headline:
+            'Spending runs $10,231/mo against the $6,429/mo today\u2019s assets support at your own withdrawal rule.',
+          detail:
+            'The plan assumes $7,500/mo; actual spending is $2,731/mo above it.',
+          currentAge: 49,
+          targetRetirementAge: 49,
+          yearsToTarget: 0,
+          investableAssets: 1542870.67,
+          withdrawalRate: 0.05,
+          sustainableMonthlySpend: 6428.63,
+          targetMonthlySpend: 7500,
+          assetGap: 257129.33,
+          spendPhase: 'go_go',
+          yearsToNextSpendPhase: 26,
+          blindSpots: [],
+        },
+      },
+    })
+
+    render(<MoneyBudgetPanel />)
+
+    expect(screen.getByText('Retirement plan')).toBeInTheDocument()
+    expect(
+      screen.getByText('Go-go years - 26 years to the next'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/actual spending is \$2,731\/mo above it/),
+    ).toBeInTheDocument()
+  })
 })

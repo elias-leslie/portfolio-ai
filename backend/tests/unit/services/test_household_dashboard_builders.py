@@ -260,31 +260,23 @@ def test_a_plan_the_spending_fits_inside_is_still_allowed_to_say_so() -> None:
     assert snapshot.status == "on_track"
 
 
-def test_a_zero_savings_target_is_not_evidence_that_saving_is_on_track() -> None:
-    """Zero trivially keeps up with zero.
+def test_the_block_will_not_pick_a_phase_without_an_age_and_a_target() -> None:
+    """Zero trivially keeps up with zero, and the block no longer says so.
 
-    The tracker reported ``on_track`` with a $0 target, $0 contributions and a $0
-    gap, over the sentence "Recent retirement contributions are keeping up with
-    the savings target".
+    The old tracker reported ``on_track`` from a $0 target against $0
+    contributions -- a pass earned by having no inputs at all. With no birth
+    year and no target retirement age there is no phase, and therefore no
+    question this block is entitled to answer.
     """
     tracker = build_retirement_contribution_tracker(
         profile=_profile_for_pace(essential=5000, discretionary=1500, savings=0.0),
         estimated_monthly_contributions=0.0,
     )
 
-    assert tracker.status == "target_missing"
+    assert tracker.status == "phase_unknown"
+    assert tracker.phase == "phase_unknown"
     assert tracker.monthly_target is None
-    assert "nothing to measure" in tracker.detail
-
-
-def test_a_real_savings_target_is_still_measured() -> None:
-    tracker = build_retirement_contribution_tracker(
-        profile=_profile_for_pace(essential=5000, discretionary=1500, savings=800.0),
-        estimated_monthly_contributions=900.0,
-    )
-
-    assert tracker.status == "on_track"
-    assert tracker.monthly_gap == 0.0
+    assert "cannot ask either" in tracker.detail
 
 
 def _commitment(*, average_amount: float, days_until_due: int | None) -> HouseholdRecurringCommitment:

@@ -60,8 +60,7 @@ table is at the end of §7's Phase 0 block; Phase 1's is at the end of its own).
 
 Work top down through §7 Phase 2 — the review screen:
 
-1. **2.6 — phase-aware retirement block** (D13).
-2. **2.7** — retire the Decision Board's four cards, the allocation donut
+1. **2.7** — retire the Decision Board's four cards, the allocation donut
    (→ Investing) and the ten-tile budget stat row (→ three). 2.5 put the Free
    to spend card on the review screen, so the Decision Board's copy of it is
    now the second one and can go with the rest.
@@ -86,6 +85,12 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 2.6 **The retirement block asks the question its phase calls for**, and asking
+  it surfaced that the plan's retirement age of 49 arrived this January. It now
+  reads: spending runs $10,231/mo against the $6,428/mo that $1,542,811 supports
+  at the household's own 5% rule; the plan assumes $7,500/mo. It also refuses to
+  call that a withdrawal verdict, because no account in the ledger is labelled
+  as a retirement account and a drawdown that cannot be seen cannot be graded.
 - 2.5 **Free to spend** is on the review screen, as the subtraction rather than
   a lone figure: $30,495 − $88 − $1,129 − $17,336 = **$11,941**. The word over
   it (`estimate`/`tight`/`hold`) is now the server's, not a `< 150` threshold
@@ -1874,7 +1879,14 @@ The screen in the artifact. Phase 1 has exited, so this is next.
 2.5 ✅ **Affordability panel** (1.4) — Free to spend sits beside the month's
     verdict, showing the whole subtraction. The grade moved to the server, so
     the review screen and the Decision Board read one figure and one word for it.
-2.6 Phase-aware retirement block (D13).
+2.6 ✅ **Phase-aware retirement block** (D13) — the block asks the question its
+    phase calls for, and the boundary is the primary adult's age against the
+    household's own `target_retirement_age`. **It found that the target age has
+    arrived**: Elias turned 49 in January and the plan's retirement age is 49.
+    One deliberate departure from D13's table: the accumulating-and-short row
+    says the gap in *assets* rather than a required $/mo, because a required
+    contribution needs a return assumption and the Retirement tab's projection
+    stays the only one.
 2.7 Retire: Decision Board's four cards, the allocation donut (→ Investing), the
     ten-tile budget stat row (→ three).
 
@@ -2037,3 +2049,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 2.3 | **Two true sentences about July that point opposite ways, and the screen now says both.** July spent **$3,004 more** than June; July's everyday spending was **$8,629 less**. Showing only the first turns a household that bought an air conditioner into a household that overspent, which is the same class of lie as the sliding windows. `spend_variance` publishes both, plus contribution-to-variance per category. Three judgment calls are recorded in the module. The comparator month gets **its own** outliers removed too -- otherwise a June carrying its own $9,000 roof would flatter July for free. Drivers are measured on the **everyday** rows only: a category whose entire movement is the purchase just set aside did not change its habits, and naming it as a driver would contradict the line directly above it (July's Household would otherwise lead the list at +$12,827, which is the air conditioner again). And the share is divided by the **magnitude** of the change rather than the signed total, because dividing by a negative made Travel's $5,157 *drop* read as "+60%" in a month that fell. Live July reads: Travel −$5,157 (−60%), Groceries −$1,915 (−22%), Household +$1,194 (+14%), Insurance −$756 (−9%). Minimum $25 to be named and at most six named movers -- everything stays in the totals, but a "what changed" list of twenty rows is the category table the reader already has. Gate green: 2,500 backend tests, 449 frontend tests, 0 console errors on the live page. |
 | 2026-08-24 | Phase 2.4 | **34 unfamiliar names became two trips.** July 2026 has 44 charges at 34 merchants the ledger has never seen. As a list that is 34 mystery lines and reads like a fraud report; grouped by date it is **23 new places between the 2nd and the 13th ($1,233)**, **8 more between the 19th and the 28th ($260, mostly Personal Care)**, and two loners. The gap threshold is **2 days** and that is load-bearing: at 3 days the whole of July collapses into a single cluster, which is the same failure as not clustering at all. Clusters are built from **dates alone** — the Plaid metadata on these rows carries an item id and a transaction id and nothing else, so the card says "23 new places, 2-13 July" rather than naming a country it cannot source. One bug caught in review before it shipped: groups below the 3-merchant threshold were emitting a single entry labelled after the first merchant, which filed Meyer Feinkost's $23.44 under "Hsr K" — worse than not grouping at all. Sub-threshold groups now emit one entry per merchant. This closes **half** of D2's fourth sentence; the owner half ("these 4 items Mariana bought") is still blocked on attribution being 91% "Family", which is D15's problem and is recorded as such rather than faked. Gate green: 2,507 backend tests, 454 frontend tests, 0 console errors live. |
 | 2026-08-24 | Phase 2.5 | **The affordability figure moved to the screen where the month is judged, and stopped being graded twice.** Free to spend was on the Decision Board, one tab from the review screen, so the screen that says "August came in over your caps" could not say whether there was money to act on it. It now sits beside the verdict as the whole subtraction rather than a single confident number: **30,495 − 88 − 1,129 − 17,336 = $11,941**, each line a thing the household can go look at. Two things moved to the server while doing it. The word over the figure (`estimate` / `tight` / `hold`, never *safe*) was a `weekendSpendAllowance < 150` ladder inside a React hook; putting the same dollar amount on a second screen would have meant a second copy of that threshold, so `build_affordability` now returns `status`, `headline` and `detail` and both surfaces read them. And the stale-data treatment was replacing the explaining sentence with "Stale account data; refresh before relying on this." while still printing the number — the worst of both. The card now always shows the figure and what it means, and names the input that is behind: **"Cash and card balances need a refresh."** / **"This month's essentials are still an estimate."** Live on both surfaces at $11,941 with identical inputs. |
+| 2026-08-24 | Phase 2.6 | **Asking the retirement question properly answered it: the plan's retirement age has already arrived.** The old block graded contribution compliance and reported `on_track` from a $0 target against $0 contributions — a pass earned by having no inputs — while net worth grew at roughly 66× the $300/mo it was measuring. It now picks its question from the primary adult's age against `target_retirement_age`, both read live: **Elias turned 49 in January and the plan's retirement age is 49**, so the block is in drawdown and asks whether the withdrawal holds. It does not: **$10,231/mo of actual spending against the $6,428/mo that $1,542,811 of investable assets supports at the household's own recorded 5% rule**, with the plan assuming $7,500/mo — D13's two-way link, found on a budget screen exactly as predicted. Three things it refuses to do. It will not call that a *withdrawal* verdict: no account in the ledger is labelled as an IRA, 401(k), Roth or HSA, so whether a drawdown has actually started is invisible and the block says so rather than reading a $0 as a measurement. It will not state a required $/mo contribution in the accumulating-and-short phase, because that needs a return assumption and the Retirement tab's projection stays the only one — the gap is stated in **assets** ($257,189) instead. And with no birth year or no target age it returns `phase_unknown` rather than picking a phase. Ages come from `_split_members`, borrowed from the retirement planner rather than re-derived, so the boundary cannot move on one screen and not the other. The block renders on the review screen and in the planning drawer from the same object. |

@@ -770,11 +770,53 @@ class HouseholdSinkingFund(BaseModel):
 
 
 class HouseholdRetirementContributionTracker(BaseModel):
+    """Is the retirement plan still on track, in whichever phase it is in.
+
+    This used to grade contribution compliance, which is the wrong question for
+    this household in two directions at once. It reported ``on_track`` from a
+    $0 target against $0 contributions -- a pass earned by having no inputs --
+    while assets were growing at roughly 66x the contribution being measured.
+    The block now asks whether the *plan* holds, and which question that is
+    depends on the phase:
+
+    * accumulating, contributions binding -- will the target age still be met?
+    * accumulating, growth carrying it -- is more saving even needed?
+    * drawing down -- is the withdrawal sustainable?
+
+    The boundary is ``current_age`` against ``profile.target_retirement_age``,
+    read live, so moving the target age moves the boundary and nothing else.
+    """
+
     status: str
     monthly_target: float | None = None
     estimated_monthly_contributions: float = 0.0
     monthly_gap: float = 0.0
     detail: str
+    # accumulating_contributions_binding | accumulating_growth_carrying |
+    # drawing_down | phase_unknown
+    phase: str = "phase_unknown"
+    phase_label: str = ""
+    headline: str = ""
+    current_age: int | None = None
+    target_retirement_age: int | None = None
+    # Negative once the plan's retirement date has passed.
+    years_to_target: int | None = None
+    # What actually funds retirement: invested assets, not the emergency cash.
+    investable_assets: float = 0.0
+    # The household's own recorded withdrawal rule, and what it supports per
+    # month at today's assets. No return assumption is introduced here -- the
+    # projection lives on the Retirement tab and stays the only one.
+    withdrawal_rate: float | None = None
+    sustainable_monthly_spend: float | None = None
+    target_monthly_spend: float | None = None
+    # Assets the plan is short of at the household's own withdrawal rule.
+    asset_gap: float = 0.0
+    # Spending phase inside retirement (go_go | slow_go | no_go) and how long
+    # until the next one. Null outside drawdown.
+    spend_phase: str | None = None
+    years_to_next_spend_phase: int | None = None
+    # What the block cannot see, named rather than counted as zero.
+    blind_spots: list[str] = Field(default_factory=list)
 
 
 class HouseholdRetirementScenario(BaseModel):

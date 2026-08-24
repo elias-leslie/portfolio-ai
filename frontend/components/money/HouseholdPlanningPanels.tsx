@@ -27,6 +27,7 @@ import {
   normalizeEditableItems,
   stripPlanningMeta,
 } from './household-planning-editor'
+import { RetirementPhaseCard } from './RetirementPhaseCard'
 
 function statusBadge(status: string) {
   switch (status) {
@@ -309,22 +310,14 @@ export function HouseholdPlanningPanels({
           description={dashboard.retirementPreparedness.summary}
         >
           <div className="space-y-5">
-            <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
-              <p className="text-sm font-semibold text-text">
-                Contribution tracker
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-text">
-                {dashboard.retirementContributionTracker.monthlyTarget
-                  ? formatCurrency(
-                      dashboard.retirementContributionTracker.monthlyGap,
-                      { decimals: 0, nullDisplay: 'Not set' },
-                    )
-                  : '—'}
-              </p>
-              <p className="mt-2 text-sm text-text-muted">
-                {dashboard.retirementContributionTracker.detail}
-              </p>
-            </div>
+            {/* One block, one verdict. This used to headline the contribution
+                gap while the review screen asked whether the plan holds; the
+                two are answers to different questions and only one of them is
+                the one the household asked. */}
+            <RetirementPhaseCard
+              block={dashboard.retirementContributionTracker}
+              isLoading={false}
+            />
 
             <div>
               <p className="text-sm font-semibold text-text">Strengths</p>

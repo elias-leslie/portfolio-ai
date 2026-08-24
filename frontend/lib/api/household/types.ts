@@ -394,6 +394,24 @@ export interface HouseholdRetirementContributionTracker {
   estimatedMonthlyContributions: number
   monthlyGap: number
   detail: string
+  // Which question the plan is in a position to be asked, decided on the
+  // server from the primary adult's age against the household's own target
+  // retirement age. accumulating_contributions_binding |
+  // accumulating_growth_carrying | drawing_down | phase_unknown
+  phase: string
+  phaseLabel: string
+  headline: string
+  currentAge: number | null
+  targetRetirementAge: number | null
+  yearsToTarget: number | null
+  investableAssets: number
+  withdrawalRate: number | null
+  sustainableMonthlySpend: number | null
+  targetMonthlySpend: number | null
+  assetGap: number
+  spendPhase: string | null
+  yearsToNextSpendPhase: number | null
+  blindSpots: string[]
 }
 
 export interface HouseholdRetirementScenario {

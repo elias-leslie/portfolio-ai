@@ -30,6 +30,7 @@ from app.services._household_dashboard_query_sql import (
     FUTURE_TRANSACTION_QUALITY_SQL,
     LATEST_TRANSACTION_DATE_SQL,
     RECURRING_SQL,
+    RETIREMENT_ACCOUNT_ACTIVITY_SQL,
     RETIREMENT_CONTRIBUTION_SQL,
     STATEMENT_FRESHNESS_SQL,
     UNCLASSIFIED_SPEND_COUNT_SQL,
@@ -46,6 +47,7 @@ from app.services._household_recurrence import (
     detect_recurrence,
 )
 from app.services.household_transaction_service import HouseholdTransactionService
+from app.services.retirement_planning_assumptions import _split_members
 
 # Nothing plausible reaches this many proven commitments; it exists so a broken
 # detector cannot return a thousand rows to the browser.
@@ -277,6 +279,47 @@ def _commitment_rank(commitment: HouseholdRecurringCommitment) -> tuple[int, int
 
 def fetch_monthly_retirement_contributions(storage: Any) -> float:
     return _fetch_scalar_float(storage, RETIREMENT_CONTRIBUTION_SQL)
+
+
+def fetch_retirement_activity_visible(storage: Any) -> bool:
+    """Does the ledger contain any retirement-account row at all?
+
+    Without this, a $0 contribution figure cannot say whether the household
+    saved nothing or whether nothing is labelled well enough to be seen.
+    """
+    with storage.connection() as conn:
+        row = conn.execute(RETIREMENT_ACCOUNT_ACTIVITY_SQL).fetchone()
+    return bool(row is not None and int(row[0] or 0) > 0)
+
+
+def fetch_primary_adult_age(storage: Any, *, today: date | None = None) -> int | None:
+    """The primary adult's age, read the same way the retirement planner reads it.
+
+    Deliberately borrowed rather than re-derived: an age that disagrees between
+    the review screen and the Retirement tab would move the plan's phase
+    boundary on one surface and not the other.
+    """
+    with storage.connection() as conn:
+        rows = conn.execute(
+            "SELECT display_name, role, relationship, birth_year, is_dependent, notes"
+            " FROM household_members"
+            " ORDER BY is_dependent ASC, role ASC"
+        ).fetchall()
+    members = [
+        {
+            "display_name": row[0],
+            "role": row[1],
+            "relationship": row[2],
+            "birth_year": row[3],
+            "is_dependent": bool(row[4]) if row[4] is not None else False,
+            "notes": row[5] if len(row) > 5 else None,
+        }
+        for row in rows
+    ]
+    if not any(member["birth_year"] is not None for member in members):
+        return None
+    primary_age, _spouse_age = _split_members(members, today or date.today())
+    return primary_age
 
 
 def fetch_current_month_spend(storage: Any) -> float:

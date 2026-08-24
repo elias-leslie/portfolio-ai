@@ -109,6 +109,10 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         (None, 0, None),
         # Coverage asks how many expense rows are still awaiting a category.
         (0,),
+        # The retirement block asks whether the ledger has any retirement
+        # account row at all, so a $0 contribution can say which kind of $0
+        # it is.
+        (0,),
     ]
     mock_conn.__enter__ = Mock(return_value=mock_conn)
     mock_conn.__exit__ = Mock(return_value=False)

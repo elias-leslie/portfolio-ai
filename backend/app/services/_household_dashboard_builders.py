@@ -166,49 +166,324 @@ def build_sinking_funds(
     return funds[:4]
 
 
+# Retirement spending phases, in the household's own recorded terms. Ages come
+# from the profile; only the ordering is fixed here.
+_GO_GO = "go_go"
+_SLOW_GO = "slow_go"
+_NO_GO = "no_go"
+
+_SPEND_PHASE_LABELS = {
+    _GO_GO: "Go-go years",
+    _SLOW_GO: "Slow-go years",
+    _NO_GO: "No-go years",
+}
+
+
+def _money(value: float) -> str:
+    return f"${value:,.0f}"
+
+
+def _money_round(value: float) -> float:
+    return round(value, 2)
+
+
+def _spend_phase(
+    age: int, *, slow_go_age: int | None, no_go_age: int | None
+) -> tuple[str | None, int | None]:
+    """Which retirement spending phase an age falls in, and years to the next."""
+    if no_go_age is not None and age >= no_go_age:
+        return _NO_GO, None
+    if slow_go_age is not None and age >= slow_go_age:
+        return _SLOW_GO, (no_go_age - age if no_go_age is not None else None)
+    next_age = slow_go_age if slow_go_age is not None else no_go_age
+    if next_age is None:
+        return None, None
+    return _GO_GO, next_age - age
+
+
 def build_retirement_contribution_tracker(
     *,
     profile: HouseholdProfile,
     estimated_monthly_contributions: float,
+    current_age: int | None = None,
+    investable_assets: float = 0.0,
+    retirement_activity_visible: bool = True,
+    average_monthly_spend: float = 0.0,
 ) -> HouseholdRetirementContributionTracker:
+    """Is the plan still on track, asked in the terms the current phase calls for.
+
+    Contribution compliance is deliberately not the verdict. It reported a pass
+    from a $0 target against $0 contributions, and it was measuring $300/mo
+    against roughly $19,800/mo of asset growth -- a number that is not wrong so
+    much as beside the point.
+    """
     monthly_target = profile.monthly_savings_target
-    if monthly_target is None:
-        return HouseholdRetirementContributionTracker(
-            status="target_missing",
-            monthly_target=None,
-            estimated_monthly_contributions=estimated_monthly_contributions,
-            monthly_gap=0.0,
-            detail="Set the monthly savings target so Jenny can compare current retirement contributions against the plan.",
+    target_age = profile.target_retirement_age
+    target_monthly_spend = profile.target_retirement_spend
+    withdrawal_rate = profile.withdrawal_initial_rate
+
+    blind_spots: list[str] = []
+    if not retirement_activity_visible:
+        # $0 of visible contributions is not $0 contributed. No account in the
+        # ledger is labelled as an IRA, 401(k), Roth or HSA, so the figure is
+        # an absence of evidence and has to say so.
+        blind_spots.append("no_retirement_account_activity")
+    if withdrawal_rate is None or withdrawal_rate <= 0:
+        blind_spots.append("withdrawal_rate_unset")
+    if target_monthly_spend is None or target_monthly_spend <= 0:
+        blind_spots.append("target_retirement_spend_unset")
+
+    sustainable_monthly_spend: float | None = None
+    if withdrawal_rate is not None and withdrawal_rate > 0:
+        sustainable_monthly_spend = _money_round(
+            investable_assets * withdrawal_rate / 12
         )
-    if monthly_target <= 0:
-        # Zero trivially keeps up with zero. A savings target of $0 is either
-        # unset or a decision the household has not been able to record yet
-        # (D17 makes "paused" a first-class state in Phase 3); either way it is
-        # not evidence that contributions are keeping up with anything.
-        return HouseholdRetirementContributionTracker(
-            status="target_missing",
-            monthly_target=None,
-            estimated_monthly_contributions=estimated_monthly_contributions,
-            monthly_gap=0.0,
-            detail=(
-                "The monthly savings target is $0, so there is nothing to measure "
-                "contributions against. Set a target, or record that saving is "
-                "deliberately paused."
-            ),
-        )
-    monthly_gap = max(monthly_target - estimated_monthly_contributions, 0.0)
-    status = "gap" if monthly_gap > 0 else "on_track"
-    detail = (
-        "Recent retirement contributions are trailing the household savings target."
-        if monthly_gap > 0
-        else "Recent retirement contributions are keeping up with the savings target."
+
+    asset_gap = 0.0
+    if (
+        withdrawal_rate is not None
+        and withdrawal_rate > 0
+        and target_monthly_spend is not None
+        and target_monthly_spend > 0
+    ):
+        assets_required = target_monthly_spend * 12 / withdrawal_rate
+        asset_gap = _money_round(max(assets_required - investable_assets, 0.0))
+
+    plan_holds = (
+        sustainable_monthly_spend is not None
+        and target_monthly_spend is not None
+        and target_monthly_spend > 0
+        and sustainable_monthly_spend >= target_monthly_spend
     )
+
+    common = {
+        "monthly_target": monthly_target if (monthly_target or 0) > 0 else None,
+        "estimated_monthly_contributions": estimated_monthly_contributions,
+        "monthly_gap": 0.0,
+        "current_age": current_age,
+        "target_retirement_age": target_age,
+        "investable_assets": _money_round(investable_assets),
+        "withdrawal_rate": withdrawal_rate,
+        "sustainable_monthly_spend": sustainable_monthly_spend,
+        "target_monthly_spend": target_monthly_spend,
+        "asset_gap": asset_gap,
+        "blind_spots": blind_spots,
+    }
+
+    if current_age is None or target_age is None:
+        return HouseholdRetirementContributionTracker(
+            status="phase_unknown",
+            phase="phase_unknown",
+            phase_label="Phase not established",
+            headline="The plan has no phase yet.",
+            detail=(
+                "A target retirement age and a birth year are what decide "
+                "whether this block asks about saving or about withdrawing. "
+                "Without both, it cannot ask either."
+            ),
+            **common,
+        )
+
+    years_to_target = target_age - current_age
+    common["years_to_target"] = years_to_target
+
+    if years_to_target > 0:
+        return _accumulating_block(
+            plan_holds=plan_holds,
+            years_to_target=years_to_target,
+            target_age=target_age,
+            estimated_monthly_contributions=estimated_monthly_contributions,
+            sustainable_monthly_spend=sustainable_monthly_spend,
+            target_monthly_spend=target_monthly_spend,
+            asset_gap=asset_gap,
+            retirement_activity_visible=retirement_activity_visible,
+            common=common,
+        )
+
+    return _drawdown_block(
+        current_age=current_age,
+        target_age=target_age,
+        years_to_target=years_to_target,
+        profile=profile,
+        sustainable_monthly_spend=sustainable_monthly_spend,
+        target_monthly_spend=target_monthly_spend,
+        average_monthly_spend=average_monthly_spend,
+        retirement_activity_visible=retirement_activity_visible,
+        common=common,
+    )
+
+
+def _contribution_sentence(
+    *, monthly: float, visible: bool
+) -> str:
+    if not visible:
+        return (
+            "Contributions are not judged here, and could not be anyway: no "
+            "account in the ledger is labelled as a retirement account, so the "
+            "$0 is an absence of evidence rather than a measurement."
+        )
+    if monthly > 0:
+        return (
+            f"{_money(monthly)}/mo is going in, noted rather than graded."
+        )
+    return "No contributions are visible, noted rather than graded."
+
+
+def _accumulating_block(
+    *,
+    plan_holds: bool,
+    years_to_target: int,
+    target_age: int,
+    estimated_monthly_contributions: float,
+    sustainable_monthly_spend: float | None,
+    target_monthly_spend: float | None,
+    asset_gap: float,
+    retirement_activity_visible: bool,
+    common: dict[str, object],
+) -> HouseholdRetirementContributionTracker:
+    year_word = "year" if years_to_target == 1 else "years"
+    contributions = _contribution_sentence(
+        monthly=estimated_monthly_contributions,
+        visible=retirement_activity_visible,
+    )
+    if plan_holds:
+        return HouseholdRetirementContributionTracker(
+            status="plan_holds",
+            phase="accumulating_growth_carrying",
+            phase_label=f"Accumulating - {years_to_target} {year_word} to {target_age}",
+            headline=(
+                "The plan holds at a 0% savings rate. Today's investable assets "
+                f"already support {_money(sustainable_monthly_spend or 0)}/mo at "
+                "your own withdrawal rule."
+            ),
+            detail=contributions,
+            **common,
+        )
+
+    if sustainable_monthly_spend is None or target_monthly_spend is None:
+        return HouseholdRetirementContributionTracker(
+            status="unmeasurable",
+            phase="accumulating_contributions_binding",
+            phase_label=f"Accumulating - {years_to_target} {year_word} to {target_age}",
+            headline="Whether the plan holds cannot be answered yet.",
+            detail=(
+                "A target retirement spend and a withdrawal rate are what turn "
+                "assets into a monthly answer. " + contributions
+            ),
+            **common,
+        )
+
+    return HouseholdRetirementContributionTracker(
+        status="short",
+        phase="accumulating_contributions_binding",
+        phase_label=f"Accumulating - {years_to_target} {year_word} to {target_age}",
+        headline=(
+            f"Today's assets support {_money(sustainable_monthly_spend)}/mo "
+            f"against a {_money(target_monthly_spend)}/mo plan - a gap of "
+            f"{_money(asset_gap)} in investable assets."
+        ),
+        detail=(
+            f"That is the distance at today's balances, with {years_to_target} "
+            f"{year_word} of growth still to come; the projection that closes "
+            "it lives on the Retirement tab and stays the only one. "
+            + contributions
+        ),
+        **common,
+    )
+
+
+def _drawdown_block(
+    *,
+    current_age: int,
+    target_age: int,
+    years_to_target: int,
+    profile: HouseholdProfile,
+    sustainable_monthly_spend: float | None,
+    target_monthly_spend: float | None,
+    average_monthly_spend: float,
+    retirement_activity_visible: bool,
+    common: dict[str, object],
+) -> HouseholdRetirementContributionTracker:
+    spend_phase, years_to_next = _spend_phase(
+        current_age,
+        slow_go_age=profile.phase_slow_go_age,
+        no_go_age=profile.phase_no_go_age,
+    )
+    common["spend_phase"] = spend_phase
+    common["years_to_next_spend_phase"] = years_to_next
+    phase_label = _SPEND_PHASE_LABELS.get(spend_phase or "", "In retirement")
+    if years_to_next is not None:
+        year_word = "year" if years_to_next == 1 else "years"
+        phase_label = f"{phase_label} - {years_to_next} {year_word} to the next"
+
+    arrived = "this year" if years_to_target == 0 else f"{-years_to_target} years ago"
+    if sustainable_monthly_spend is None:
+        return HouseholdRetirementContributionTracker(
+            status="unmeasurable",
+            phase="drawing_down",
+            phase_label=phase_label,
+            headline=(
+                f"The plan's retirement age of {target_age} arrived {arrived}, "
+                "and there is no withdrawal rule to judge spending against."
+            ),
+            detail=(
+                "Record a withdrawal rate and this block can say whether what "
+                "the household spends is sustainable."
+            ),
+            **common,
+        )
+
+    # The reference figure is what the household actually spends, not the
+    # target: a plan assuming $7,500/mo while $10,231/mo goes out is a
+    # retirement fact that a budget screen is the one place to notice.
+    comparison = average_monthly_spend if average_monthly_spend > 0 else 0.0
+    if comparison > 0 and comparison > sustainable_monthly_spend:
+        status = "short"
+        headline = (
+            f"Spending runs {_money(comparison)}/mo against the "
+            f"{_money(sustainable_monthly_spend)}/mo today's assets support at "
+            "your own withdrawal rule."
+        )
+    elif comparison > 0:
+        status = "plan_holds"
+        headline = (
+            f"Spending runs {_money(comparison)}/mo, inside the "
+            f"{_money(sustainable_monthly_spend)}/mo today's assets support."
+        )
+    else:
+        status = "unmeasurable"
+        headline = (
+            "There is not enough spending history to say whether the withdrawal "
+            "is sustainable."
+        )
+
+    detail_parts = [
+        f"The plan's retirement age of {target_age} arrived {arrived}.",
+    ]
+    if not retirement_activity_visible:
+        # Whether a drawdown has actually started is a different question from
+        # whether one would be sustainable, and only the second is answerable
+        # here. Saying so is the difference between a verdict and a guess.
+        detail_parts.append(
+            "No retirement-account activity is visible in the ledger, so "
+            "whether a drawdown has started is not something this can see - "
+            "only whether one would hold."
+        )
+    if target_monthly_spend is not None and comparison > 0:
+        drift = comparison - target_monthly_spend
+        if abs(drift) >= 1:
+            direction = "above" if drift > 0 else "below"
+            detail_parts.append(
+                f"The plan assumes {_money(target_monthly_spend)}/mo; actual "
+                f"spending is {_money(abs(drift))}/mo {direction} it."
+            )
     return HouseholdRetirementContributionTracker(
         status=status,
-        monthly_target=monthly_target,
-        estimated_monthly_contributions=estimated_monthly_contributions,
-        monthly_gap=monthly_gap,
-        detail=detail,
+        phase="drawing_down",
+        phase_label=phase_label,
+        headline=headline,
+        detail=" ".join(detail_parts),
+        **common,
     )
 
 
