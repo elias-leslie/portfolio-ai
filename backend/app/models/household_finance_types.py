@@ -278,6 +278,10 @@ class HouseholdLedgerEntry(BaseModel):
     # The rule that would drop this row, stated in a person's words, and whether
     # the household has already overruled it. A row can only be appealed by
     # someone who can see what it was accused of.
+    # An imported receipt line describes the same purchase as this row. It is
+    # provenance, not an exclusion: the import itself never counts toward spend,
+    # so it must not be allowed to drop the transaction that does.
+    duplicate_note: str | None = None
     exclusion_rule: str | None = None
     exclusion_label: str | None = None
     exclusion_is_appealable: bool = False

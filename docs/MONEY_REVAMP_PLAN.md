@@ -27,7 +27,8 @@ for decisions nobody can make, and two accounts sharing one name are told apart)
 >
 > **Pick up here — §2a "Next actions" is the live queue.** It names the next
 > piece of work, in order, with the evidence behind each. Work the top item,
-> update its Phase 0 status key and the §8 work log, then re-order the queue.
+> update the §8 work log, then re-order the queue. **Phases 0 and 1 are closed
+> and both exit tests pass; Phase 2 is the live work.**
 
 ---
 
@@ -53,19 +54,17 @@ contradicts another number on screen.
 
 ## 2a. Next actions (live queue — work top down)
 
-**Phase 0 is complete and its exit test passes** (the table is at the end of
-§7's Phase 0 block). **Phase 1 is nearly done: 1.1–1.8 and 1.10 are complete.**
-Only 1.9 stands between here and the Phase 1 exit test.
+**Phase 0 and Phase 1 are both complete and both exit tests pass** (Phase 0's
+table is at the end of §7's Phase 0 block; Phase 1's is at the end of its own).
+**1.1–1.10 are all done.**
 
-Work top down through what is left of §7 Phase 1:
+Work top down through §7 Phase 2 — the review screen:
 
-1. **1.9 — replace `visibility_score: 99`** with a real coverage measure (P1-13).
-   Two of its honest inputs now exist: `spend_exclusions` states how much of the
-   ledger reaches the spend totals (861 of 1,000 rows), and account lifecycle
-   (`feed_status`, `coverage_through`, added in Phase 0) states which feeds are
-   still reporting. The score currently ignores both.
-2. **Then run the Phase 1 exit test** — every window/surface agrees; July 2026
-   reports $5,025 spend and $2,755 income; recurring bills lists utilities.
+1. **2.1 — month selector, verdict line, In / Out / Left** with prior-month and
+   all-month-average comparators. Every input it needs now exists and agrees:
+   `spending.summary` carries the month, the comparators, `everyday_spend` and
+   `one_time_spend`, and `total_income` is finally net of clawbacks.
+2. **2.2 — category rows**: actual vs cap, over/under netting to a total.
 3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
@@ -87,6 +86,19 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- P0-35 the reversal netting that never once ran on live data: the July Pinellas
+  clawback was filtered out of the candidate set before pairing could see it, so
+  income carried a $1,102.23 paycheque that was taken back the next day.
+- P0-34 the Ledger and the spend totals disagreed by $71.03 on July because the
+  Ledger collapsed transactions against imported receipt lines and the totals do
+  not. Both now report 112 rows and $16,708.01.
+- P1-13 `visibility_score: 99` is gone. **What we can see** scores four
+  components — balances by money, spending feeds by account, connections and
+  classification — and a component reads 100 only when nothing about it is
+  wrong (1.9).
+- P1-8 needs/wants adds up: the **mixed** bucket is named and shown, so the three
+  shares exhaust the spend instead of two of them silently not summing to 100%
+  (1.10).
 - P0-4 the three vacuous verdicts are gone: the budget snapshot says
   `plan_incomplete` and names the missing target, the Lifestyle lane says
   "Inferred from spending" instead of "Configured", and the retirement tracker
@@ -891,6 +903,61 @@ with no mask is left ambiguous rather than given an invented suffix.
 Net worth before and after: **$1,530,455.18** both times. A labelling fix, not a
 valuation change.
 
+### P0-34 — The Ledger said $71.03 of July was excluded; every total counted it
+
+**[fixed]**
+
+Three surfaces agreed on July 2026 spend — the spending summary, the monthly
+trend and the month comparison all said **$16,708.01**. The Ledger, listing the
+same month row by row, counted **$16,636.98** across 109 rows. Three Amazon
+charges were marked *excluded as a duplicate* on the one screen built to explain
+why a row does or does not count.
+
+The totals decide spend over transaction rows alone; the Ledger ran its dedup
+pass over transactions **and** imported receipt lines together. An import row
+never reaches a spend total itself, so letting one suppress a charge removed
+real money from exactly one surface — P0-1's defect, one screen down, on the
+screen a person would open to check P0-1.
+
+The Ledger now runs two passes. Spend inclusion is decided over transaction rows
+only, exactly as `_spend_rows_between` does it. The combined pass still runs, but
+its result is a **`duplicate_note`** — provenance, the sentence that says an
+imported receipt line describes this same purchase — and not a reason to drop
+the row. The three Amazon charges count and keep their note.
+
+Ledger and totals now both report **112 rows / $16,708.01**, difference $0.00,
+with no id counted on one side and not the other.
+
+---
+
+### P0-35 — The reversal netting was written for July and never fired on July
+
+**[fixed]**
+
+`_household_reversal_pairs.py` opens by naming its reference case: a $1,102.23
+Pinellas deposit on 2026-07-09 and a $1,102.23 "COUNTREVERSAL" debit on the
+10th. Its unit tests pair exactly that. On live data it returned **7 pairs, none
+of them in July** — the matcher had never been shown the second leg.
+
+Candidates came from the spend rows plus the income rows. An outflow filed under
+`Income` is dropped from spend by the `category:income` rule long before pairing
+runs, so the deposit was offered a partner that had already been discarded. The
+charge was kept out of spend by that rule — the right answer for the wrong
+reason — while the deposit sat in income permanently. July income read
+**$3,906.59** gross when a paycheque worth $1,102.23 of it had been taken back
+the next day.
+
+Pairing now also reads the outflows filed under income, on the same terms
+`_income_rows` reads the inflows, and dedupes by id. Deliberately that one
+category rather than the whole non-spend list: the household's transfers between
+its own accounts are same-amount opposite-direction twins by construction and
+must not annihilate each other, but an expense filed as income is not a
+transfer — it is a deposit being taken back.
+
+Live pairs: **7 → 8**. July income **$3,906.59 → $2,804.36**. July spend
+unchanged at $16,708.01, because the charge was already excluded; it is now
+excluded for the reason that is true.
+
 ---
 
 ## 4. Diagnosis in one line
@@ -1671,8 +1738,9 @@ fields mean two chances to read the wrong one. Pick one in Phase 1.
 
 ---
 
-### Phase 1 — One trustworthy number pipeline
-Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13.
+### Phase 1 — One trustworthy number pipeline — **COMPLETE, exit test passes**
+Kills P0-1, P0-2, P0-3, P0-4, P0-5, P1-6, P1-7, P1-8, P1-13 — and P0-34/P0-35,
+which only the exit test could have found.
 
 1.1 ✅ **One canonical spend definition** shared by every surface. Report only
     **complete calendar months** and name which months were used. Remove the
@@ -1723,10 +1791,37 @@ this revamp exists to kill. $5,025.01 is surfaced as `summary.everyday_spend`
 with the air conditioner named in `one_time_purchases`, and $2,754.36 as the
 income. Read that way, the exit test passes as written.
 
+**Exit test — run 2026-08-24 against the live backend. PASSES.**
+
+| Clause | Result |
+| --- | --- |
+| Every window/surface agrees on July 2026 spend | `spending.summary.total_spend`, `reports.monthly_spend_trend[2026-07]`, `reports.month_comparison.latest_total` and the Ledger's own included rows all report **$16,708.01**. One distinct value, not four. |
+| Row counts agree too | Ledger counts **112** rows in July; the spending summary reports 112. No id counted on one side and not the other. |
+| July everyday spend | **$5,075.01** (`summary.everyday_spend`), with the $11,633.00 air conditioner named in `one_time_purchases` as two Costco rows of $5,831.50 and $5,801.50. |
+| July income | **$2,804.36**, net of the $1,102.23 Pinellas clawback. |
+| Recurring bills list utilities, not a vacation | Frontier, Duke Energy, T-Mobile, Waste Pro, P C Utilities, plus the declared Harbor Hills HOA. Zero vacation-shaped entries. |
+
+**Both money figures land exactly $50.00 above the numbers recorded above, and
+one row explains both.** The Airbnb line of 2026-07-03 (**$50.00**) is the
+household's rental income. When the baseline was written it was carried as a
+refund — a *negative* $50 against spend and absent from income. It is now filed
+as income: $50 out of the spend total and $50 into the income total, from the
+same row, in the same direction as the correction. So `16,658.01 + 50.00 =
+$16,708.01`, `5,025.01 + 50.00 = $5,075.01` and `2,754.36 + 50.00 = $2,804.36`.
+The recorded arithmetic is unchanged; rental income simply stopped being booked
+as a discount on shopping. It was verified by running the baseline commit's own
+code against today's database: `58b5bab34` reports the same 112 rows and the
+same $16,708.01, so nothing about the totals moved — only that one row's flow.
+
+**Two defects surfaced by running the test, both fixed before it was recorded:**
+**P0-34** (the Ledger disagreed with every total by $71.03) and **P0-35** (the
+reversal netting had never once fired on live data, leaving $1,102.23 in July
+income). Both are written up in §3.
+
 ---
 
-### Phase 2 — Review screen
-The screen in the artifact. Build only after Phase 1 exits.
+### Phase 2 — Review screen — **live work**
+The screen in the artifact. Phase 1 has exited, so this is next.
 
 2.1 Month selector · verdict line · In / Out / Left with prior-month and
     all-month-average comparators.
@@ -1896,3 +1991,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-23 | Phase 1.7 | **Every spend total now publishes what it left out, and the household can argue with it.** Three things were missing and only one was the string list: there was no **total** (nothing said what exclusion cost), no **reason a person could read** (the ledger said `cash_movement`, which names a category of decision rather than the decision), and no **way to disagree** — which is what made the first two matter, because a number you can neither check nor appeal has to be trusted rather than believed. `spend_exclusions` now publishes the counterpart to every total: **139 of 1,000 rows ($448,762)**, grouped by the rule that held them, with the merchants under each rule named. That number required widening past the ticket: rolling up only the literal string list gave **11 rows**, because most exclusions never reach the string list — they are dropped earlier for flow type. Eleven answers "why is this Zelle payment missing?" and leaves "why is my spend total smaller than my transactions?" unanswered, and the second is the question people actually arrive with. The appeal is a nullable `spend_override` column (migration `b2c3d4e5f6a7`), three-valued on purpose — `include` restores, `exclude` drops, clearing hands the row back to the rules, because an appeal that cannot be withdrawn is a worse trap than the filter it corrects. It is a **column, not a metadata key**: the spend predicate is built in SQL across several queries, and an override invisible to SQL would apply on the Ledger and not the Dashboard — the exact defect class this phase exists to remove — so `non_spend_sql_predicate` applies it centrally rather than leaving each query to remember. Only rules that match on **wording** invite an appeal; a row excluded for being income is not a guess about a string, and offering to overrule it would be offering the wrong argument. Verified live end to end: appealing the $400 ATM withdrawal of 2026-03-16 moved the roll-up to **138 / $448,362** — exactly $400 — reported it as "1 restored, $400.00" under Cash withdrawals, and flipped that row's own SQL verdict from dropped to counted; withdrawing it restored 139 / $448,762, and the live data is as it was found. One defect surfaced during verification and was fixed in the same task: "income" is reachable both as a flow type and as a category, so the card listed **"Money coming in" twice** — P1-7's doubled legend, reproduced one surface over — so rules are now grouped by meaning rather than by which rule matched. Gate green: 2,468 backend tests, 269 frontend money tests, 0 console errors on the live page. |
 | 2026-08-24 | Phase 1.10 | **The split adds up to all of the money, not 90% of it.** Needs plus wants read $3,217 / $4,074 against $8,103 of average monthly spend, and the card called itself "Want vs need" while displaying needs first. The `mixed` bucket was computed nowhere and shown nowhere — the executive report summed the two named essentialities and never asked what the remainder was. `average_monthly_mixed` is now published as **the remainder** rather than as a third sum over a third label, so a category carrying some unforeseen essentiality surfaces as unclassified instead of vanishing, which is the failure mode itself. 1.6 made the slice bigger rather than smaller: with Household given one honest `mixed` reading it is the largest single category, so live the split is **needs $3,154 (30.8%) / wants $4,253 (41.6%) / mixed $2,823 (27.6%)**, summing to exactly $10,230.57 and **100.0%**. The hidden slice was a quarter of the money, not the $811 tail P1-8 describes. Card renamed **"Needs, wants and mixed"**, all three amounts and shares shown, and mixed explained rather than merely listed — a Household or Cash row can be a repair or a treat. Gate green: 2,470 backend tests, 273 frontend money tests, 0 console errors live. |
 | 2026-08-24 | Phase 1.9 | **The confidence signal stopped moving opposite to the coverage.** `visibility_score` read **99 / "Strong household visibility"** beside a stale net worth, three accounts needing refresh and a spending feed gone quiet — because it was never a coverage measure. It was a **setup checklist**: 10 points for having told the system an income target, 5 for a retirement age, 10 for owning taxable assets. 80 of its 100 points were reachable without a single account being current, so answering questions raised "visibility" while the accounts behind the numbers went stale. `_household_coverage.py` measures observable facts in four published components — balances current (30), spending feeds reporting (30), known accounts connected (20), spend classified (20). Two weightings are deliberate opposites: balances go **by money**, because a $572,782 brokerage going stale and a $0 rollover going stale are not the same event; spending feeds go **by account**, because weighting those by balance would rank a card by what is owed on it rather than by how much spending flows through it. A component only reads 100 when nothing about it is wrong — money-weighting alone rounded $6,793 of stale balances against $1.56M to 100%, printing a perfect score directly above a line naming two stale accounts, the same anti-correlation one level down. Live: **91, "Strong coverage"**, with balances 99, feeds 75 (*Chase Sapphire Preferred ·8054 has gone quiet*), connected 94 (*Visa Credit ****4635 is not connected*), classified 100. The summary names the **weakest component rather than the score**, because "91%" tells nobody what to do. The old scorer, its label function and the freshness cap that existed to stop it claiming strength over stale accounts are deleted rather than left beside the new one, and the card publishes the working — a figure that cannot be broken down is how "99%" survived this long. Gate green: 2,479 backend tests, 277 frontend money tests, 0 console errors live. |
+| 2026-08-24 | Phase 1 exit | **Running the exit test found the two defects it existed to find, and both were on the reversal/agreement axis the phase is named for.** Three surfaces agreed on July 2026 at **$16,708.01**; the Ledger — the one screen built to explain why a row counts — said $16,636.98 across 109 rows and marked three Amazon charges *excluded as a duplicate* (**P0-34**). The totals decide spend over transaction rows alone; the Ledger deduped transactions against imported receipt lines together, so an import row that never reaches a total itself could suppress a charge that does — P0-1 reproduced one screen down, on the screen a person opens to check P0-1. Two passes now: inclusion over transactions only, and the combined pass demoted to a **`duplicate_note`**, which is provenance rather than grounds to drop money. Ledger and totals now both report **112 rows / $16,708.01**, difference $0.00, no id counted on one side and not the other. Then the income half: `_household_reversal_pairs.py` opens by naming the July Pinellas deposit and its next-day clawback as its reference case, its unit tests pair exactly that, and on live data it returned **7 pairs, none in July** (**P0-35**). Candidates came from the spend rows plus the income rows — and an outflow filed under `Income` is dropped from spend by the `category:income` rule long before pairing runs, so the deposit was being offered a partner that had already been discarded. The charge was kept out of spend by that rule: the right answer for the wrong reason, while the deposit stayed in income permanently. Pairing now also reads outflows filed under income, on the same terms `_income_rows` reads the inflows, deduped by id — that one category deliberately, not the whole non-spend list, because the household's own transfers *are* same-amount opposite-direction twins by construction and must not annihilate each other, whereas an expense filed as income is a deposit being taken back. Pairs 7 → **8**; July income **$3,906.59 → $2,804.36**; July spend unchanged, because the charge was already out — it is now out for the reason that is true. **Exit test passes on all three clauses**: one distinct spend value across four surfaces, everyday spend **$5,075.01** with the $11,633.00 air conditioner named as two Costco rows, income **$2,804.36**, and recurring bills reading Frontier / Duke Energy / T-Mobile / Waste Pro / P C Utilities / HOA with zero vacation-shaped entries. Both money figures sit exactly **$50.00** above the recorded baseline and one row explains both: the 2026-07-03 Airbnb $50.00 was carried as a refund — a negative $50 against spend and absent from income — and is now filed as income, moving $50 in each direction. Confirmed by running the baseline commit's own code (`58b5bab34`) against today's database: same 112 rows, same $16,708.01, so nothing about the totals moved, only that row's flow. Gate green: 2,487 backend tests, 433 frontend tests, all surfaces verified live after rebuild. **Phase 1 closed.** |

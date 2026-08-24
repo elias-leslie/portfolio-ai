@@ -755,7 +755,69 @@ class HouseholdTransactionService:
             if row.get("source_kind") == "transaction"
         ]
         candidates.extend(self._income_rows())
-        return candidates
+        candidates.extend(self._income_clawback_rows())
+        deduplicated: dict[str, dict[str, Any]] = {}
+        for candidate in candidates:
+            deduplicated.setdefault(str(candidate["id"]), candidate)
+        return list(deduplicated.values())
+
+    def _income_clawback_rows(self) -> list[dict[str, Any]]:
+        """Outflows filed under income -- the leg that gives a deposit back.
+
+        Spend analytics drop these by category, and rightly so: money returned
+        to a payer is not household spending. But the pairing pass reads its
+        candidates from the spend rows, so the clawback disappeared before it
+        could cancel anything, and the deposit it reversed stayed in income for
+        good -- the July Pinellas paycheque this module was written for.
+
+        Deliberately one category rather than the whole non-spend list. The
+        household's transfers between its own accounts are same-amount
+        opposite-direction twins by construction; an expense filed as income is
+        not, it is a deposit being taken back.
+        """
+        investment_predicate = investment_activity_sql_predicate(
+            text_expressions=["t.description", "t.raw_merchant"],
+        )
+        with self.storage.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    t.id,
+                    t.transaction_date,
+                    t.amount,
+                    COALESCE(m.canonical_name, t.raw_merchant, t.description) AS merchant,
+                    t.description,
+                    t.flow_type
+                FROM household_transactions t
+                LEFT JOIN household_merchants m ON m.id = t.merchant_id
+                WHERE t.flow_type IN ('expense', 'payment')
+                  AND t.removed IS NOT TRUE
+                  AND t.amount IS NOT NULL
+                  AND LOWER(COALESCE(t.category, '')) = 'income'
+                  AND NOT {investment_predicate}
+                """
+            ).fetchall()
+
+        clawback_rows: list[dict[str, Any]] = []
+        for row in rows:
+            transaction_date = row[1]
+            if not isinstance(transaction_date, datetime):
+                continue
+            try:
+                amount = float(row[2])
+            except (TypeError, ValueError):
+                continue
+            clawback_rows.append(
+                {
+                    "id": str(row[0]),
+                    "date": transaction_date.date(),
+                    "amount": amount,
+                    "flow_type": str(row[5] or "expense"),
+                    "merchant": str(row[3] or row[4] or ""),
+                    "description": str(row[4] or ""),
+                }
+            )
+        return clawback_rows
 
     def _income_rows(self) -> list[dict[str, Any]]:
         """Live income rows, on the same terms `_income_total_between` sums them."""

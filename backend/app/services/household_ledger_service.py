@@ -559,8 +559,23 @@ class HouseholdLedgerService:
                     }
                 )
 
+        dated_candidates = [
+            row for row in report_candidates if row.get("date") is not None
+        ]
+        # Spend inclusion is decided over transaction rows alone, exactly as
+        # `_spend_rows_between` does it. Collapsing transactions against import
+        # rows would let an import row -- which never counts toward spend
+        # itself -- suppress a transaction that does, so $71.03 of real July
+        # spending sat in every total while the Ledger showed it as excluded.
+        # Two dedup passes that disagree is the P0-1 defect one surface down.
         _, excluded_row_hashes = collapse_report_rows_with_exclusions(
-            [row for row in report_candidates if row.get("date") is not None]
+            [row for row in dated_candidates if row.get("source_kind") != "import"]
+        )
+        # The combined pass is still worth running: it is how a row learns that
+        # an imported receipt line describes the same purchase. That is a note
+        # about provenance, not a reason to drop the row from spend.
+        _, import_duplicate_hashes = collapse_report_rows_with_exclusions(
+            dated_candidates
         )
 
         for row in transaction_rows:
@@ -599,6 +614,7 @@ class HouseholdLedgerService:
                 merchant=str(row[6] or row[7] or ""),
             )
             exclusion_reason: str | None = None
+            duplicate_note: str | None = None
             included_in_spend = False
             if effective_flow not in {"expense", "refund"}:
                 exclusion_reason = "non_expense_flow"
@@ -618,6 +634,9 @@ class HouseholdLedgerService:
             else:
                 exclusion_reason = excluded_row_hashes.get(str(row[12]))
                 included_in_spend = exclusion_reason is None
+                if included_in_spend:
+                    # Counted, and also visible on an imported receipt line.
+                    duplicate_note = import_duplicate_hashes.get(str(row[12]))
             item_count, item_categories = items_by_transaction.get(str(row[0]), (0, []))
             owner_name, owner_source = _entry_owner(
                 metadata,
@@ -665,6 +684,7 @@ class HouseholdLedgerService:
                 uploaded_at=iso_or_none(row[18]),
                 included_in_spend=included_in_spend,
                 exclusion_reason=exclusion_reason,
+                duplicate_note=duplicate_note,
                 exclusion_rule=matched_rule,
                 exclusion_label=rule_label(matched_rule) if matched_rule else None,
                 exclusion_is_appealable=matched_rule in APPEALABLE_RULES,
