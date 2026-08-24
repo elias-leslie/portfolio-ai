@@ -175,11 +175,17 @@ function MoneyPageContent() {
       label: 'Dashboard',
       content: dashboard ? (
         <div className="space-y-6">
+          {/* The Decision Board's four cards and the allocation donut are gone
+              from here: the month's verdict, Free to spend, the needs/wants
+              split and the review queue all live on the Budget tab now, where
+              the household is actually reading the month, and allocation is an
+              Investing question. What is left is what the money is, and what
+              is about to leave it. */}
           <MoneyOverviewPanel
             dashboard={dashboard}
             analytics={analytics}
             netWorthTrend={netWorthTrend}
-            sections={['tiles', 'decision', 'allocation', 'commitments']}
+            sections={['tiles', 'commitments']}
           />
         </div>
       ) : (

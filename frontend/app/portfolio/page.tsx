@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { PlusCircle, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { AccountAllocationSection } from '@/components/money/AccountAllocationSection'
 import { AccountsWithPositionsContent } from '@/components/portfolio/AccountsWithPositions'
 import { AddAccountDialog } from '@/components/portfolio/AddAccountDialog'
 import { AddPositionDialog } from '@/components/portfolio/AddPositionDialog'
@@ -222,17 +223,23 @@ function PortfolioPageContent() {
       label: 'Holdings',
       badge: positionCount > 0 ? String(positionCount) : undefined,
       content: (
-        <AccountsWithPositionsContent
-          accounts={accounts}
-          accountsLoading={accountsLoading}
-          accountsFetching={accountsFetching}
-          accountsError={accountsError}
-          onRetryAccounts={() => {
-            void refetchAccounts()
-          }}
-          onAddAccount={() => setAccountOpen(true)}
-          onAddPosition={openPositionDialog}
-        />
+        <div className="space-y-6">
+          {/* Moved off the Money dashboard: where the assets sit is an
+              Investing question, and Money's job is what came in and what
+              went out. */}
+          <AccountAllocationSection />
+          <AccountsWithPositionsContent
+            accounts={accounts}
+            accountsLoading={accountsLoading}
+            accountsFetching={accountsFetching}
+            accountsError={accountsError}
+            onRetryAccounts={() => {
+              void refetchAccounts()
+            }}
+            onAddAccount={() => setAccountOpen(true)}
+            onAddPosition={openPositionDialog}
+          />
+        </div>
       ),
     },
     {

@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { InfoBadge } from '@/components/shared/InfoBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
@@ -11,9 +14,11 @@ import {
   trustBadgeVariant,
   trustStatusLabel,
 } from './overview-helpers'
-import type { useDecisionBoard } from './useDecisionBoard'
-
-type DecisionBoardData = ReturnType<typeof useDecisionBoard>
+export interface AllocationSlice {
+  assetGroup: string
+  label: string
+  value: number
+}
 
 export function AllocationCard({
   dashboard,
@@ -24,14 +29,28 @@ export function AllocationCard({
   netWorthTrustStatus,
 }: {
   dashboard: HouseholdFinanceDashboard
-} & Pick<
-  DecisionBoardData,
-  | 'allocationData'
-  | 'selectedAssetGroup'
-  | 'setSelectedAssetGroup'
-  | 'selectedAccounts'
-  | 'netWorthTrustStatus'
->) {
+  allocationData: AllocationSlice[]
+  selectedAssetGroup: string | null
+  setSelectedAssetGroup: (assetGroup: string) => void
+  selectedAccounts: HouseholdFinanceDashboard['accounts']
+  netWorthTrustStatus: string
+}) {
+  const chartBox = useRef<HTMLDivElement>(null)
+  const [chartHasRoom, setChartHasRoom] = useState(false)
+
+  useEffect(() => {
+    const box = chartBox.current
+    if (!box) {
+      return
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      setChartHasRoom(width > 0 && height > 0)
+    })
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <SectionCard
       variant="surface"
@@ -52,33 +71,39 @@ export function AllocationCard({
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={allocationData}
-                  dataKey="value"
-                  nameKey="label"
-                  innerRadius={58}
-                  outerRadius={92}
-                  paddingAngle={2}
-                  onClick={(_, index) => {
-                    const entry = allocationData[index]
-                    if (entry?.assetGroup) {
-                      setSelectedAssetGroup(entry.assetGroup)
-                    }
-                  }}
-                >
-                  {allocationData.map((entry, index) => (
-                    <Cell
-                      key={entry.assetGroup}
-                      fill={allocationColors[index % allocationColors.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip formatter={currencyTooltipFormatter} />
-              </PieChart>
-            </ResponsiveContainer>
+          {/* The donut waits for a measured box. On the Investing workspace it
+              mounts inside a tab panel that is still zero-width for a frame,
+              and recharts answers that with a console warning and a chart it
+              has to redraw anyway. */}
+          <div className="h-72" ref={chartBox}>
+            {chartHasRoom ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={allocationData}
+                    dataKey="value"
+                    nameKey="label"
+                    innerRadius={58}
+                    outerRadius={92}
+                    paddingAngle={2}
+                    onClick={(_, index) => {
+                      const entry = allocationData[index]
+                      if (entry?.assetGroup) {
+                        setSelectedAssetGroup(entry.assetGroup)
+                      }
+                    }}
+                  >
+                    {allocationData.map((entry, index) => (
+                      <Cell
+                        key={entry.assetGroup}
+                        fill={allocationColors[index % allocationColors.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={currencyTooltipFormatter} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : null}
           </div>
           <div className="space-y-3">
             {allocationData.map((entry, index) => {

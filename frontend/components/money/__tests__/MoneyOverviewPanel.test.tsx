@@ -378,40 +378,17 @@ const dashboard = {
 } as HouseholdFinanceDashboard
 
 describe('MoneyOverviewPanel', () => {
-  it('surfaces decision-board answers, budget pulse, recurring bills, and savings levers', () => {
+  it('renders the pulse, categories, bills and levers, and no Decision Board', () => {
     render(<MoneyOverviewPanel dashboard={dashboard} />)
 
-    expect(screen.getByText('Decision Board')).toBeInTheDocument()
-    expect(screen.getByText('Budget Pace')).toBeInTheDocument()
-    expect(screen.getByText('Free to spend')).toBeInTheDocument()
-    expect(screen.getByText('Needs, wants and mixed')).toBeInTheDocument()
-    expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
-    expect(screen.getByText('+$500')).toBeInTheDocument()
-    // Backend-owned numbers render verbatim: none of these are derivable from
-    // the raw accounts/commitments/profile values in the fixture.
-    expect(screen.getByText('$240')).toBeInTheDocument()
-    // Free-to-spend shows the whole subtraction, so the reader can check the
-    // figure rather than take a green badge's word for it.
-    expect(screen.getByText(/cash on hand: \$8,000/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/less bills due through sep 6: \$245/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/less essentials still to come: \$1,515/i),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/less owed on cards: \$6,000/i)).toBeInTheDocument()
-    expect(screen.getByText('$4,700 / $1,500 / $300')).toBeInTheDocument()
-    expect(
-      screen.getByText('Wants are $400 above the current cap.'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/merchant to attack first: amazon/i),
-    ).toBeInTheDocument()
     expect(screen.getByText('Budget Pulse')).toBeInTheDocument()
     expect(screen.getByText('Latest full-month change')).toBeInTheDocument()
+    expect(screen.getByText('+$900')).toBeInTheDocument()
+    // Once, not twice: the Decision Board printed the same pace detail.
+    // Once, not twice: the Decision Board and the watch list both echoed it.
     expect(
       screen.getAllByText(/month-to-date spend is ahead of plan/i),
-    ).toHaveLength(2)
+    ).toHaveLength(1)
     expect(screen.getAllByText(/household profile targets/i)).not.toHaveLength(
       0,
     )
@@ -419,10 +396,27 @@ describe('MoneyOverviewPanel', () => {
     expect(screen.getByText('Recurring Bills')).toBeInTheDocument()
     expect(screen.getByText('Duke Energy')).toBeInTheDocument()
     expect(screen.getAllByText('Savings Levers').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/honey - 32oz/i)).toHaveLength(2)
+    expect(screen.getAllByText(/honey - 32oz/i)).toHaveLength(1)
     expect(
       screen.getByText(/track repeat amazon items against walmart/i),
     ).toBeInTheDocument()
+  })
+
+  it('no longer answers questions the review screen owns', () => {
+    // Budget pace, Free to spend and the needs/wants/mixed split were four
+    // cards here, one tab away from the screen where the household reads the
+    // month. Account Allocation went to Investing, where the assets are.
+    render(<MoneyOverviewPanel dashboard={dashboard} />)
+
+    for (const retired of [
+      'Decision Board',
+      'Budget Pace',
+      'Free to spend',
+      'Needs, wants and mixed',
+      'Account Allocation',
+    ]) {
+      expect(screen.queryByText(retired)).not.toBeInTheDocument()
+    }
   })
 
   it('keeps review-only account controls out of the main dashboard surface', () => {
@@ -498,94 +492,9 @@ describe('MoneyOverviewPanel', () => {
       screen.getAllByRole('button', { name: /estimate: more detail/i }),
     ).not.toHaveLength(0)
     expect(screen.queryByText('Safe')).not.toBeInTheDocument()
-    expect(screen.getByText('Review')).toBeInTheDocument()
-    expect(screen.getByText('$240')).toBeInTheDocument()
-    expect(screen.getByText('$4,700 / $1,500 / $300')).toBeInTheDocument()
     expect(
       screen.queryByText(/estimate from current coverage/i),
     ).not.toBeInTheDocument()
     expect(screen.getByText('+$900')).toBeInTheDocument()
-  })
-
-  it('reads the relative generation time lowercase mid-sentence', () => {
-    render(
-      <MoneyOverviewPanel
-        dashboard={{
-          ...dashboard,
-          generatedAt: new Date().toISOString(),
-        }}
-        sections={['decision']}
-      />,
-    )
-
-    expect(document.body.textContent).toContain('Generated just now.')
-    expect(document.body.textContent).not.toContain('Just now')
-  })
-
-  it('drops the two-column grid when only one of allocation/trend is visible', () => {
-    const { container, rerender } = render(
-      <MoneyOverviewPanel dashboard={dashboard} sections={['allocation']} />,
-    )
-
-    expect(container.querySelector('.xl\\:grid-cols-2')).toBeNull()
-    expect(screen.getByText('Account Allocation')).toBeInTheDocument()
-
-    rerender(
-      <MoneyOverviewPanel
-        dashboard={dashboard}
-        sections={['allocation', 'trend']}
-      />,
-    )
-    expect(container.querySelector('.xl\\:grid-cols-2')).not.toBeNull()
-  })
-
-  it('shows exact refresh blockers when stale accounts block safe-to-spend trust', () => {
-    render(
-      <MoneyOverviewPanel
-        dashboard={{
-          ...dashboard,
-          overview: {
-            ...dashboard.overview,
-            monthlySpendStatus: 'stale',
-            monthlySpendDetail:
-              'Monthly spend subtotal is based on older history from 2 of 2 spending accounts. Latest covered transaction date 2026-04-14.',
-          },
-          budgetSnapshot: {
-            ...dashboard.budgetSnapshot,
-            remainingCashAfterPlan: 1200,
-            discretionaryHeadroom: null,
-          },
-          inbox: [
-            {
-              id: 'account-cma-stale-transactions',
-              category: 'account',
-              priority: 'high',
-              title: 'Refresh transactions for Cash Management Account',
-              detail:
-                'Need a bank or card statement/export covering 2026-04-09 through 2026-04-24. Blocks monthly spend, budget status, and safe to spend.',
-              actionLabel: 'Add statements',
-              actionHref: '/money?tab=accounts&account=cma&intent=evidence',
-              relatedAccountId: 'cma',
-              relatedQuestionId: null,
-              relatedDocumentIds: ['doc-1'],
-              affects: ['monthly_spend', 'budget_status', 'safe_to_spend'],
-            },
-          ],
-        }}
-      />,
-    )
-
-    expect(screen.queryByText('Safe')).not.toBeInTheDocument()
-    expect(screen.getByText('Review')).toBeInTheDocument()
-    expect(
-      screen.getByText('Stale account data; refresh before relying on this.'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Refresh blockers')).toBeInTheDocument()
-    expect(
-      screen.getByText('Refresh transactions for Cash Management Account'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/covering 2026-04-09 through 2026-04-24/i),
-    ).toBeInTheDocument()
   })
 })

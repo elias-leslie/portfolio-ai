@@ -3,7 +3,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
-import { useDecisionBoard } from '../useDecisionBoard'
+import { useMoneyOverview } from '../useMoneyOverview'
 
 /**
  * Every raw input below CONTRADICTS the backend-owned summary fields on
@@ -174,11 +174,8 @@ const dashboard = {
 
 describe('useDecisionBoard', () => {
   it('renders backend-owned numbers verbatim instead of re-deriving them', () => {
-    const { result } = renderHook(() => useDecisionBoard(dashboard))
+    const { result } = renderHook(() => useMoneyOverview(dashboard))
 
-    expect(result.current.allocationData).toEqual([
-      { assetGroup: 'real_estate', label: 'Real Estate', value: 777 },
-    ])
     expect(result.current.categoryData).toBe(
       dashboard.reports.categoryBreakdown,
     )
@@ -186,16 +183,6 @@ describe('useDecisionBoard', () => {
       dashboard.reports.monthComparison,
     )
     expect(result.current.monthComparison?.change).toBe(123)
-    expect(result.current.dueSoonTotal).toBe(222)
-    expect(result.current.operatingCushion).toBe(4321)
-    expect(result.current.weekendSpendAllowance).toBe(321)
-    // Never "safe". The figure is an estimate about a month that has not
-    // finished, and a green badge over a number the card itself disclaims was
-    // the most dangerous element on the page.
-    expect(result.current.safeSpendStatus).toBe('estimate')
-    expect(result.current.safeSpendBindingLabel).toBe(
-      'visible cash after bills due, the rest of the month\u2019s essentials and card balances',
-    )
   })
 
   it('leaves recurring purchases out of the recurring bills list', () => {
@@ -223,73 +210,12 @@ describe('useDecisionBoard', () => {
       ],
     } as unknown as HouseholdFinanceDashboard
 
-    const { result } = renderHook(() => useDecisionBoard(withVacation))
+    const { result } = renderHook(() => useMoneyOverview(withVacation))
 
     expect(
       result.current.dueSoonCommitments.map(
         (commitment) => commitment.merchant,
       ),
     ).toEqual(['Rent Co'])
-  })
-
-  it('keeps the drilldown filter on raw accounts for the selected backend group', () => {
-    const { result } = renderHook(() => useDecisionBoard(dashboard))
-
-    expect(result.current.selectedAssetGroup).toBe('real_estate')
-    expect(
-      result.current.selectedAccounts.map((account) => account.id),
-    ).toEqual(['account-2'])
-  })
-
-  it('words the one constraint the figure can have, and nothing else', () => {
-    // There used to be three, and the one that usually won was `plan_residual`:
-    // monthly income target minus monthly plan total, which is arithmetic on two
-    // assumptions rather than on cash. It is gone.
-    const withConstraint = (
-      constraint: HouseholdFinanceDashboard['budgetSnapshot']['safeToSpendConstraint'],
-    ) =>
-      ({
-        ...dashboard,
-        budgetSnapshot: {
-          ...dashboard.budgetSnapshot,
-          safeToSpendConstraint: constraint,
-        },
-      }) as HouseholdFinanceDashboard
-
-    const cash = renderHook(() =>
-      useDecisionBoard(withConstraint('cash_after_commitments')),
-    )
-    expect(cash.result.current.safeSpendBindingLabel).toBe(
-      'visible cash after bills due, the rest of the month\u2019s essentials and card balances',
-    )
-    const none = renderHook(() => useDecisionBoard(withConstraint(null)))
-    expect(none.result.current.safeSpendBindingLabel).toBeNull()
-  })
-
-  it('treats a null backend safe-to-spend as unanswered, not zero', () => {
-    const nullSafeToSpend = {
-      ...dashboard,
-      budgetSnapshot: {
-        ...dashboard.budgetSnapshot,
-        safeToSpend: null,
-        safeToSpendConstraint: null,
-        dueSoonBillsTotal: null,
-        // The backend builds all four from one affordability object or none of
-        // them, so nulling the figure without the object it came from would be
-        // a state the API cannot produce.
-        affordability: null,
-      },
-    } as HouseholdFinanceDashboard
-    const { result } = renderHook(() => useDecisionBoard(nullSafeToSpend))
-
-    expect(result.current.weekendSpendAllowance).toBeNull()
-    expect(result.current.safeSpendStatus).toBe('mixed')
-    expect(result.current.safeSpendBindingLabel).toBeNull()
-    expect(result.current.dueSoonTotal).toBeNull()
-    expect(
-      result.current.whyShortDrivers.some((driver) =>
-        driver.includes('recurring bills'),
-      ),
-    ).toBe(false)
   })
 })

@@ -231,20 +231,16 @@ describe('MoneyBudgetPanel', () => {
   it('renders the backend summary stats verbatim, never row math', () => {
     render(<MoneyBudgetPanel />)
 
-    expect(screen.getByText('Suggested cap total')).toBeInTheDocument()
+    expect(screen.getByText('Caps waiting on you')).toBeInTheDocument()
     // Row math would say $2,750 (1400 + 1100 + 250); the summary says $2,880.
-    expect(screen.getByText('$2,880')).toBeInTheDocument()
-    expect(screen.queryByText('$2,750')).not.toBeInTheDocument()
     expect(
-      screen.getByText('4 suggested rows not accepted yet.'),
+      screen.getByText('suggested rows not accepted yet · $2,880'),
     ).toBeInTheDocument()
-    expect(screen.getByText('Confirmed cap total')).toBeInTheDocument()
-    expect(screen.getByText('$410')).toBeInTheDocument()
-    expect(
-      screen.getByText('Manual or accepted category caps.'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('4 suggested · 2 confirmed.')).toBeInTheDocument()
-    expect(screen.getByText('3 suggested · 1 confirmed.')).toBeInTheDocument()
+    expect(screen.queryByText(/\$2,750/)).not.toBeInTheDocument()
+    // The cap totals, the budgeted-category count and the over-budget count
+    // were four more tiles here; the verdict line above states all of them.
+    expect(screen.queryByText('Confirmed cap total')).not.toBeInTheDocument()
+    expect(screen.queryByText('Budgeted categories')).not.toBeInTheDocument()
     // Row-level breach badges still come from the rows themselves, and they are
     // judged on the month being reported rather than on the run-rate: Groceries
     // spent $738 against a $250 cap, which is over however tame its average is.
@@ -272,18 +268,17 @@ describe('MoneyBudgetPanel', () => {
 
     render(<MoneyBudgetPanel />)
 
-    // Confirming a fact changes the rows, but the summary stats stay
+    // Confirming a fact changes the rows, but the summary stat stays
     // backend-owned: still $2,880 / 4 rows, never re-derived to $1,650 / 2.
-    expect(screen.getByText('$2,880')).toBeInTheDocument()
-    expect(screen.queryByText('$1,650')).not.toBeInTheDocument()
     expect(
-      screen.getByText('4 suggested rows not accepted yet.'),
+      screen.getByText('suggested rows not accepted yet · $2,880'),
     ).toBeInTheDocument()
+    expect(screen.queryByText(/\$1,650/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Monthly budget for Retail')).toHaveValue(
       '1200',
     )
     expect(screen.getByText('Accepted cap')).toBeInTheDocument()
-    expect(screen.getAllByText('Over budget')).not.toHaveLength(0)
+    expect(screen.getAllByText('Over confirmed cap')).not.toHaveLength(0)
   })
 
   it('saves a default owner inline on the category budget fact', async () => {
@@ -320,9 +315,8 @@ describe('MoneyBudgetPanel', () => {
     render(<MoneyBudgetPanel />)
 
     expect(
-      screen.getByText('0 suggested rows not accepted yet.'),
+      screen.getByText('suggested rows not accepted yet · $0'),
     ).toBeInTheDocument()
-    expect(screen.getAllByText(/0 suggested · 0 confirmed/i)).toHaveLength(2)
     expect(screen.getAllByText('No cap yet')).toHaveLength(3)
   })
 
@@ -351,18 +345,26 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getByText(/1 transaction/)).toBeInTheDocument()
   })
 
-  it('surfaces cash-flow KPIs and an accept-all suggested caps action', () => {
+  it('keeps three tiles that are each a thing to do, and drops the other seven', () => {
     render(<MoneyBudgetPanel />)
 
-    expect(screen.getByText('Savings rate')).toBeInTheDocument()
-    expect(screen.getByText('37%')).toBeInTheDocument()
-    expect(screen.getByText('Net cash flow')).toBeInTheDocument()
-    // The subtitle names the reported month so the number cannot be misread as
-    // a run-rate.
-    expect(
-      screen.getByText('Income minus tracked spend in April 2026.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Unknown purchases')).toBeInTheDocument()
+    expect(screen.getByText('Caps waiting on you')).toBeInTheDocument()
     expect(screen.getByText('Connected MTD spend')).toBeInTheDocument()
+    // Each of these was a true number that another element on this screen
+    // already says: the comparator row for income and the run-rate, Left over
+    // for net cash flow and the savings rate, the verdict line for the caps.
+    for (const retired of [
+      'Monthly run-rate',
+      'Monthly income',
+      'Net cash flow',
+      'Savings rate',
+      'Suggested cap total',
+      'Confirmed cap total',
+      'Budgeted categories',
+    ]) {
+      expect(screen.queryByText(retired)).not.toBeInTheDocument()
+    }
     // The month selector replaced the 1M/3M/6M/12M chips (D3).
     expect(screen.getByLabelText('Month')).toBeInTheDocument()
     expect(screen.queryByText('12M')).not.toBeInTheDocument()

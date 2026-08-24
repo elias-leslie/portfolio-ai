@@ -1,13 +1,15 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASE 0 COMPLETE — exit test passes (§7). 15 of 16 tasks landed;
-0.13 (the staged receipts) waits on the household's approval and on the
-Costco/Walmart order-page parser in Phase 4.2. **Phase 1 is next, and it is the
-UI/UX work.**
+**Status:** PHASES 0, 1 AND 2 COMPLETE — Phase 0's and Phase 1's exit tests both
+pass (§7). Phase 0 landed 15 of 16 tasks; 0.13 (the staged receipts) waits on the
+household's approval and on the Costco/Walmart order-page parser in Phase 4.2.
+The review screen now answers the month in one place, and the screens that
+answered it a second time are gone. **Phase 3 is next: plan, funds, and alerts.**
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-22 (Phase 0 closed: the review queue no longer asks
-for decisions nobody can make, and two accounts sharing one name are told apart)
+**Last updated:** 2026-08-24 (Phase 2 closed: the review screen owns the month,
+the Decision Board's duplicate answers are deleted, and allocation moved to
+Investing)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -27,8 +29,8 @@ for decisions nobody can make, and two accounts sharing one name are told apart)
 >
 > **Pick up here — §2a "Next actions" is the live queue.** It names the next
 > piece of work, in order, with the evidence behind each. Work the top item,
-> update the §8 work log, then re-order the queue. **Phases 0 and 1 are closed
-> and both exit tests pass; Phase 2 is the live work.**
+> update the §8 work log, then re-order the queue. **Phases 0, 1 and 2 are
+> closed — Phase 0's and Phase 1's exit tests pass; Phase 3 is the live work.**
 
 ---
 
@@ -54,16 +56,19 @@ contradicts another number on screen.
 
 ## 2a. Next actions (live queue — work top down)
 
-**Phase 0 and Phase 1 are both complete and both exit tests pass** (Phase 0's
-table is at the end of §7's Phase 0 block; Phase 1's is at the end of its own).
-**1.1–1.10 are all done.**
+**Phases 0, 1 and 2 are complete; Phase 0's and Phase 1's exit tests pass**
+(Phase 0's table is at the end of §7's Phase 0 block; Phase 1's is at the end of
+its own). **1.1–1.10 and 2.1–2.7 are all done.**
 
-Work top down through §7 Phase 2 — the review screen:
+Work top down through §7 Phase 3 — plan, funds, and alerts:
 
-1. **2.7** — retire the Decision Board's four cards, the allocation donut
-   (→ Investing) and the ten-tile budget stat row (→ three). 2.5 put the Free
-   to spend card on the review screen, so the Decision Board's copy of it is
-   now the second one and can go with the rest.
+1. **3.1 Income anchor** (D16) — trailing 3-month **median** of deposits,
+   recomputed monthly, with a dated manual override that wins until cleared,
+   both values shown side by side so the override is never silently stale.
+   Everything Phase 3 caps is priced off this number, so it comes first.
+   Confirm whether the $506.31/mo note income (P0-23) is still arriving.
+2. **3.2 Income-anchored cap setup** (D6) — needs 3.1 and 3.3 before it can
+   subtract anything.
 3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
@@ -85,6 +90,13 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 2.7 **The second copies are gone.** The Decision Board is deleted: its Free to
+  spend card was the same figure 2.5 had already put on the review screen, and
+  its watch list re-printed the pace sentence sitting three inches above it. The
+  allocation donut moved to Investing → Holdings, where "where do the assets
+  sit" is the question being asked. The budget stat row went **ten tiles → 3**.
+  The one thing the board carried that nothing else did — the refresh inbox,
+  capped at 2 items — is now its own card showing **all 5**.
 - 2.6 **The retirement block asks the question its phase calls for**, and asking
   it surfaced that the plan's retirement age of 49 arrived this January. It now
   reads: spending runs $10,231/mo against the $6,428/mo that $1,542,811 supports
@@ -1864,8 +1876,8 @@ income). Both are written up in §3.
 
 ---
 
-### Phase 2 — Review screen — **live work**
-The screen in the artifact. Phase 1 has exited, so this is next.
+### Phase 2 — Review screen — **COMPLETE**
+The screen in the artifact. All seven tasks landed.
 
 2.1 ✅ Month selector · verdict line · In / Out / Left with prior-month and
     all-month-average comparators.
@@ -1887,8 +1899,13 @@ The screen in the artifact. Phase 1 has exited, so this is next.
     says the gap in *assets* rather than a required $/mo, because a required
     contribution needs a return assumption and the Retirement tab's projection
     stays the only one.
-2.7 Retire: Decision Board's four cards, the allocation donut (→ Investing), the
-    ten-tile budget stat row (→ three).
+2.7 ✅ **Retire the second copies** — the Decision Board is deleted (its Free to
+    spend card duplicated 2.5's, and its watch list re-printed the pace sentence
+    directly above it), the allocation donut moved to **Investing → Holdings**,
+    and the budget stat row went **ten tiles → three**. The board's one unique
+    contribution, a 2-item refresh blocker list, became the **Waiting on you**
+    card and now shows every item — 5 on live data. `useDecisionBoard` is
+    `useMoneyOverview`, returning only what the surviving cards read.
 
 ---
 
@@ -2050,3 +2067,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 2.4 | **34 unfamiliar names became two trips.** July 2026 has 44 charges at 34 merchants the ledger has never seen. As a list that is 34 mystery lines and reads like a fraud report; grouped by date it is **23 new places between the 2nd and the 13th ($1,233)**, **8 more between the 19th and the 28th ($260, mostly Personal Care)**, and two loners. The gap threshold is **2 days** and that is load-bearing: at 3 days the whole of July collapses into a single cluster, which is the same failure as not clustering at all. Clusters are built from **dates alone** — the Plaid metadata on these rows carries an item id and a transaction id and nothing else, so the card says "23 new places, 2-13 July" rather than naming a country it cannot source. One bug caught in review before it shipped: groups below the 3-merchant threshold were emitting a single entry labelled after the first merchant, which filed Meyer Feinkost's $23.44 under "Hsr K" — worse than not grouping at all. Sub-threshold groups now emit one entry per merchant. This closes **half** of D2's fourth sentence; the owner half ("these 4 items Mariana bought") is still blocked on attribution being 91% "Family", which is D15's problem and is recorded as such rather than faked. Gate green: 2,507 backend tests, 454 frontend tests, 0 console errors live. |
 | 2026-08-24 | Phase 2.5 | **The affordability figure moved to the screen where the month is judged, and stopped being graded twice.** Free to spend was on the Decision Board, one tab from the review screen, so the screen that says "August came in over your caps" could not say whether there was money to act on it. It now sits beside the verdict as the whole subtraction rather than a single confident number: **30,495 − 88 − 1,129 − 17,336 = $11,941**, each line a thing the household can go look at. Two things moved to the server while doing it. The word over the figure (`estimate` / `tight` / `hold`, never *safe*) was a `weekendSpendAllowance < 150` ladder inside a React hook; putting the same dollar amount on a second screen would have meant a second copy of that threshold, so `build_affordability` now returns `status`, `headline` and `detail` and both surfaces read them. And the stale-data treatment was replacing the explaining sentence with "Stale account data; refresh before relying on this." while still printing the number — the worst of both. The card now always shows the figure and what it means, and names the input that is behind: **"Cash and card balances need a refresh."** / **"This month's essentials are still an estimate."** Live on both surfaces at $11,941 with identical inputs. |
 | 2026-08-24 | Phase 2.6 | **Asking the retirement question properly answered it: the plan's retirement age has already arrived.** The old block graded contribution compliance and reported `on_track` from a $0 target against $0 contributions — a pass earned by having no inputs — while net worth grew at roughly 66× the $300/mo it was measuring. It now picks its question from the primary adult's age against `target_retirement_age`, both read live: **Elias turned 49 in January and the plan's retirement age is 49**, so the block is in drawdown and asks whether the withdrawal holds. It does not: **$10,231/mo of actual spending against the $6,428/mo that $1,542,811 of investable assets supports at the household's own recorded 5% rule**, with the plan assuming $7,500/mo — D13's two-way link, found on a budget screen exactly as predicted. Three things it refuses to do. It will not call that a *withdrawal* verdict: no account in the ledger is labelled as an IRA, 401(k), Roth or HSA, so whether a drawdown has actually started is invisible and the block says so rather than reading a $0 as a measurement. It will not state a required $/mo contribution in the accumulating-and-short phase, because that needs a return assumption and the Retirement tab's projection stays the only one — the gap is stated in **assets** ($257,189) instead. And with no birth year or no target age it returns `phase_unknown` rather than picking a phase. Ages come from `_split_members`, borrowed from the retirement planner rather than re-derived, so the boundary cannot move on one screen and not the other. The block renders on the review screen and in the planning drawer from the same object. |
+| 2026-08-24 | Phase 2.7 | **Deleted the screen that answered the same questions a second time, and Phase 2 closed with it.** The Decision Board's four cards were each a duplicate by the time 2.5 landed: Free to spend was already on the review screen as the full subtraction, and the board's own watch list re-printed `paceDetail` — the exact sentence rendered three inches above it in the same card — which is why the panel test had been asserting *two* copies of "Month-to-date spend is ahead of plan by $500." Both copies are gone; the sentence is printed once. The allocation donut moved to **Investing → Holdings**, because where the assets sit is an Investing question and Money's job is what came in and what went out; it took its state with it (`AccountAllocationSection` self-fetches and owns `selectedAssetGroup`), so nothing had to drag the old hook across. Moving it surfaced one thing worth fixing: inside a tab panel the donut mounts for a frame at zero width, and recharts answered that with `width(-1) and height(-1)` on the console — the chart now waits for a measured box, and `/portfolio?tab=holdings` reports 0 errors, 0 warnings, donut 509×288. The budget stat row went **ten tiles → three** (Unknown purchases · Caps waiting on you · Connected MTD spend), which on live data reads *0 purchases to categorize*, *17 suggested rows not accepted yet · $6,650*, and *$7,488 Plaid/SnapTrade through Aug 24, 3 pending transactions included ($145)*. **One thing the board carried that nothing else did**: `dashboard.inbox` reached the UI only through its 2-item "Refresh blockers" list, so deleting the board would have silently removed the only place those items appear. They are now the **Waiting on you** card on the Budget screen, uncapped — **5 items** on live data, each naming what it blocks ("Blocks net worth"), where 2 showed before. `useDecisionBoard` became `useMoneyOverview` and returns only what the surviving cards read. Gate green: 2,523 backend tests, 470 frontend tests, ARCH/ruff/ty/biome/tsc clean; `/money?tab=dashboard`, `/money?tab=spending`, `/portfolio?tab=holdings` all verified after rebuild with 0 console errors and 0 warnings. **Phase 2 closed.** |

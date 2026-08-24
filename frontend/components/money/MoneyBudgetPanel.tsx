@@ -22,13 +22,14 @@ import { AffordabilityCard } from './AffordabilityCard'
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
-import { formatFullMonthLabel } from './budget-helpers'
 import { CategoryTrendChart } from './CategoryTrendChart'
 import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
+import { MoneyInboxCard } from './MoneyInboxCard'
 import { MonthComparatorRow } from './MonthComparatorRow'
 import { MonthSelector } from './MonthSelector'
 import { MonthVerdictLine } from './MonthVerdictLine'
+import { NeedsWantsMixedCard } from './NeedsWantsMixedCard'
 import { NewThisMonthCard } from './NewThisMonthCard'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import { normalizeTrustStatus } from './overview-helpers'
@@ -77,13 +78,7 @@ export function MoneyBudgetPanel() {
     sortedActiveRows,
     foundBudgetRows,
     foundBudgetTotal,
-    confirmedBudgetTotal,
     foundBudgetCategoryCount,
-    confirmedBudgetCategoryCount,
-    budgetedCategoryCount,
-    foundOverBudgetCount,
-    confirmedOverBudgetCount,
-    overBudgetCount,
     unknownTransactions,
     unknownSpend,
     trendMeta,
@@ -148,19 +143,6 @@ export function MoneyBudgetPanel() {
     spending?.transactions,
   ])
   const coverageMonthKeys = spending?.summary.coverageMonthKeys ?? []
-  const averageCoverageMonths = spending?.summary.coverageMonths ?? 0
-  const isRunRateThisMonthOnly =
-    coverageMonthKeys.length === 1 &&
-    coverageMonthKeys[0] === spending?.summary.month
-  const observedMonthlyDetail =
-    averageCoverageMonths === 0
-      ? 'No covered month yet.'
-      : isRunRateThisMonthOnly
-        ? 'No complete month yet — this month standing in for the average.'
-        : `Run-rate across ${averageCoverageMonths} complete month${averageCoverageMonths === 1 ? '' : 's'}: ${coverageMonthKeys
-            .map(formatFullMonthLabel)
-            .join(', ')}.`
-
   async function acceptAllSuggestedCaps() {
     for (const entry of foundBudgetRows) {
       if (entry.foundBudget == null) {
@@ -378,38 +360,34 @@ export function MoneyBudgetPanel() {
         />
         <div className="mt-3">
           <BudgetStatRow
-            averageMonthlySpend={spending?.summary.averageMonthlySpend}
-            foundBudgetTotal={foundBudgetTotal}
-            foundBudgetCategoryCount={foundBudgetCategoryCount}
-            confirmedBudgetTotal={confirmedBudgetTotal}
             unknownTransactionCount={unknownTransactions.length}
             unknownSpend={unknownSpend}
-            budgetedCategoryCount={budgetedCategoryCount}
-            confirmedBudgetCategoryCount={confirmedBudgetCategoryCount}
-            overBudgetCount={overBudgetCount}
-            foundOverBudgetCount={foundOverBudgetCount}
-            confirmedOverBudgetCount={confirmedOverBudgetCount}
-            averageMonthlyIncome={spending?.summary.averageMonthlyIncome}
-            netCashFlow={spending?.summary.netCashFlow}
-            savingsRate={spending?.summary.savingsRate}
-            monthToDateSpend={spending?.summary.monthToDateSpend}
+            foundBudgetTotal={foundBudgetTotal}
+            foundBudgetCategoryCount={foundBudgetCategoryCount}
             connectedMonthToDateSpend={
               connectedMonthStats.connectedMonthToDateSpend
             }
+            monthToDateSpend={spending?.summary.monthToDateSpend}
             connectedPendingCount={connectedMonthStats.pendingCount}
             connectedPendingSpend={connectedMonthStats.pendingSpend}
             evidenceMonthToDateSpend={connectedMonthStats.evidenceSpend}
             monthToDateAsOfDate={connectedMonthStats.asOfDate}
-            observedMonthlyDetail={observedMonthlyDetail}
-            monthLabel={spending?.summary.monthLabel ?? '—'}
           />
         </div>
       </SectionCard>
 
-      <RetirementPhaseCard
-        block={dashboard?.retirementContributionTracker}
-        isLoading={isDashboardLoading}
-      />
+      <MoneyInboxCard inbox={dashboard?.inbox} isLoading={isDashboardLoading} />
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <NeedsWantsMixedCard
+          dashboard={dashboard}
+          isLoading={isDashboardLoading}
+        />
+        <RetirementPhaseCard
+          block={dashboard?.retirementContributionTracker}
+          isLoading={isDashboardLoading}
+        />
+      </div>
 
       <WhatChangedCard variance={spending?.spendVariance} />
 

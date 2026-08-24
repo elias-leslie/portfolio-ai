@@ -81,6 +81,10 @@ vi.mock('@/components/watchlist/AddSymbolModal', () => ({
   ),
 }))
 
+vi.mock('@/components/money/AccountAllocationSection', () => ({
+  AccountAllocationSection: () => <div>Account Allocation</div>,
+}))
+
 vi.mock('@/components/portfolio/InvestingNewsPanel', () => ({
   InvestingNewsPanel: ({ isInputLoading }: { isInputLoading?: boolean }) => (
     <div>

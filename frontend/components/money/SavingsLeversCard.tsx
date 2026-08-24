@@ -11,9 +11,9 @@ import {
   priceInsightBadgeVariant,
   signedCurrency,
 } from './overview-helpers'
-import type { useDecisionBoard } from './useDecisionBoard'
+import type { useMoneyOverview } from './useMoneyOverview'
 
-type DecisionBoardData = ReturnType<typeof useDecisionBoard>
+type DecisionBoardData = ReturnType<typeof useMoneyOverview>
 
 export function SavingsLeversCard({
   priceInsights,

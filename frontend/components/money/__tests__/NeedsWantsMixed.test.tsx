@@ -1,8 +1,8 @@
-import { renderHook } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { buildHouseholdDashboard } from '@/app/__tests__/householdDashboardFixture'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
-import { useDecisionBoard } from '../useDecisionBoard'
+import { NeedsWantsMixedCard } from '../NeedsWantsMixedCard'
 
 /**
  * The split used to show $3,217 / $4,074 against $8,103 of average monthly
@@ -58,55 +58,72 @@ function withSplit(
 
 describe('needs / wants / mixed', () => {
   it('accounts for every tracked dollar rather than 90% of them', () => {
-    const { result } = renderHook(() =>
-      useDecisionBoard(withSplit(3217, 4074, 811)),
+    render(
+      <NeedsWantsMixedCard
+        dashboard={withSplit(3217, 4074, 811)}
+        isLoading={false}
+      />,
     )
 
+    // 3,217 + 4,074 = 7,292 against 8,102 of spend: the missing 811 used to be
+    // invisible, and the two shares summed to 90%.
+    expect(screen.getByText('$3,217')).toBeInTheDocument()
+    expect(screen.getByText('$4,074')).toBeInTheDocument()
+    expect(screen.getByText('$811')).toBeInTheDocument()
     expect(
-      result.current.needsAmount +
-        result.current.wantsAmount +
-        result.current.mixedAmount,
-    ).toBe(8102)
-    const shares =
-      (result.current.needsShare ?? 0) +
-      (result.current.wantsShare ?? 0) +
-      (result.current.mixedShare ?? 0)
-    expect(shares).toBeCloseTo(100, 6)
+      screen.getByText('$8,102/mo typical, split three ways.'),
+    ).toBeInTheDocument()
+    const shares = [...document.querySelectorAll('dt')].map((term) =>
+      Number((term.textContent ?? '').replace(/[^0-9.]/g, '')),
+    )
+    expect(shares).toHaveLength(3)
+    expect(shares.reduce((sum, share) => sum + share, 0)).toBe(100)
   })
 
   it('puts a mixed category in the mixed bucket, not in neither', () => {
-    const { result } = renderHook(() =>
-      useDecisionBoard(withSplit(3217, 4074, 811)),
+    render(
+      <NeedsWantsMixedCard
+        dashboard={withSplit(3217, 4074, 811)}
+        isLoading={false}
+      />,
     )
 
-    expect(result.current.needCategories.map((c) => c.category)).toEqual([
-      'Groceries',
-    ])
-    expect(result.current.wantCategories.map((c) => c.category)).toEqual([
-      'Retail',
-    ])
-    expect(result.current.mixedCategories.map((c) => c.category)).toEqual([
-      'Household',
-    ])
+    expect(screen.getByText(/Groceries \$3,217/)).toBeInTheDocument()
+    expect(screen.getByText(/Retail \$4,074/)).toBeInTheDocument()
+    expect(screen.getByText(/Household \$811/)).toBeInTheDocument()
   })
 
-  it('still sums to 100% when nothing is mixed', () => {
-    const { result } = renderHook(() =>
-      useDecisionBoard(withSplit(3000, 2000, 0)),
+  it('says what mixed means, because only the household can settle it', () => {
+    render(
+      <NeedsWantsMixedCard
+        dashboard={withSplit(3217, 4074, 811)}
+        isLoading={false}
+      />,
     )
 
-    expect(result.current.mixedAmount).toBe(0)
-    expect(result.current.mixedShare).toBe(0)
     expect(
-      (result.current.needsShare ?? 0) + (result.current.wantsShare ?? 0),
-    ).toBeCloseTo(100, 6)
+      screen.getByText(/a Household or Cash row can be a repair or a treat/),
+    ).toBeInTheDocument()
   })
 
-  it('reports no shares at all rather than a false split with no spend', () => {
-    const { result } = renderHook(() => useDecisionBoard(withSplit(0, 0, 0)))
+  it('drops the mixed footnote when nothing is mixed', () => {
+    render(
+      <NeedsWantsMixedCard
+        dashboard={withSplit(3000, 2000, 0)}
+        isLoading={false}
+      />,
+    )
 
-    expect(result.current.needsShare).toBeNull()
-    expect(result.current.wantsShare).toBeNull()
-    expect(result.current.mixedShare).toBeNull()
+    expect(screen.getByText('$0')).toBeInTheDocument()
+    expect(screen.queryByText(/can be a repair or a treat/)).toBeNull()
+  })
+
+  it('shows no shares at all rather than a false split with no spend', () => {
+    render(
+      <NeedsWantsMixedCard dashboard={withSplit(0, 0, 0)} isLoading={false} />,
+    )
+
+    expect(screen.getAllByText('—')).toHaveLength(3)
+    expect(screen.queryByText(/leading/)).toBeNull()
   })
 })
