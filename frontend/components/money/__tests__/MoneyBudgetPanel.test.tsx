@@ -238,9 +238,11 @@ describe('MoneyBudgetPanel', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('4 suggested · 2 confirmed.')).toBeInTheDocument()
     expect(screen.getByText('3 suggested · 1 confirmed.')).toBeInTheDocument()
-    // Row-level breach badges still come from the rows themselves.
-    expect(screen.getAllByText('Over suggested cap')).toHaveLength(2)
-    expect(screen.getByText('Suggested cap')).toBeInTheDocument()
+    // Row-level breach badges still come from the rows themselves, and they are
+    // judged on the month being reported rather than on the run-rate: Groceries
+    // spent $738 against a $250 cap, which is over however tame its average is.
+    expect(screen.getAllByText('Over suggested cap')).toHaveLength(3)
+    expect(screen.queryByText('Suggested cap')).not.toBeInTheDocument()
     expect(screen.getByText('Category trendlines')).toBeInTheDocument()
   })
 

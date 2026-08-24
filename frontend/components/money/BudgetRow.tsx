@@ -13,6 +13,7 @@ import type {
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import { budgetStatus } from './budget-helpers'
+import { CapBar } from './CapBar'
 import { InlineComboboxField } from './InlineComboboxField'
 import { buildOwnerOptions } from './owner-options'
 import { TransactionEditor } from './TransactionEditor'
@@ -57,11 +58,10 @@ export function BudgetRow({
   const rowInputId = row.category.replace(/[^a-zA-Z0-9_-]+/g, '-')
   const currentBudgetText = currentBudget != null ? String(currentBudget) : ''
   const [budgetDraft, setBudgetDraft] = useState(currentBudgetText)
-  const status = budgetStatus(
-    currentBudget,
-    foundBudget,
-    row.averageMonthlySpend,
-  )
+  // Judged on the month being reported, matching the variance under it. The
+  // badge and the number beside it reading two different periods is how a row
+  // came to say "Confirmed cap" above "$212 over".
+  const status = budgetStatus(currentBudget, foundBudget, row.totalSpend)
   const breach = entryBreach(entry)
 
   useEffect(() => {
@@ -110,10 +110,21 @@ export function BudgetRow({
         <td className="border-b border-border/20 px-4 py-3">
           <Badge variant="outline">{formatEnumLabel(row.essentiality)}</Badge>
         </td>
-        <td className="border-b border-border/20 px-4 py-3 text-right font-mono tabular-nums text-text">
-          {formatCurrency(row.averageMonthlySpend, {
-            decimals: 0,
-          })}
+        <td className="border-b border-border/20 px-4 py-3 text-right text-text">
+          <div className="font-mono tabular-nums">
+            {formatCurrency(row.totalSpend, { decimals: 0 })}
+          </div>
+          <div className="mt-0.5 text-[11px] text-text-muted">
+            {formatCurrency(row.averageMonthlySpend, { decimals: 0 })}/mo
+            typical
+          </div>
+          <div className="flex justify-end">
+            <CapBar
+              actual={row.totalSpend}
+              cap={breach.cap}
+              label={row.category}
+            />
+          </div>
         </td>
         <td className="border-b border-border/20 px-4 py-3">
           <Input
@@ -143,12 +154,17 @@ export function BudgetRow({
         </td>
         <td className="border-b border-border/20 px-4 py-3">
           <Badge variant={status.variant}>{status.label}</Badge>
-          {breach.isOver ? (
-            <div className="mt-1 text-xs font-medium text-warning">
-              {formatCurrency(breach.overAmount, { decimals: 0 })}
-              /mo over
+          {breach.cap == null ? null : breach.isOver ? (
+            <div className="mt-1 text-xs font-medium text-loss">
+              {formatCurrency(breach.overAmount, { decimals: 0 })} over
             </div>
-          ) : null}
+          ) : breach.underAmount > 0 ? (
+            <div className="mt-1 text-xs font-medium text-gain">
+              {formatCurrency(breach.underAmount, { decimals: 0 })} under
+            </div>
+          ) : (
+            <div className="mt-1 text-xs text-text-muted">on cap</div>
+          )}
         </td>
         <td className="border-b border-border/20 px-4 py-3 text-text-muted">
           <InlineComboboxField

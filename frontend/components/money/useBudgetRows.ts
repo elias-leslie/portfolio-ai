@@ -41,13 +41,35 @@ export interface OwnerSpendRow {
   transactions: OwnerSpendTransaction[]
 }
 
+/**
+ * This month against the cap that governs it.
+ *
+ * Judged on the reported month, never on the run-rate. The household says "we
+ * overspent on groceries" about a month it lived through; a six-month average
+ * that no single month resembles cannot be over or under anything. The backend
+ * publishes the variance for exactly this reason -- the row, the netted total
+ * and the verdict all read the same subtraction.
+ */
 export function entryBreach(entry: BudgetRowEntry) {
-  const cap = entry.currentBudget ?? entry.foundBudget
+  const cap =
+    entry.row.effectiveMonthlyBudget ?? entry.currentBudget ?? entry.foundBudget
   if (cap == null || cap <= 0) {
-    return { isOver: false, overAmount: 0 }
+    return {
+      isOver: false,
+      overAmount: 0,
+      underAmount: 0,
+      variance: 0,
+      cap: null,
+    }
   }
-  const over = entry.row.averageMonthlySpend - cap
-  return { isOver: over > 0, overAmount: Math.max(over, 0) }
+  const variance = entry.row.budgetVariance ?? entry.row.totalSpend - cap
+  return {
+    isOver: variance > 0,
+    overAmount: Math.max(variance, 0),
+    underAmount: Math.max(-variance, 0),
+    variance,
+    cap,
+  }
 }
 
 function splitTransactionRows(
@@ -182,10 +204,7 @@ export function useBudgetRows({
           note: row.budgetNote ?? meta?.note ?? '',
         }
       })
-      .sort(
-        (left, right) =>
-          right.row.averageMonthlySpend - left.row.averageMonthlySpend,
-      )
+      .sort((left, right) => right.row.totalSpend - left.row.totalSpend)
   }, [budgetMeta, coverageMonths, spending?.categories])
 
   const categoryOptions = useMemo(
@@ -243,7 +262,7 @@ export function useBudgetRows({
     if (leftBreach.isOver && rightBreach.isOver) {
       return rightBreach.overAmount - leftBreach.overAmount
     }
-    return right.row.averageMonthlySpend - left.row.averageMonthlySpend
+    return right.row.totalSpend - left.row.totalSpend
   })
   const confirmedBudgetRows = activeRows.filter(
     (entry) => entry.currentBudget != null,

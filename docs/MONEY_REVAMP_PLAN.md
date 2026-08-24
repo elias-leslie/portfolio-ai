@@ -60,11 +60,13 @@ table is at the end of §7's Phase 0 block; Phase 1's is at the end of its own).
 
 Work top down through §7 Phase 2 — the review screen:
 
-1. **2.1 — month selector, verdict line, In / Out / Left** with prior-month and
-   all-month-average comparators. Every input it needs now exists and agrees:
-   `spending.summary` carries the month, the comparators, `everyday_spend` and
-   `one_time_spend`, and `total_income` is finally net of clawbacks.
-2. **2.2 — category rows**: actual vs cap, over/under netting to a total.
+1. **2.3 — outlier isolation** (D2.3): contribution-to-variance and an
+   "excluding largest purchase" view. `one_time_purchases` already names the
+   July air conditioner and `everyday_spend` already excludes it, so the
+   arithmetic exists; what is missing is the per-category version and the
+   toggle.
+2. **2.4 — new this month** (D2.4): novelty detection on merchants with no prior
+   history, clustered where they belong.
 3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
@@ -86,6 +88,10 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 2.1/2.2 the Budget screen answers D2's first two sentences: a verdict line at
+  the top, and category rows judged on the month with the over/under netting to
+  one total. P1-36 fell out of building it — purchase items kept their own
+  essentiality classifier, so Household arrived as two rows.
 - P0-35 the reversal netting that never once ran on live data: the July Pinellas
   clawback was filtered out of the candidate set before pairing could see it, so
   income carried a $1,102.23 paycheque that was taken back the next day.
@@ -958,6 +964,30 @@ Live pairs: **7 → 8**. July income **$3,906.59 → $2,804.36**. July spend
 unchanged at $16,708.01, because the charge was already excluded; it is now
 excluded for the reason that is true.
 
+### P1-36 — One category, two rows, because purchase items kept a second opinion
+
+**[fixed]**
+
+1.6 made essentiality a **function of the category** and repaired every stored
+transaction to match. Purchase items were not told. `suggest_essentiality` kept
+its own three-name list (`Groceries`, `Gas`, `Bills` are essential, everything
+else is discretionary) and could never return `mixed` at all, and
+`load_item_splits` grouped by the essentiality stored on the item row.
+
+So the budget table carried **Household** twice for July 2026: `mixed` at
+$12,985.32 from its transactions, and `discretionary` at $71.03 from the items
+of three Amazon charges. Two rows, one category — the doubling P1-7 closed,
+reappearing through the one path that had its own classifier. It is worse than
+cosmetic here: a cap on Household would have been compared against whichever of
+the two rows the reader happened to be looking at.
+
+Splits now derive essentiality from their category like everything else, the
+grouping key drops the stored value, and `_canonicalize_stored_essentiality`
+repairs `household_purchase_items` alongside `household_transactions`. Live:
+**3,042 rows aligned**, zero on a second pass, no duplicate category in the
+spending view, and July's total unchanged at $16,708.01 — Household is now one
+row at $13,056.35.
+
 ---
 
 ## 4. Diagnosis in one line
@@ -1823,9 +1853,9 @@ income). Both are written up in §3.
 ### Phase 2 — Review screen — **live work**
 The screen in the artifact. Phase 1 has exited, so this is next.
 
-2.1 Month selector · verdict line · In / Out / Left with prior-month and
+2.1 ✅ Month selector · verdict line · In / Out / Left with prior-month and
     all-month-average comparators.
-2.2 Category rows: actual vs cap, over/under netting to a total, bars capped at
+2.2 ✅ Category rows: actual vs cap, over/under netting to a total, bars capped at
     100% with a cap tick.
 2.3 **Outlier isolation** (D2.3) — contribution-to-variance, "excluding largest
     purchase" view.
@@ -1992,3 +2022,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 1.10 | **The split adds up to all of the money, not 90% of it.** Needs plus wants read $3,217 / $4,074 against $8,103 of average monthly spend, and the card called itself "Want vs need" while displaying needs first. The `mixed` bucket was computed nowhere and shown nowhere — the executive report summed the two named essentialities and never asked what the remainder was. `average_monthly_mixed` is now published as **the remainder** rather than as a third sum over a third label, so a category carrying some unforeseen essentiality surfaces as unclassified instead of vanishing, which is the failure mode itself. 1.6 made the slice bigger rather than smaller: with Household given one honest `mixed` reading it is the largest single category, so live the split is **needs $3,154 (30.8%) / wants $4,253 (41.6%) / mixed $2,823 (27.6%)**, summing to exactly $10,230.57 and **100.0%**. The hidden slice was a quarter of the money, not the $811 tail P1-8 describes. Card renamed **"Needs, wants and mixed"**, all three amounts and shares shown, and mixed explained rather than merely listed — a Household or Cash row can be a repair or a treat. Gate green: 2,470 backend tests, 273 frontend money tests, 0 console errors live. |
 | 2026-08-24 | Phase 1.9 | **The confidence signal stopped moving opposite to the coverage.** `visibility_score` read **99 / "Strong household visibility"** beside a stale net worth, three accounts needing refresh and a spending feed gone quiet — because it was never a coverage measure. It was a **setup checklist**: 10 points for having told the system an income target, 5 for a retirement age, 10 for owning taxable assets. 80 of its 100 points were reachable without a single account being current, so answering questions raised "visibility" while the accounts behind the numbers went stale. `_household_coverage.py` measures observable facts in four published components — balances current (30), spending feeds reporting (30), known accounts connected (20), spend classified (20). Two weightings are deliberate opposites: balances go **by money**, because a $572,782 brokerage going stale and a $0 rollover going stale are not the same event; spending feeds go **by account**, because weighting those by balance would rank a card by what is owed on it rather than by how much spending flows through it. A component only reads 100 when nothing about it is wrong — money-weighting alone rounded $6,793 of stale balances against $1.56M to 100%, printing a perfect score directly above a line naming two stale accounts, the same anti-correlation one level down. Live: **91, "Strong coverage"**, with balances 99, feeds 75 (*Chase Sapphire Preferred ·8054 has gone quiet*), connected 94 (*Visa Credit ****4635 is not connected*), classified 100. The summary names the **weakest component rather than the score**, because "91%" tells nobody what to do. The old scorer, its label function and the freshness cap that existed to stop it claiming strength over stale accounts are deleted rather than left beside the new one, and the card publishes the working — a figure that cannot be broken down is how "99%" survived this long. Gate green: 2,479 backend tests, 277 frontend money tests, 0 console errors live. |
 | 2026-08-24 | Phase 1 exit | **Running the exit test found the two defects it existed to find, and both were on the reversal/agreement axis the phase is named for.** Three surfaces agreed on July 2026 at **$16,708.01**; the Ledger — the one screen built to explain why a row counts — said $16,636.98 across 109 rows and marked three Amazon charges *excluded as a duplicate* (**P0-34**). The totals decide spend over transaction rows alone; the Ledger deduped transactions against imported receipt lines together, so an import row that never reaches a total itself could suppress a charge that does — P0-1 reproduced one screen down, on the screen a person opens to check P0-1. Two passes now: inclusion over transactions only, and the combined pass demoted to a **`duplicate_note`**, which is provenance rather than grounds to drop money. Ledger and totals now both report **112 rows / $16,708.01**, difference $0.00, no id counted on one side and not the other. Then the income half: `_household_reversal_pairs.py` opens by naming the July Pinellas deposit and its next-day clawback as its reference case, its unit tests pair exactly that, and on live data it returned **7 pairs, none in July** (**P0-35**). Candidates came from the spend rows plus the income rows — and an outflow filed under `Income` is dropped from spend by the `category:income` rule long before pairing runs, so the deposit was being offered a partner that had already been discarded. The charge was kept out of spend by that rule: the right answer for the wrong reason, while the deposit stayed in income permanently. Pairing now also reads outflows filed under income, on the same terms `_income_rows` reads the inflows, deduped by id — that one category deliberately, not the whole non-spend list, because the household's own transfers *are* same-amount opposite-direction twins by construction and must not annihilate each other, whereas an expense filed as income is a deposit being taken back. Pairs 7 → **8**; July income **$3,906.59 → $2,804.36**; July spend unchanged, because the charge was already out — it is now out for the reason that is true. **Exit test passes on all three clauses**: one distinct spend value across four surfaces, everyday spend **$5,075.01** with the $11,633.00 air conditioner named as two Costco rows, income **$2,804.36**, and recurring bills reading Frontier / Duke Energy / T-Mobile / Waste Pro / P C Utilities / HOA with zero vacation-shaped entries. Both money figures sit exactly **$50.00** above the recorded baseline and one row explains both: the 2026-07-03 Airbnb $50.00 was carried as a refund — a negative $50 against spend and absent from income — and is now filed as income, moving $50 in each direction. Confirmed by running the baseline commit's own code (`58b5bab34`) against today's database: same 112 rows, same $16,708.01, so nothing about the totals moved, only that row's flow. Gate green: 2,487 backend tests, 433 frontend tests, all surfaces verified live after rebuild. **Phase 1 closed.** |
+| 2026-08-24 | Phase 2.1–2.2 | **The Budget screen stopped being a setup console and started answering the question.** D2's first two sentences -- "we're under budget overall" and "overspent on groceries but underspent on gas and overall we're under" -- were both unanswerable, and for the same reason: every row was judged against `average_monthly_spend`, the run-rate across all covered months. A six-month average that no single month resembles cannot be over or under anything, and the badge saying **Confirmed cap** sat directly above a breach figure computed from a different period. Rows now read the reported month, the badge and the variance agree, and the column that said *Observed / mo* says **This month** with the run-rate demoted to a subtitle. The bar under each row **stops at the cap**: a category at 300% draws the same full bar as one at 101% and the overflow is stated in money, because a bar that runs off the end makes the biggest breach the least legible row on the screen. `HouseholdBudgetVerdict` publishes the netting once on the server -- `over_total`, `under_total`, and the variance they net to -- and both the footer and the headline restate it rather than re-summing rows, so the sentence at the top of the screen cannot drift from the table under it. The verdict is measured against **confirmed caps only**: a suggested cap is drawn from the household's own spending, and grading a month against that would put every month roughly on plan by construction. Past 25% of spend running uncapped it **refuses a verdict** and says how much is unjudged, which is what August live now reads -- *"Only $1,019 of August 2026's $7,433 has a cap, so there is no overall verdict yet. $6,414 ran through 9 uncapped categories. Of what is capped: 2 under by $881 (most of it Groceries)."* June, which has more of its spend capped, reads *"1 over by $1,128 (most of it Groceries) · 1 under by $27 (most of it Gas)"*. Building it surfaced **P1-36**: `suggest_essentiality` still held its own three-name list and could never return `mixed`, and `load_item_splits` grouped on the essentiality stored per item -- so Household arrived as two rows, `mixed` $12,985.32 from transactions and `discretionary` $71.03 from three Amazon charges' items, and a cap on Household would have been compared against whichever half the reader was looking at. Splits now take their essentiality from their category, and the repair pass reaches `household_purchase_items`: 3,042 rows aligned, 0 on a second pass, July unchanged at $16,708.01 with Household one row at $13,056.35. Gate green: 2,494 backend tests, 444 frontend tests, verdict line verified on the live page with 0 console errors. |

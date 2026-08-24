@@ -366,6 +366,46 @@ class HouseholdSpendingCategory(BaseModel):
     budget_status: str = "no_budget"
     budget_note: str | None = None
     budget_disabled: bool = False
+    # This month's spend against the cap that governs it, signed: positive is
+    # over, negative is under. Published rather than left to each caller so the
+    # row, the netted total and the verdict cannot arrive at different answers.
+    budget_variance: float | None = None
+    # The cap the variance was measured against, whichever kind applied.
+    effective_monthly_budget: float | None = None
+
+
+class HouseholdBudgetVerdict(BaseModel):
+    """One sentence on whether the month came in under the household's own caps.
+
+    The verdict is measured against **confirmed** caps only. A suggested cap is
+    the system's guess at what the household already spends; judging a month
+    against those would grade the household's spending on a curve drawn from the
+    same spending, and every month would come in roughly on plan by
+    construction.
+    """
+
+    status: str = "no_plan"
+    headline: str = ""
+    detail: str = ""
+    # Sum of the confirmed caps in force, and the spend they govern.
+    cap_total: float = 0.0
+    capped_actual: float = 0.0
+    # capped_actual - cap_total. Positive is over.
+    variance: float = 0.0
+    # The two halves the variance nets out of, both reported positive, so
+    # "over on groceries, under on gas, under overall" is legible as arithmetic.
+    over_total: float = 0.0
+    under_total: float = 0.0
+    over_category_count: int = 0
+    under_category_count: int = 0
+    # Spend in categories no confirmed cap governs -- the part of the month the
+    # verdict is not about, named rather than quietly folded in.
+    uncapped_spend: float = 0.0
+    uncapped_category_count: int = 0
+    largest_over_category: str | None = None
+    largest_over_amount: float = 0.0
+    largest_under_category: str | None = None
+    largest_under_amount: float = 0.0
 
 
 class HouseholdSpendingItemSplit(BaseModel):
@@ -499,6 +539,9 @@ class HouseholdSpendingView(BaseModel):
     available_months: list[str] = Field(default_factory=list)
     comparators: list[HouseholdSpendComparator] = Field(default_factory=list)
     one_time_purchases: list[HouseholdOneTimePurchase] = Field(default_factory=list)
+    # Whether the month came in under the household's own caps, and the
+    # per-category over/under it nets out of.
+    budget_verdict: HouseholdBudgetVerdict | None = None
     categories: list[HouseholdSpendingCategory] = Field(default_factory=list)
     monthly_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
     category_monthly_trend: list[HouseholdCategoryMonthlyTrendPoint] = Field(default_factory=list)

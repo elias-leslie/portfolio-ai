@@ -11,6 +11,7 @@ from typing import Any
 
 from app.config import settings
 from app.models.household_finance import (
+    HouseholdBudgetVerdict,
     HouseholdConfirmedFact,
     HouseholdEvidenceAccount,
     HouseholdFinanceDashboard,
@@ -110,6 +111,129 @@ def _confirmed_budget_from_meta(meta: dict[str, Any] | None) -> float | None:
     return None
 
 
+# A verdict about a month has to be a verdict about most of the month. Past this
+# much spend running outside the plan, "under your caps" is true of a minority of
+# the money and false as a sentence about the month.
+_UNJUDGED_SPEND_LIMIT = 0.25
+
+
+def _money(value: float) -> str:
+    return f"${value:,.0f}"
+
+
+def _budget_verdict(
+    categories: list[HouseholdSpendingCategory],
+    *,
+    month_label: str,
+) -> HouseholdBudgetVerdict:
+    """Did the month come in under the household's own caps, and by what?
+
+    Answers D2's first two sentences in the household's own terms: an overall
+    under/over, and the per-category over/under it nets out of. The netting is
+    the point -- "over on groceries, under on gas, under overall" is one
+    subtraction, and a screen that shows only the breaches cannot say it.
+    """
+    over_total = 0.0
+    under_total = 0.0
+    cap_total = 0.0
+    capped_actual = 0.0
+    over_count = 0
+    under_count = 0
+    uncapped_spend = 0.0
+    uncapped_count = 0
+    largest_over: tuple[str, float] | None = None
+    largest_under: tuple[str, float] | None = None
+
+    for category in categories:
+        if category.budget_disabled:
+            continue
+        cap = category.confirmed_monthly_budget
+        if cap is None:
+            if category.total_spend > 0:
+                uncapped_spend += category.total_spend
+                uncapped_count += 1
+            continue
+        cap_total += cap
+        capped_actual += category.total_spend
+        variance = category.total_spend - cap
+        if variance > 0:
+            over_total += variance
+            over_count += 1
+            if largest_over is None or variance > largest_over[1]:
+                largest_over = (category.category, variance)
+        elif variance < 0:
+            under_total += -variance
+            under_count += 1
+            if largest_under is None or -variance > largest_under[1]:
+                largest_under = (category.category, -variance)
+
+    variance_total = capped_actual - cap_total
+    total_spend = capped_actual + uncapped_spend
+
+    def _netting_sentence() -> str:
+        parts: list[str] = []
+        if over_count:
+            parts.append(
+                f"{over_count} over by {_money(over_total)}"
+                + (f" (most of it {largest_over[0]})" if largest_over else "")
+            )
+        if under_count:
+            parts.append(
+                f"{under_count} under by {_money(under_total)}"
+                + (f" (most of it {largest_under[0]})" if largest_under else "")
+            )
+        if not parts:
+            return "Every capped category landed exactly on its cap."
+        return " · ".join(parts) + "."
+
+    if cap_total <= 0:
+        status = "no_plan"
+        headline = f"No caps set, so {month_label} has nothing to be judged against."
+        detail = (
+            f"{_money(uncapped_spend)} of spending across {uncapped_count} "
+            f"categor{'y' if uncapped_count == 1 else 'ies'} is unjudged. Set a cap "
+            "on the categories that matter and this becomes a verdict."
+        )
+    elif total_spend > 0 and uncapped_spend / total_spend > _UNJUDGED_SPEND_LIMIT:
+        status = "plan_incomplete"
+        headline = (
+            f"Only {_money(capped_actual)} of {month_label}'s {_money(total_spend)} "
+            "has a cap, so there is no overall verdict yet."
+        )
+        detail = (
+            f"{_money(uncapped_spend)} ran through {uncapped_count} uncapped "
+            f"categor{'y' if uncapped_count == 1 else 'ies'}. Of what is capped: "
+            + _netting_sentence()
+        )
+    elif variance_total > 0:
+        status = "over_plan"
+        headline = f"{month_label} came in {_money(variance_total)} over your caps."
+        detail = _netting_sentence()
+    else:
+        status = "under_plan"
+        headline = f"{month_label} came in {_money(-variance_total)} under your caps."
+        detail = _netting_sentence()
+
+    return HouseholdBudgetVerdict(
+        status=status,
+        headline=headline,
+        detail=detail,
+        cap_total=round(cap_total, 2),
+        capped_actual=round(capped_actual, 2),
+        variance=round(variance_total, 2),
+        over_total=round(over_total, 2),
+        under_total=round(under_total, 2),
+        over_category_count=over_count,
+        under_category_count=under_count,
+        uncapped_spend=round(uncapped_spend, 2),
+        uncapped_category_count=uncapped_count,
+        largest_over_category=largest_over[0] if largest_over else None,
+        largest_over_amount=round(largest_over[1], 2) if largest_over else 0.0,
+        largest_under_category=largest_under[0] if largest_under else None,
+        largest_under_amount=round(largest_under[1], 2) if largest_under else 0.0,
+    )
+
+
 def _with_budget_rollup(
     view: HouseholdSpendingView,
     facts: list[HouseholdConfirmedFact],
@@ -156,6 +280,9 @@ def _with_budget_rollup(
         else:
             budget_source = "no_budget"
             budget_status = "no_budget"
+        effective_budget = (
+            None if disabled else (confirmed_budget if confirmed_budget is not None else found_budget)
+        )
         categories.append(
             category.model_copy(
                 update={
@@ -165,10 +292,17 @@ def _with_budget_rollup(
                     "budget_status": budget_status,
                     "budget_note": (meta or {}).get("note") or None,
                     "budget_disabled": disabled,
+                    "effective_monthly_budget": effective_budget,
+                    "budget_variance": (
+                        None
+                        if effective_budget is None
+                        else round(actual - effective_budget, 2)
+                    ),
                 }
             )
         )
 
+    verdict = _budget_verdict(categories, month_label=view.summary.month_label)
     summary = view.summary.model_copy(
         update={
             "found_budget_total": round(found_budget_total, 2),
@@ -182,7 +316,13 @@ def _with_budget_rollup(
             "confirmed_over_budget_count": confirmed_over_budget_count,
         }
     )
-    return view.model_copy(update={"summary": summary, "categories": categories})
+    return view.model_copy(
+        update={
+            "summary": summary,
+            "categories": categories,
+            "budget_verdict": verdict,
+        }
+    )
 
 
 class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):

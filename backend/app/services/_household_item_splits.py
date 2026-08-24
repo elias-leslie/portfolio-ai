@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services._household_taxonomy import essentiality_for
+
 ItemSplit = dict[str, Any]
 
 
@@ -53,13 +55,18 @@ def load_item_splits(conn: Any) -> dict[str, list[ItemSplit]]:
     allocated cents do not sum exactly to the transaction amount are dropped
     here, which falls those rows back to transaction-level categorization at
     read time.
+
+    Essentiality is derived from the category rather than read from the item
+    row. Grouping by a stored essentiality let one category arrive as two rows
+    -- Household `mixed` from its transactions and Household `discretionary`
+    from its purchase items -- which splits a category's spend in half and
+    compares a cap against a fraction of what it governs.
     """
     rows = conn.execute(
         """
         SELECT
             i.transaction_id::text,
             i.category,
-            i.essentiality,
             NULLIF(TRIM(i.metadata ->> 'owner_name'), ''),
             SUM(i.allocated_amount),
             COUNT(*),
@@ -70,7 +77,7 @@ def load_item_splits(conn: Any) -> dict[str, list[ItemSplit]]:
           AND i.allocated_amount IS NOT NULL
           AND i.removed IS NOT TRUE
           AND t.removed IS NOT TRUE
-        GROUP BY i.transaction_id, i.category, i.essentiality, NULLIF(TRIM(i.metadata ->> 'owner_name'), '')
+        GROUP BY i.transaction_id, i.category, NULLIF(TRIM(i.metadata ->> 'owner_name'), '')
         """
     ).fetchall()
 
@@ -79,17 +86,18 @@ def load_item_splits(conn: Any) -> dict[str, list[ItemSplit]]:
     allocated_cents: dict[str, int] = {}
     for row in rows:
         transaction_id = str(row[0])
-        amount = float(row[4] or 0.0)
+        category = str(row[1] or "")
+        amount = float(row[3] or 0.0)
         by_transaction.setdefault(transaction_id, []).append(
             {
-                "category": str(row[1] or ""),
-                "essentiality": str(row[2] or ""),
-                "owner_name": str(row[3]) if row[3] else None,
+                "category": category,
+                "essentiality": essentiality_for(category),
+                "owner_name": str(row[2]) if row[2] else None,
                 "amount": round(amount, 2),
-                "item_count": int(row[5] or 0),
+                "item_count": int(row[4] or 0),
             }
         )
-        transaction_amount_cents[transaction_id] = round(float(row[6] or 0.0) * 100)
+        transaction_amount_cents[transaction_id] = round(float(row[5] or 0.0) * 100)
         allocated_cents[transaction_id] = allocated_cents.get(transaction_id, 0) + round(
             amount * 100
         )

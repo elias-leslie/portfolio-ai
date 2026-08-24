@@ -26,6 +26,7 @@ from app.services._household_recurrence import (
     RecurrencePattern,
     commitment_type_for,
 )
+from app.services._household_taxonomy import essentiality_for
 
 _CADENCE_MULTIPLIERS: dict[str, int] = {
     "weekly": 52,
@@ -65,9 +66,6 @@ _CATEGORY_KEYWORDS: list[tuple[list[str], str]] = [
     (["shell", "speedway"], "Gas"),
     (["insurance", "duke", "mortgage"], "Bills"),
 ]
-_ESSENTIAL_CATEGORIES = {"Groceries", "Gas", "Bills"}
-
-
 def suggest_category(merchant: str, description: str) -> str:
     candidate = f"{merchant} {description}".lower()
     for keywords, category in _CATEGORY_KEYWORDS:
@@ -77,8 +75,16 @@ def suggest_category(merchant: str, description: str) -> str:
 
 
 def suggest_essentiality(merchant: str, description: str) -> str:
-    category = suggest_category(merchant, description)
-    return "essential" if category in _ESSENTIAL_CATEGORIES else "discretionary"
+    """The suggested category's own essentiality, never a second opinion.
+
+    This used to hold its own three-category list and answer `essential` or
+    `discretionary` -- never `mixed` -- which is how a Household purchase item
+    came to be `discretionary` while every Household transaction was `mixed`,
+    and how one category came to occupy two rows of the budget table. 1.6 made
+    essentiality a function of the category; this is the last path that had not
+    been told.
+    """
+    return essentiality_for(suggest_category(merchant, description))
 
 
 def estimate_next_commitment_date(last_seen: date | datetime, cadence: str) -> str | None:

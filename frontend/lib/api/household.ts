@@ -69,6 +69,7 @@ export type {
   HouseholdAccountSummary,
   HouseholdAffordability,
   HouseholdBudgetSnapshot,
+  HouseholdBudgetVerdict,
   HouseholdBuyGuide,
   HouseholdBuyGuideItem,
   HouseholdBuyGuideTrendPoint,

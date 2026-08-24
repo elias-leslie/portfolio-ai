@@ -26,6 +26,7 @@ import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { MonthComparatorRow } from './MonthComparatorRow'
 import { MonthSelector } from './MonthSelector'
+import { MonthVerdictLine } from './MonthVerdictLine'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
   type BudgetRowEntry,
@@ -324,6 +325,12 @@ export function MoneyBudgetPanel() {
           />
         }
       >
+        <div className="mb-3">
+          <MonthVerdictLine
+            verdict={spending?.budgetVerdict}
+            isLoading={isLoading}
+          />
+        </div>
         <MonthComparatorRow
           monthLabel={spending?.summary.monthLabel ?? '—'}
           totalSpend={spending?.summary.totalSpend}
@@ -391,6 +398,7 @@ export function MoneyBudgetPanel() {
         activeRowCount={activeRows.length}
         sortedActiveRows={sortedActiveRows}
         foundBudgetRowCount={foundBudgetRows.length}
+        verdict={spending?.budgetVerdict}
         hiddenCount={hiddenRows.length}
         confirmPending={confirmFact.isPending}
         expandedCategory={expandedCategory}

@@ -10,6 +10,9 @@ import {
   type SortDirection,
 } from '@/components/shared/SortableTableHeader'
 import { Button } from '@/components/ui/button'
+import type { HouseholdBudgetVerdict } from '@/lib/api/household'
+import { formatCurrency } from '@/lib/formatters'
+import { cn } from '@/lib/utils'
 import { BudgetRow } from './BudgetRow'
 import type { TransactionEditor } from './TransactionEditor'
 import { type BudgetRowEntry, entryBreach } from './useBudgetRows'
@@ -54,6 +57,12 @@ export interface BudgetTableProps {
   activeRowCount: number
   sortedActiveRows: BudgetRowEntry[]
   foundBudgetRowCount: number
+  /**
+   * The netted over/under, computed once on the server. The footer restates the
+   * verdict's own arithmetic rather than re-summing the rows, so the table
+   * cannot disagree with the sentence at the top of the screen.
+   */
+  verdict: HouseholdBudgetVerdict | null | undefined
   /** Disabled categories live in the "Hidden categories" card below the table. */
   hiddenCount: number
   confirmPending: boolean
@@ -77,6 +86,7 @@ export function BudgetTable({
   activeRowCount,
   sortedActiveRows,
   foundBudgetRowCount,
+  verdict,
   hiddenCount,
   confirmPending,
   expandedCategory,
@@ -105,10 +115,7 @@ export function BudgetTable({
           result = compareText(left.row.essentiality, right.row.essentiality)
           break
         case 'observed':
-          result = compareNumber(
-            left.row.averageMonthlySpend,
-            right.row.averageMonthlySpend,
-          )
+          result = compareNumber(left.row.totalSpend, right.row.totalSpend)
           break
         case 'budget':
           result = compareNumber(left.currentBudget, right.currentBudget)
@@ -204,7 +211,7 @@ export function BudgetTable({
               <th className="border-b border-border/35 px-4 py-3 text-right align-middle">
                 <SortableTableHeader
                   field="observed"
-                  label="Observed / mo"
+                  label="This month"
                   activeField={sortKey}
                   direction={sortDirection}
                   onSort={handleSort}
@@ -293,6 +300,43 @@ export function BudgetTable({
               ))
             )}
           </tbody>
+          {verdict && verdict.capTotal > 0 ? (
+            <tfoot>
+              <tr className="bg-surface-muted/15">
+                <td
+                  className="px-4 py-3 text-sm font-semibold text-text"
+                  colSpan={2}
+                >
+                  Capped categories, netted
+                </td>
+                <td className="px-4 py-3 text-right font-mono tabular-nums text-text">
+                  {formatCurrency(verdict.cappedActual, { decimals: 0 })}
+                </td>
+                <td className="px-4 py-3 text-right font-mono tabular-nums text-text">
+                  {formatCurrency(verdict.capTotal, { decimals: 0 })}
+                </td>
+                <td className="px-4 py-3" colSpan={3}>
+                  <span
+                    className={cn(
+                      'text-sm font-semibold',
+                      verdict.variance > 0 ? 'text-loss' : 'text-gain',
+                    )}
+                  >
+                    {formatCurrency(Math.abs(verdict.variance), {
+                      decimals: 0,
+                    })}{' '}
+                    {verdict.variance > 0 ? 'over' : 'under'} overall
+                  </span>
+                  <span className="ml-2 text-xs text-text-muted">
+                    {formatCurrency(verdict.overTotal, { decimals: 0 })} over in{' '}
+                    {verdict.overCategoryCount} ·{' '}
+                    {formatCurrency(verdict.underTotal, { decimals: 0 })} under
+                    in {verdict.underCategoryCount}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
+          ) : null}
         </table>
       </div>
     </SectionCard>

@@ -1901,30 +1901,35 @@ class HouseholdTransactionService:
         This only ever rewrites essentiality. The category a person chose stays
         exactly as they wrote it.
         """
-        rows = conn.execute(
-            """
-            SELECT DISTINCT COALESCE(category, '')
-            FROM household_transactions
-            WHERE removed IS NOT TRUE
-            """
-        ).fetchall()
         updated = 0
         now = datetime.now(UTC).isoformat()
-        for (raw_category,) in rows:
-            category = str(raw_category or "")
-            canonical = essentiality_for(category)
-            result = conn.execute(
-                """
-                UPDATE household_transactions
-                SET essentiality = %s,
-                    updated_at = %s
+        # Purchase items carry their own category and their own essentiality, and
+        # a purchase item is spend in exactly the same sense a transaction is --
+        # so the same rule has to reach both tables, or a category arrives twice
+        # in the budget table, once from each.
+        for table in ("household_transactions", "household_purchase_items"):
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT COALESCE(category, '')
+                FROM {table}
                 WHERE removed IS NOT TRUE
-                  AND COALESCE(category, '') = %s
-                  AND COALESCE(essentiality, '') <> %s
-                """,
-                [canonical, now, category, canonical],
-            )
-            updated += int(getattr(result, "rowcount", 0) or 0)
+                """
+            ).fetchall()
+            for (raw_category,) in rows:
+                category = str(raw_category or "")
+                canonical = essentiality_for(category)
+                result = conn.execute(
+                    f"""
+                    UPDATE {table}
+                    SET essentiality = %s,
+                        updated_at = %s
+                    WHERE removed IS NOT TRUE
+                      AND COALESCE(category, '') = %s
+                      AND COALESCE(essentiality, '') <> %s
+                    """,
+                    [canonical, now, category, canonical],
+                )
+                updated += int(getattr(result, "rowcount", 0) or 0)
         return updated
 
     @staticmethod

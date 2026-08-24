@@ -1322,6 +1322,29 @@ export interface HouseholdSpendingCategory {
   budgetStatus?: string
   budgetNote?: string | null
   budgetDisabled?: boolean
+  /** This month's spend minus the cap that governs it. Positive is over. */
+  budgetVariance?: number | null
+  /** The cap the variance was measured against, whichever kind applied. */
+  effectiveMonthlyBudget?: number | null
+}
+
+export interface HouseholdBudgetVerdict {
+  status: string
+  headline: string
+  detail: string
+  capTotal: number
+  cappedActual: number
+  variance: number
+  overTotal: number
+  underTotal: number
+  overCategoryCount: number
+  underCategoryCount: number
+  uncappedSpend: number
+  uncappedCategoryCount: number
+  largestOverCategory?: string | null
+  largestOverAmount: number
+  largestUnderCategory?: string | null
+  largestUnderAmount: number
 }
 
 export interface HouseholdSpendingItemSplit {
@@ -1438,6 +1461,7 @@ export interface HouseholdSpendingView {
   availableMonths: string[]
   comparators: HouseholdSpendComparator[]
   oneTimePurchases: HouseholdOneTimePurchase[]
+  budgetVerdict?: HouseholdBudgetVerdict | null
   categories: HouseholdSpendingCategory[]
   monthlyTrend: HouseholdMonthlyTrendPoint[]
   categoryMonthlyTrend: HouseholdCategoryMonthlyTrendPoint[]
