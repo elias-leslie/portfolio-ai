@@ -68,6 +68,7 @@ from app.models.household_finance_types import (
     HouseholdResolvedValue,
     HouseholdRetirementContributionTracker,
     HouseholdRetirementScenario,
+    HouseholdSavingsPlan,
     HouseholdShoppingList,
     HouseholdShoppingListImportRequest,
     HouseholdShoppingListImportResponse,
@@ -192,6 +193,7 @@ __all__ = [
     "HouseholdResolvedValue",
     "HouseholdRetirementContributionTracker",
     "HouseholdRetirementScenario",
+    "HouseholdSavingsPlan",
     "HouseholdShoppingList",
     "HouseholdShoppingListImportRequest",
     "HouseholdShoppingListImportResponse",
@@ -284,6 +286,10 @@ class HouseholdProfile(BaseModel):
     income_anchor_override: float | None = None
     income_anchor_override_set_on: str | None = None
     income_anchor_override_note: str | None = None
+    # Saving is paused as a declared state, not implied by a $0 target (D17).
+    savings_paused_on: str | None = None
+    savings_pause_reason: str | None = None
+    savings_restart_income_threshold: float | None = None
     notes: str | None = None
     created_at: str
     updated_at: str
@@ -350,6 +356,10 @@ class HouseholdProfileUpdate(BaseModel):
     income_anchor_override: float | None = None
     income_anchor_override_set_on: str | None = None
     income_anchor_override_note: str | None = None
+    # Saving is paused as a declared state, not implied by a $0 target (D17).
+    savings_paused_on: str | None = None
+    savings_pause_reason: str | None = None
+    savings_restart_income_threshold: float | None = None
     notes: str | None = None
 
 
@@ -391,6 +401,8 @@ class HouseholdFinanceDashboard(BaseModel):
     budget_snapshot: HouseholdBudgetSnapshot
     # What a normal month brings in, which is what every cap is priced off (D16).
     income_anchor: HouseholdIncomeAnchor = Field(default_factory=HouseholdIncomeAnchor)
+    # Saving as a declared state, priced against the anchor above it (D17).
+    savings_plan: HouseholdSavingsPlan = Field(default_factory=HouseholdSavingsPlan)
     retirement_preparedness: RetirementPreparedness
     jenny_needs: list[JennyNeed] = Field(default_factory=list)
     reports: HouseholdReports

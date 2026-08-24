@@ -200,6 +200,9 @@ def row_to_profile(
         income_anchor_override_note=(
             str(row[54]) if len(row) > 54 and row[54] is not None else None
         ),
+        savings_paused_on=(iso(row[55]) if len(row) > 55 and row[55] is not None else None),
+        savings_pause_reason=(str(row[56]) if len(row) > 56 and row[56] is not None else None),
+        savings_restart_income_threshold=(to_float(row[57]) if len(row) > 57 else None),
     )
 
 

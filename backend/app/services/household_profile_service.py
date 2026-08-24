@@ -44,7 +44,9 @@ class HouseholdProfileService:
                        spouse_net_monthly_income, partial_retirement_monthly_spend,
                        spouse_gross_annual_income,
                        income_anchor_override, income_anchor_override_set_on,
-                       income_anchor_override_note
+                       income_anchor_override_note,
+                       savings_paused_on, savings_pause_reason,
+                       savings_restart_income_threshold
                 FROM household_profiles ORDER BY created_at ASC LIMIT 1
                 """
             ).fetchone()

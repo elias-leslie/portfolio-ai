@@ -36,6 +36,7 @@ from app.services._household_dashboard_builders import (
     build_income_anchor,
     build_retirement_contribution_tracker,
     build_retirement_scenarios,
+    build_savings_plan,
     build_sinking_funds,
 )
 from app.services._household_dashboard_profile_inference import (
@@ -696,6 +697,12 @@ def assemble_finance_dashboard(
 ) -> HouseholdFinanceDashboard:
     profile, reports, documents, planning = d["profile"], d["reports"], d["documents"], d["planning"]
     storage = service.storage
+    income_anchor = build_income_anchor(
+        profile=profile,
+        # The ledger's own monthly income, not a second query: the anchor and
+        # the month on screen must mean the same thing by "income".
+        monthly_income=service.transaction_service.income_totals_by_month(),
+    )
     return HouseholdFinanceDashboard(
         generated_at=datetime.now(UTC).isoformat(),
         overview=overview,
@@ -703,12 +710,10 @@ def assemble_finance_dashboard(
         profile=profile,
         resolved_values=resolved_values,
         budget_readiness=build_budget_readiness(resolved_values=resolved_values, documents=documents, service=service),
-        income_anchor=build_income_anchor(
-            profile=profile,
-            # The ledger's own monthly income, not a second query: the anchor
-            # and the month on screen must mean the same thing by "income".
-            monthly_income=service.transaction_service.income_totals_by_month(),
-        ),
+        income_anchor=income_anchor,
+        # Priced against the anchor above rather than against its own reading of
+        # income: the restart trigger and the anchor must be one number (D17).
+        savings_plan=build_savings_plan(profile=profile, anchor=income_anchor),
         budget_snapshot=build_budget_snapshot(
             profile=profile, reports=reports,
             month_to_date_spend=fetch_current_month_spend(storage),

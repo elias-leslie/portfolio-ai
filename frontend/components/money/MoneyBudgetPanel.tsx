@@ -35,6 +35,7 @@ import { NewThisMonthCard } from './NewThisMonthCard'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import { normalizeTrustStatus } from './overview-helpers'
 import { RetirementPhaseCard } from './RetirementPhaseCard'
+import { SavingsPlanCard } from './SavingsPlanCard'
 import {
   type BudgetRowEntry,
   TREND_TOP_N,
@@ -385,11 +386,13 @@ export function MoneyBudgetPanel() {
           anchor={dashboard?.incomeAnchor}
           isLoading={isDashboardLoading}
         />
-        <MoneyInboxCard
-          inbox={dashboard?.inbox}
+        <SavingsPlanCard
+          plan={dashboard?.savingsPlan}
           isLoading={isDashboardLoading}
         />
       </div>
+
+      <MoneyInboxCard inbox={dashboard?.inbox} isLoading={isDashboardLoading} />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <NeedsWantsMixedCard

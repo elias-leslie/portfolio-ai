@@ -18,6 +18,7 @@ from app.models.household_finance import (
     HouseholdReports,
     HouseholdRetirementContributionTracker,
     HouseholdRetirementScenario,
+    HouseholdSavingsPlan,
     HouseholdSinkingFund,
 )
 from app.services._household_recurrence import (
@@ -811,6 +812,107 @@ def _parse_date(value: str | None) -> date | None:
         return datetime.fromisoformat(value).date()
     except ValueError:
         return None
+
+
+
+def build_savings_plan(
+    *,
+    profile: HouseholdProfile,
+    anchor: HouseholdIncomeAnchor,
+    today: date | None = None,
+) -> HouseholdSavingsPlan:
+    """Is the household saving on purpose, and what would change that.
+
+    Four states and no grade. A $0 target reporting "on track" is the failure
+    this replaces: it is a pass awarded for having no plan, and it sat on screen
+    while net worth grew roughly $19,800/mo on its own. Where a number is
+    stated here it is arithmetic against the income anchor -- what saving leaves
+    for everything else -- never a compliance verdict on contributions nobody
+    can see (D17).
+    """
+    today = today or date.today()
+    target = profile.monthly_savings_target
+    paused_on = _parse_date(profile.savings_paused_on)
+    reason = (profile.savings_pause_reason or "").strip() or None
+    threshold = profile.savings_restart_income_threshold
+    income = anchor.monthly_income
+
+    plan = HouseholdSavingsPlan(
+        monthly_target=target,
+        paused_on=paused_on.isoformat() if paused_on is not None else None,
+        pause_reason=reason,
+        restart_income_threshold=threshold,
+        anchor_monthly_income=income,
+    )
+
+    if paused_on is not None:
+        ready = threshold is not None and income is not None and income >= threshold
+        plan.restart_ready = ready
+        plan.status = "restart_due" if ready else "paused"
+        plan.headline = (
+            "Income has reached the level you set to start saving again."
+            if ready
+            else "Saving is paused, on purpose."
+        )
+        since = f"Paused since {paused_on:%b %d, %Y}."
+        why = f" {reason}." if reason else ""
+        if threshold is None:
+            plan.restart_detail = (
+                "No restart trigger is set, so nothing will ever prompt this to "
+                "resume. Name the monthly income that should end the pause."
+            )
+        elif income is None:
+            plan.restart_detail = (
+                f"Restarts when a normal month brings in {_money(threshold)}. "
+                "There is not enough income history yet to tell whether it has."
+            )
+        elif ready:
+            plan.restart_detail = (
+                f"A normal month now brings in {_money(income)}, against the "
+                f"{_money(threshold)} you set. Name a monthly amount to resume."
+            )
+        else:
+            short = threshold - income
+            plan.restart_detail = (
+                f"Restarts at {_money(threshold)}/mo of income. A normal month "
+                f"currently brings in {_money(income)} -- {_money(short)} short."
+            )
+        plan.detail = f"{since}{why} {plan.restart_detail}".strip()
+        return plan
+
+    if target is not None and target > 0:
+        plan.status = "active"
+        plan.headline = f"{_money(target)}/mo, set aside on purpose."
+        if income is not None:
+            plan.leaves_for_spending = _money_round(income - target)
+            if target > income:
+                plan.detail = (
+                    f"That is more than the {_money(income)} a normal month "
+                    "brings in. Either the target or the anchor is wrong."
+                )
+            else:
+                plan.detail = (
+                    f"Leaves {_money(income - target)} of the {_money(income)} "
+                    "anchor for everything else."
+                )
+        else:
+            plan.detail = (
+                "There is not enough income history yet to say what this leaves "
+                "for everything else."
+            )
+        return plan
+
+    plan.status = "undeclared"
+    plan.headline = (
+        "Saving is not paused and no amount is set."
+        if target is None
+        else "The savings target is $0, which is not a plan."
+    )
+    plan.detail = (
+        "A $0 target reports success for saving nothing. Set a monthly amount, "
+        "or pause saving with the income level that should restart it."
+    )
+    return plan
 
 
 def _budget_analysis(

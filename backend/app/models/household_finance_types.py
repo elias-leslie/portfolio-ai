@@ -729,6 +729,33 @@ class HouseholdIncomeAnchor(BaseModel):
     profile_target_detail: str = ""
 
 
+class HouseholdSavingsPlan(BaseModel):
+    """Whether the household is saving on purpose, and what would change that.
+
+    A ``monthly_savings_target`` of 0 used to report the household as keeping
+    up: zero trivially keeps up with zero. That is a pass earned by having no
+    plan, the same shape of answer the retirement block gave before 2.6. A pause
+    is now a state the household declares, with the day it was taken and the
+    income level that ends it, so "we are not saving right now" is something the
+    screen says rather than something it accidentally implies (D17).
+    """
+
+    # paused | restart_due | active | undeclared
+    status: str = "undeclared"
+    headline: str = ""
+    detail: str = ""
+    monthly_target: float | None = None
+    paused_on: str | None = None
+    pause_reason: str | None = None
+    # The income anchor level that ends the pause, and where the anchor is now.
+    restart_income_threshold: float | None = None
+    anchor_monthly_income: float | None = None
+    restart_ready: bool = False
+    restart_detail: str = ""
+    # Anchor minus target: what is left for everything else once saving is paid.
+    leaves_for_spending: float | None = None
+
+
 class HouseholdBudgetSnapshot(BaseModel):
     status: str
     summary: str

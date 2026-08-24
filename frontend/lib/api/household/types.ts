@@ -101,6 +101,10 @@ export interface HouseholdProfile {
   incomeAnchorOverride?: number | null
   incomeAnchorOverrideSetOn?: string | null
   incomeAnchorOverrideNote?: string | null
+  /** Saving paused as a declared state, with what ends it (D17). */
+  savingsPausedOn?: string | null
+  savingsPauseReason?: string | null
+  savingsRestartIncomeThreshold?: number | null
   notes: string | null
   createdAt: string
   updatedAt: string
@@ -1615,6 +1619,20 @@ export interface HouseholdIncomeAnchor {
   profileTargetDetail: string
 }
 
+export interface HouseholdSavingsPlan {
+  status: 'paused' | 'restart_due' | 'active' | 'undeclared'
+  headline: string
+  detail: string
+  monthlyTarget: number | null
+  pausedOn: string | null
+  pauseReason: string | null
+  restartIncomeThreshold: number | null
+  anchorMonthlyIncome: number | null
+  restartReady: boolean
+  restartDetail: string
+  leavesForSpending: number | null
+}
+
 export interface HouseholdFinanceDashboard {
   generatedAt: string
   overview: HouseholdOverview
@@ -1624,6 +1642,7 @@ export interface HouseholdFinanceDashboard {
   budgetReadiness: BudgetReadiness
   budgetSnapshot: HouseholdBudgetSnapshot
   incomeAnchor: HouseholdIncomeAnchor
+  savingsPlan: HouseholdSavingsPlan
   retirementPreparedness: RetirementPreparedness
   jennyNeeds: JennyNeed[]
   importCenter: ImportCenter
@@ -1697,6 +1716,9 @@ export interface HouseholdProfileUpdate {
   incomeAnchorOverride?: number | null
   incomeAnchorOverrideSetOn?: string | null
   incomeAnchorOverrideNote?: string | null
+  savingsPausedOn?: string | null
+  savingsPauseReason?: string | null
+  savingsRestartIncomeThreshold?: number | null
   notes?: string | null
 }
 
