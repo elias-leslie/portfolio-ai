@@ -408,6 +408,47 @@ class HouseholdBudgetVerdict(BaseModel):
     largest_under_amount: float = 0.0
 
 
+class HouseholdVarianceDriver(BaseModel):
+    """One category's share of the change between two months."""
+
+    category: str
+    month_spend: float
+    comparator_spend: float
+    # month_spend - comparator_spend. Positive means this category spent more.
+    contribution: float
+    share_of_change: float
+    largest_purchase_merchant: str | None = None
+    largest_purchase_amount: float = 0.0
+
+
+class HouseholdSpendVariance(BaseModel):
+    """The month against its comparator, with the one-time purchases set aside.
+
+    Both halves are published because both are true and they point opposite
+    ways: July spent $3,004 more than June, and July's everyday spending was
+    $8,629 *less*. A screen showing only the first calls the household
+    overspenders for buying an air conditioner.
+    """
+
+    comparator_key: str
+    comparator_label: str
+    month_spend: float
+    comparator_spend: float
+    change: float
+    change_pct: float | None = None
+    headline: str = ""
+    detail: str = ""
+    # The same comparison with each side's one-time purchases removed. The
+    # comparator's are removed too: a comparator month carrying its own outlier
+    # would otherwise flatter the reported month for free.
+    everyday_month_spend: float = 0.0
+    everyday_comparator_spend: float = 0.0
+    everyday_change: float = 0.0
+    one_time_month_spend: float = 0.0
+    one_time_comparator_spend: float = 0.0
+    drivers: list[HouseholdVarianceDriver] = Field(default_factory=list)
+
+
 class HouseholdSpendingItemSplit(BaseModel):
     category: str
     essentiality: str
@@ -542,6 +583,9 @@ class HouseholdSpendingView(BaseModel):
     # Whether the month came in under the household's own caps, and the
     # per-category over/under it nets out of.
     budget_verdict: HouseholdBudgetVerdict | None = None
+    # Why the month differs from the one before it, and what is left of the
+    # difference once the outliers are set aside.
+    spend_variance: HouseholdSpendVariance | None = None
     categories: list[HouseholdSpendingCategory] = Field(default_factory=list)
     monthly_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
     category_monthly_trend: list[HouseholdCategoryMonthlyTrendPoint] = Field(default_factory=list)

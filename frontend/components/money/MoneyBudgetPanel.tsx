@@ -33,6 +33,7 @@ import {
   TREND_TOP_N,
   useBudgetRows,
 } from './useBudgetRows'
+import { WhatChangedCard } from './WhatChangedCard'
 
 export function MoneyBudgetPanel() {
   // null means "whatever month the household is living in" -- the server
@@ -370,6 +371,8 @@ export function MoneyBudgetPanel() {
           />
         </div>
       </SectionCard>
+
+      <WhatChangedCard variance={spending?.spendVariance} />
 
       <ConnectedSpendTrendChart
         transactions={spending?.transactions ?? []}

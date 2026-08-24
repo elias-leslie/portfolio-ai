@@ -1347,6 +1347,33 @@ export interface HouseholdBudgetVerdict {
   largestUnderAmount: number
 }
 
+export interface HouseholdVarianceDriver {
+  category: string
+  monthSpend: number
+  comparatorSpend: number
+  contribution: number
+  shareOfChange: number
+  largestPurchaseMerchant?: string | null
+  largestPurchaseAmount: number
+}
+
+export interface HouseholdSpendVariance {
+  comparatorKey: string
+  comparatorLabel: string
+  monthSpend: number
+  comparatorSpend: number
+  change: number
+  changePct?: number | null
+  headline: string
+  detail: string
+  everydayMonthSpend: number
+  everydayComparatorSpend: number
+  everydayChange: number
+  oneTimeMonthSpend: number
+  oneTimeComparatorSpend: number
+  drivers: HouseholdVarianceDriver[]
+}
+
 export interface HouseholdSpendingItemSplit {
   category: string
   essentiality: string
@@ -1462,6 +1489,7 @@ export interface HouseholdSpendingView {
   comparators: HouseholdSpendComparator[]
   oneTimePurchases: HouseholdOneTimePurchase[]
   budgetVerdict?: HouseholdBudgetVerdict | null
+  spendVariance?: HouseholdSpendVariance | null
   categories: HouseholdSpendingCategory[]
   monthlyTrend: HouseholdMonthlyTrendPoint[]
   categoryMonthlyTrend: HouseholdCategoryMonthlyTrendPoint[]

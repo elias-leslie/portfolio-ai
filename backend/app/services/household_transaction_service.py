@@ -61,6 +61,7 @@ from app.services._household_spend_periods import (
     months_between,
     resolve_spend_period,
 )
+from app.services._household_spend_variance import build_spend_variance
 from app.services._household_statement_merchants import (
     MIN_SHARED_BILLER_PREFIX,
     normalize_statement_merchant,
@@ -1183,6 +1184,48 @@ class HouseholdTransactionService:
                 )
             )
 
+        # The prior month, read on the same terms as the reported one: same day
+        # cap when the reported month is still running, same collapse pass, same
+        # one-time detector. Anything less and the comparison is between two
+        # different definitions of a month, which is P0-1 with a date attached.
+        spend_variance = None
+        if prior_month_key is not None:
+            comparator_rows = [
+                row
+                for row in all_rows
+                if month_key(row["date"]) == prior_month_key
+                and (through_day is None or row["date"].day <= through_day)
+            ]
+            comparator_total = round(
+                sum(
+                    float(row.get("signed_amount", row["amount"]))
+                    for row in comparator_rows
+                ),
+                2,
+            )
+            comparator_one_time = find_one_time_purchases(
+                comparator_rows,
+                history_rows=all_rows,
+                month_total=comparator_total,
+            )
+            biggest = one_time_purchases[0] if one_time_purchases else None
+            spend_variance = build_spend_variance(
+                month_label_text=period.label,
+                comparator_key="prior_month",
+                comparator_label=month_label(prior_month_key),
+                month_rows=spend_rows,
+                comparator_rows=comparator_rows,
+                month_one_time_ids={item.transaction_id for item in one_time_purchases},
+                comparator_one_time_ids={
+                    item.transaction_id for item in comparator_one_time
+                },
+                set_aside_label=(
+                    f"largest: {biggest.merchant} ${biggest.amount:,.0f}"
+                    if biggest
+                    else None
+                ),
+            )
+
         category_totals: dict[tuple[str, str], float] = {}
         category_gross: dict[tuple[str, str], float] = {}
         category_refund: dict[tuple[str, str], float] = {}
@@ -1276,6 +1319,7 @@ class HouseholdTransactionService:
             ),
             available_months=available_months,
             comparators=comparators,
+            spend_variance=spend_variance,
             one_time_purchases=[
                 HouseholdOneTimePurchase(
                     transaction_id=item.transaction_id,
