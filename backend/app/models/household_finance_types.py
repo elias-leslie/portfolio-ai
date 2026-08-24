@@ -809,6 +809,65 @@ class HouseholdCapPlan(BaseModel):
     drift_detail: str = ""
 
 
+class HouseholdCardCommitment(BaseModel):
+    """One card, and everything holding it that the plan has to answer for.
+
+    A card is not only a balance. It carries a renewal date that costs money on
+    a day nobody remembers, and, while a welcome bonus is open, a deadline that
+    is worth thousands of points if it is met and nothing at all if it is
+    missed by a week. Those three facts lived on the Cards tab, away from the
+    screen where the household decides what it can spend (P0-20).
+    """
+
+    card_id: str
+    product_name: str
+    # Two Sapphire Preferreds are one product and two cards; the account is the
+    # only thing that tells them apart.
+    account_label: str | None = None
+    account_mask: str | None = None
+    owner_name: str | None = None
+    role: str = "rotating"
+    balance_owed: float | None = None
+    # Named rather than shown as $0 when the card has no live feed.
+    balance_detail: str = ""
+    annual_fee: float = 0.0
+    annual_fee_due_date: str | None = None
+    annual_fee_days_away: int | None = None
+    annual_fee_detail: str = ""
+    welcome_min_spend: float = 0.0
+    welcome_progress: float = 0.0
+    welcome_deadline: str | None = None
+    welcome_days_left: int | None = None
+    # not_started | in_progress | earned | missed | none
+    welcome_status: str = "none"
+    welcome_detail: str = ""
+
+
+class HouseholdCardCommitments(BaseModel):
+    """What the cards commit the household to, priced into the plan (P0-20).
+
+    Balances are what the affordability check already subtracts; the fees and
+    the deadlines were not subtracted anywhere. The annual fees are stated as a
+    monthly accrual because that is the only form the cap plan can use -- $190
+    a year is $16 a month of income that is already spoken for, and a plan that
+    ignores it is over by that much every month it is followed.
+    """
+
+    # committed | no_cards
+    status: str = "no_cards"
+    headline: str = ""
+    detail: str = ""
+    cards: list[HouseholdCardCommitment] = Field(default_factory=list)
+    balance_total: float | None = None
+    # Cards whose balance nothing can see, listed instead of counted as zero.
+    balance_unknown_labels: list[str] = Field(default_factory=list)
+    annual_fee_yearly: float = 0.0
+    annual_fee_monthly: float = 0.0
+    next_fee_detail: str = ""
+    welcome_open_count: int = 0
+    welcome_detail: str = ""
+
+
 class HouseholdBudgetSnapshot(BaseModel):
     status: str
     summary: str
