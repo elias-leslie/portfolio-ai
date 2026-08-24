@@ -103,6 +103,8 @@ export type {
   HouseholdMonthlyTrendPoint,
   HouseholdNetWorthTrend,
   HouseholdNetWorthTrendPoint,
+  HouseholdNewMerchant,
+  HouseholdNoveltyCluster,
   HouseholdOneTimePurchase,
   HouseholdOverview,
   HouseholdPriceCheckRun,

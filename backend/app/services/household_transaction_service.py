@@ -16,6 +16,8 @@ from typing import Any
 from app.config import settings
 from app.logging_config import get_logger
 from app.models.household_finance import (
+    HouseholdNewMerchant,
+    HouseholdNoveltyCluster,
     HouseholdOneTimePurchase,
     HouseholdReports,
     HouseholdSpendComparator,
@@ -39,6 +41,7 @@ from app.services._household_month_coverage import (
     MIN_ROWS_PER_COVERED_MONTH,
     month_key,
 )
+from app.services._household_novelty import find_new_merchants
 from app.services._household_one_time_purchases import find_one_time_purchases
 from app.services._household_report_builder import (
     _merchant_aliases,
@@ -1226,6 +1229,12 @@ class HouseholdTransactionService:
                 ),
             )
 
+        novelty_clusters = find_new_merchants(
+            spend_rows,
+            history_rows=all_rows,
+            coverage_months=coverage_months,
+        )
+
         category_totals: dict[tuple[str, str], float] = {}
         category_gross: dict[tuple[str, str], float] = {}
         category_refund: dict[tuple[str, str], float] = {}
@@ -1320,6 +1329,30 @@ class HouseholdTransactionService:
             available_months=available_months,
             comparators=comparators,
             spend_variance=spend_variance,
+            new_this_month=[
+                HouseholdNoveltyCluster(
+                    key=cluster.key,
+                    label=cluster.label,
+                    detail=cluster.detail,
+                    start_date=cluster.start_date.isoformat(),
+                    end_date=cluster.end_date.isoformat(),
+                    total=cluster.total,
+                    merchant_count=cluster.merchant_count,
+                    transaction_count=cluster.transaction_count,
+                    is_cluster=cluster.is_cluster,
+                    merchants=[
+                        HouseholdNewMerchant(
+                            merchant=merchant.merchant,
+                            category=merchant.category,
+                            amount=merchant.amount,
+                            transaction_count=merchant.transaction_count,
+                            first_seen=merchant.first_seen.isoformat(),
+                        )
+                        for merchant in cluster.merchants
+                    ],
+                )
+                for cluster in novelty_clusters
+            ],
             one_time_purchases=[
                 HouseholdOneTimePurchase(
                     transaction_id=item.transaction_id,

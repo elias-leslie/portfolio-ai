@@ -27,6 +27,7 @@ import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { MonthComparatorRow } from './MonthComparatorRow'
 import { MonthSelector } from './MonthSelector'
 import { MonthVerdictLine } from './MonthVerdictLine'
+import { NewThisMonthCard } from './NewThisMonthCard'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import {
   type BudgetRowEntry,
@@ -373,6 +374,11 @@ export function MoneyBudgetPanel() {
       </SectionCard>
 
       <WhatChangedCard variance={spending?.spendVariance} />
+
+      <NewThisMonthCard
+        clusters={spending?.newThisMonth}
+        monthLabel={spending?.summary.monthLabel ?? 'this month'}
+      />
 
       <ConnectedSpendTrendChart
         transactions={spending?.transactions ?? []}

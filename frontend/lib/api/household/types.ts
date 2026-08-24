@@ -1374,6 +1374,27 @@ export interface HouseholdSpendVariance {
   drivers: HouseholdVarianceDriver[]
 }
 
+export interface HouseholdNewMerchant {
+  merchant: string
+  category: string
+  amount: number
+  transactionCount: number
+  firstSeen: string
+}
+
+export interface HouseholdNoveltyCluster {
+  key: string
+  label: string
+  detail: string
+  startDate: string
+  endDate: string
+  total: number
+  merchantCount: number
+  transactionCount: number
+  isCluster: boolean
+  merchants: HouseholdNewMerchant[]
+}
+
 export interface HouseholdSpendingItemSplit {
   category: string
   essentiality: string
@@ -1490,6 +1511,7 @@ export interface HouseholdSpendingView {
   oneTimePurchases: HouseholdOneTimePurchase[]
   budgetVerdict?: HouseholdBudgetVerdict | null
   spendVariance?: HouseholdSpendVariance | null
+  newThisMonth?: HouseholdNoveltyCluster[]
   categories: HouseholdSpendingCategory[]
   monthlyTrend: HouseholdMonthlyTrendPoint[]
   categoryMonthlyTrend: HouseholdCategoryMonthlyTrendPoint[]

@@ -449,6 +449,35 @@ class HouseholdSpendVariance(BaseModel):
     drivers: list[HouseholdVarianceDriver] = Field(default_factory=list)
 
 
+class HouseholdNewMerchant(BaseModel):
+    merchant: str
+    category: str
+    amount: float
+    transaction_count: int
+    first_seen: str
+
+
+class HouseholdNoveltyCluster(BaseModel):
+    """New-to-the-ledger merchants, grouped by when they happened.
+
+    Grouped rather than listed because 34 unfamiliar names is not information.
+    Clusters are built from dates alone -- these rows carry no location, so the
+    payload never names a place it cannot source.
+    """
+
+    key: str
+    label: str
+    detail: str
+    start_date: str
+    end_date: str
+    total: float
+    merchant_count: int
+    transaction_count: int
+    # False for a lone new merchant, which is shown but not called a pattern.
+    is_cluster: bool = False
+    merchants: list[HouseholdNewMerchant] = Field(default_factory=list)
+
+
 class HouseholdSpendingItemSplit(BaseModel):
     category: str
     essentiality: str
@@ -586,6 +615,8 @@ class HouseholdSpendingView(BaseModel):
     # Why the month differs from the one before it, and what is left of the
     # difference once the outliers are set aside.
     spend_variance: HouseholdSpendVariance | None = None
+    # Merchants with no history at all, grouped into the outings they were.
+    new_this_month: list[HouseholdNoveltyCluster] = Field(default_factory=list)
     categories: list[HouseholdSpendingCategory] = Field(default_factory=list)
     monthly_trend: list[HouseholdMonthlyTrendPoint] = Field(default_factory=list)
     category_monthly_trend: list[HouseholdCategoryMonthlyTrendPoint] = Field(default_factory=list)
