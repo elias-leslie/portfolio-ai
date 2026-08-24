@@ -326,6 +326,11 @@ export interface HouseholdAffordability {
   committedFunds: number
   cardBalances: number
   missingInputs: string[]
+  // estimate | tight | hold. Graded on the server so the review screen and the
+  // overview cannot reach different conclusions about the same dollar figure.
+  status: string
+  headline: string
+  detail: string
 }
 
 export interface HouseholdCategorizationCandidate {

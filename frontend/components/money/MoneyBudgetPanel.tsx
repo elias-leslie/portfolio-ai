@@ -14,9 +14,11 @@ import type {
 import {
   useCategorizeHouseholdTransaction,
   useConfirmFact,
+  useHouseholdDashboard,
   useHouseholdFacts,
   useHouseholdSpending,
 } from '@/lib/hooks/useHousehold'
+import { AffordabilityCard } from './AffordabilityCard'
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
@@ -29,6 +31,7 @@ import { MonthSelector } from './MonthSelector'
 import { MonthVerdictLine } from './MonthVerdictLine'
 import { NewThisMonthCard } from './NewThisMonthCard'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
+import { normalizeTrustStatus } from './overview-helpers'
 import {
   type BudgetRowEntry,
   TREND_TOP_N,
@@ -56,6 +59,11 @@ export function MoneyBudgetPanel() {
     isLoading,
   } = useHouseholdSpending(month ? { month } : undefined)
   const { data: facts = [] } = useHouseholdFacts()
+  // Already fetched by the Money page for every tab, so this is the cached
+  // payload rather than a second round trip. Affordability is read from it
+  // rather than recomputed here: one server figure, however many screens show it.
+  const { data: dashboard, isLoading: isDashboardLoading } =
+    useHouseholdDashboard()
   const confirmFact = useConfirmFact()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
 
@@ -82,6 +90,25 @@ export function MoneyBudgetPanel() {
     isolatedCap,
     ownerSpendRows,
   } = useBudgetRows({ spending, facts, isolatedSeries })
+  // Free to spend subtracts two things the household can go fix: balances it
+  // reads off accounts, and the essentials it reads off this month's spending.
+  // Name whichever is behind rather than a generic "stale data" that leaves the
+  // reader nowhere to go.
+  const affordabilityCaveats = useMemo(() => {
+    if (!dashboard) {
+      return []
+    }
+    const caveats: string[] = []
+    if (normalizeTrustStatus(dashboard.overview.netWorthStatus) !== 'current') {
+      caveats.push('Cash and card balances need a refresh.')
+    }
+    if (
+      normalizeTrustStatus(dashboard.overview.monthlySpendStatus) !== 'current'
+    ) {
+      caveats.push("This month's essentials are still an estimate.")
+    }
+    return caveats
+  }, [dashboard])
   const connectedMonthStats = useMemo(() => {
     const endDate = spending?.summary.endDate
     const monthKey = endDate?.slice(0, 7)
@@ -327,10 +354,15 @@ export function MoneyBudgetPanel() {
           />
         }
       >
-        <div className="mb-3">
+        <div className="mb-3 grid items-start gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <MonthVerdictLine
             verdict={spending?.budgetVerdict}
             isLoading={isLoading}
+          />
+          <AffordabilityCard
+            affordability={dashboard?.budgetSnapshot.affordability}
+            isLoading={isDashboardLoading}
+            caveats={affordabilityCaveats}
           />
         </div>
         <MonthComparatorRow

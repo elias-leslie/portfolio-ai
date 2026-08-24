@@ -666,6 +666,14 @@ class HouseholdAffordability(BaseModel):
     # Inputs the household has not given the system yet. An affordability check
     # that quietly treats an unknown as zero is the same lie in a new place.
     missing_inputs: list[str] = Field(default_factory=list)
+    # estimate | tight | hold. Never *safe*: this is arithmetic about the rest of
+    # a month that has not happened yet. The threshold lives here rather than in
+    # a component so the review screen and the overview cannot grade the same
+    # dollar figure differently -- the whole point of the revamp.
+    status: str = "estimate"
+    # The sentence the household reads, and the subtraction that produced it.
+    headline: str = ""
+    detail: str = ""
 
 
 class HouseholdBudgetSnapshot(BaseModel):

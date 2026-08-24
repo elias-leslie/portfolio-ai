@@ -90,6 +90,11 @@ const dashboard = {
       committedFunds: 0,
       cardBalances: 6000,
       missingInputs: [],
+      status: 'estimate',
+      headline:
+        '$321 free to spend once everything owed through Sep 6 is covered.',
+      detail:
+        "Cash on hand, less bills due through Sep 6, the rest of this month's essentials, and what is owed on cards.",
     },
   },
   // Raw account would put 99999 of cash in play; allocation must ignore it.
@@ -269,6 +274,10 @@ describe('useDecisionBoard', () => {
         safeToSpend: null,
         safeToSpendConstraint: null,
         dueSoonBillsTotal: null,
+        // The backend builds all four from one affordability object or none of
+        // them, so nulling the figure without the object it came from would be
+        // a state the API cannot produce.
+        affordability: null,
       },
     } as HouseholdFinanceDashboard
     const { result } = renderHook(() => useDecisionBoard(nullSafeToSpend))

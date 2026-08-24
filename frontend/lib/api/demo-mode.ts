@@ -300,6 +300,11 @@ const DEMO_HOUSEHOLD_DASHBOARD: HouseholdFinanceDashboard = {
       committedFunds: 0,
       cardBalances: 4200,
       missingInputs: ['sinking_fund_balances'],
+      status: 'estimate',
+      headline:
+        '$1,970 free to spend once everything owed through Sep 6 is covered.',
+      detail:
+        "Cash on hand, less bills due through Sep 6, the rest of this month's essentials, and what is owed on cards.",
     },
   },
   retirementPreparedness: {

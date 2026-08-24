@@ -366,6 +366,11 @@ def _budget_analysis(
 # so the figure never counts fewer obligations than either frame alone.
 MIN_AFFORDABILITY_HORIZON_DAYS = 14
 
+# Under this much left, the answer is "tight" rather than a number to spend
+# against. It sits in the service because two screens ask the same question and
+# a threshold copied into a component is a second opinion waiting to happen.
+TIGHT_FREE_TO_SPEND = 150.0
+
 
 def build_affordability(
     *,
@@ -409,12 +414,15 @@ def build_affordability(
 
     committed = committed_fund_balances or 0.0
     cards = card_balances or 0.0
-    free_to_spend = cash_reserve - bills_due - remaining_essentials - committed - cards
+    free_to_spend = round(
+        cash_reserve - bills_due - remaining_essentials - committed - cards, 2
+    )
+    status, headline = _affordability_verdict(free_to_spend, horizon=horizon)
     return HouseholdAffordability(
         # Deliberately not floored at zero. A household that cannot cover what it
         # already owes needs to be told the size of the hole, not shown a $0 that
         # reads like "spend nothing more" when it means "you are already short".
-        free_to_spend=round(free_to_spend, 2),
+        free_to_spend=free_to_spend,
         cash_on_hand=round(cash_reserve, 2),
         bills_due=bills_due,
         bills_due_through=horizon.isoformat(),
@@ -423,6 +431,50 @@ def build_affordability(
         committed_funds=round(committed, 2),
         card_balances=round(cards, 2),
         missing_inputs=missing_inputs,
+        status=status,
+        headline=headline,
+        detail=(
+            "Cash on hand, less bills due through "
+            f"{_horizon_label(horizon)}, the rest of this month's essentials, "
+            "and what is owed on cards."
+        ),
+    )
+
+
+def _horizon_label(horizon: date) -> str:
+    return f"{horizon:%b} {horizon.day}"
+
+
+def _affordability_verdict(free_to_spend: float, *, horizon: date) -> tuple[str, str]:
+    """How the free-to-spend figure should be read, in the household's terms.
+
+    Three states and no fourth: a household is either short, nearly short, or
+    working with an estimate. There is no *safe* -- the figure is arithmetic
+    about days that have not happened, and a green badge over it was the most
+    dangerous thing on the old Decision Board.
+    """
+    through = _horizon_label(horizon)
+    if free_to_spend < 0:
+        return (
+            "hold",
+            f"${abs(free_to_spend):,.0f} short of what is already owed "
+            f"through {through}.",
+        )
+    if free_to_spend == 0:
+        return (
+            "hold",
+            f"Nothing left once everything owed through {through} is covered.",
+        )
+    if free_to_spend < TIGHT_FREE_TO_SPEND:
+        return (
+            "tight",
+            f"${free_to_spend:,.0f} left once everything owed through "
+            f"{through} is covered.",
+        )
+    return (
+        "estimate",
+        f"${free_to_spend:,.0f} free to spend once everything owed through "
+        f"{through} is covered.",
     )
 
 

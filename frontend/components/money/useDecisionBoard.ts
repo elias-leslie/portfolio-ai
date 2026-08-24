@@ -6,7 +6,6 @@ import {
   formatMonthLabel,
   normalizeTrustStatus,
   priceInsightBadgeLabel,
-  shortDate,
   signedCurrency,
 } from './overview-helpers'
 
@@ -101,15 +100,12 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
   // No "safe" state. The figure is an estimate about the rest of a month that has
   // not happened yet, and a green badge over it was the most dangerous element on
   // the page -- the card disclaimed the number in the same breath as approving it.
+  // The grade itself comes from the server: the review screen shows the same
+  // figure, and a threshold living in a component is a second opinion waiting
+  // to happen.
   const safeSpendStatus = spendTrustDegraded
     ? 'review'
-    : weekendSpendAllowance == null
-      ? 'mixed'
-      : weekendSpendAllowance <= 0
-        ? 'hold'
-        : weekendSpendAllowance < 150
-          ? 'tight'
-          : 'estimate'
+    : (affordability?.status ?? 'mixed')
   const safeSpendRepairItems = dashboard.inbox
     .filter((item) => item.affects.includes('safe_to_spend'))
     .slice(0, 2)
@@ -125,9 +121,8 @@ export function useDecisionBoard(dashboard: HouseholdFinanceDashboard) {
       : null
   const safeSpendSummary = spendTrustDegraded
     ? 'Stale account data; refresh before relying on this.'
-    : affordability != null
-      ? `Cash on hand less bills due through ${shortDate(affordability.billsDueThrough)}, the rest of this month\u2019s essentials, and what is owed on cards.`
-      : 'Not enough cash and commitment data to answer this yet.'
+    : (affordability?.detail ??
+      'Not enough cash and commitment data to answer this yet.')
   const needsAmount = dashboard.reports.executive.averageMonthlyEssentials
   const wantsAmount = dashboard.reports.executive.averageMonthlyDiscretionary
   // Categories that are genuinely neither -- Household, Cash, Peer Payments.

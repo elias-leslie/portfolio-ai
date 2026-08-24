@@ -132,6 +132,10 @@ const dashboard = {
       committedFunds: 0,
       cardBalances: 6000,
       missingInputs: ['sinking_fund_balances'],
+      status: 'tight',
+      headline: '$240 left once everything owed through Sep 6 is covered.',
+      detail:
+        "Cash on hand, less bills due through Sep 6, the rest of this month's essentials, and what is owed on cards.",
     },
   },
   retirementPreparedness: {

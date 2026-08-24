@@ -12,6 +12,7 @@ import { MoneyBudgetPanel } from '../MoneyBudgetPanel'
 
 const useHouseholdSpendingMock = vi.fn()
 const useHouseholdFactsMock = vi.fn()
+const useHouseholdDashboardMock = vi.fn()
 const confirmFactMutateAsync = vi.fn()
 const categorizeMutateAsync = vi.fn()
 const setTransactionOwnerMutateAsync = vi.fn()
@@ -28,6 +29,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdSpending: (params?: { month?: string }) =>
     useHouseholdSpendingMock(params),
   useHouseholdFacts: () => useHouseholdFactsMock(),
+  useHouseholdDashboard: () => useHouseholdDashboardMock(),
   useConfirmFact: () => ({
     mutateAsync: confirmFactMutateAsync,
     isPending: false,
@@ -214,6 +216,11 @@ describe('MoneyBudgetPanel', () => {
   beforeEach(() => {
     useHouseholdSpendingMock.mockReset()
     useHouseholdFactsMock.mockReset()
+    useHouseholdDashboardMock.mockReset()
+    useHouseholdDashboardMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+    })
     confirmFactMutateAsync.mockReset()
     categorizeMutateAsync.mockReset()
     setTransactionOwnerMutateAsync.mockReset()
@@ -540,5 +547,79 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getAllByText('$45.00')).not.toHaveLength(0)
     expect(screen.getByText('Itemized portion')).toBeInTheDocument()
     expect(screen.getByText(/Owner: Alex Demo/)).toBeInTheDocument()
+  })
+  it('answers "can we actually spend this" on the review screen itself', () => {
+    // The figure lived one tab away on the Decision Board, so the screen where
+    // the month is judged could not say whether there was money to act on it.
+    useHouseholdDashboardMock.mockReturnValue({
+      isLoading: false,
+      data: {
+        overview: { monthlySpendStatus: 'trusted', netWorthStatus: 'trusted' },
+        budgetSnapshot: {
+          affordability: {
+            freeToSpend: 11828.34,
+            cashOnHand: 30494.75,
+            billsDue: 88.38,
+            billsDueThrough: '2026-09-06',
+            remainingEssentials: 1290.32,
+            essentialsBasis:
+              '5,000 of the 5,000 essentials baseline is covered so far in August.',
+            committedFunds: 0,
+            cardBalances: 17287.71,
+            missingInputs: [],
+            status: 'estimate',
+            headline:
+              '$11,828 free to spend once everything owed through Sep 6 is covered.',
+            detail: 'Cash on hand, less bills due through Sep 6.',
+          },
+        },
+      },
+    })
+
+    render(<MoneyBudgetPanel />)
+
+    // Card heading and the total line of the subtraction under it.
+    expect(screen.getAllByText('Free to spend')).toHaveLength(2)
+    expect(
+      screen.getByText(
+        '$11,828 free to spend once everything owed through Sep 6 is covered.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('$30,495')).toBeInTheDocument()
+  })
+
+  it('names which input is behind rather than a generic stale-data line', () => {
+    useHouseholdDashboardMock.mockReturnValue({
+      isLoading: false,
+      data: {
+        overview: { monthlySpendStatus: 'estimated', netWorthStatus: 'stale' },
+        budgetSnapshot: {
+          affordability: {
+            freeToSpend: 11828.34,
+            cashOnHand: 30494.75,
+            billsDue: 88.38,
+            billsDueThrough: '2026-09-06',
+            remainingEssentials: 1290.32,
+            essentialsBasis: 'basis',
+            committedFunds: 0,
+            cardBalances: 17287.71,
+            missingInputs: [],
+            status: 'estimate',
+            headline: '$11,828 free to spend.',
+            detail: 'Cash on hand, less bills due through Sep 6.',
+          },
+        },
+      },
+    })
+
+    render(<MoneyBudgetPanel />)
+
+    expect(
+      screen.getByText('Cash and card balances need a refresh.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText("This month's essentials are still an estimate."),
+    ).toBeInTheDocument()
+    expect(screen.getByText('$11,828 free to spend.')).toBeInTheDocument()
   })
 })
