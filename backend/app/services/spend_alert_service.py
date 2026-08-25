@@ -1,18 +1,13 @@
-"""Card spend/rotation alerts — one evaluation, two sinks (plan §8 + §0a).
+"""Card spend/rotation alerts (plan §8 + §0a).
 
 ``evaluate_and_dispatch()`` reads the canonical ledger (so soft + pending +
 hard charges all count, per the §5 mirror-row design) and the owned-card state,
-then emits each finding to BOTH:
+then hands each finding to ``_alert_dispatch``, which owns the sinks and the
+one-interrupt-per-crossing marker for every producer in the system.
 
-- ``jenny_notifications`` (UI, deduped by open-notification upsert), and
-- web push to the household's registered phones (D11), throttled by a sent-marker
-  so each alert pushes at most once per crossing — no spam when soft charges keep
-  nudging.
-
-The phone sink used to be one shared Telegram chat, which could only tell both
-adults everything. Web push subscribes per device, so the alert lands on the
-handsets that asked for it. Until a phone has registered there is nothing to
-push to, and the Telegram chat still carries the alert rather than dropping it.
+This module is about the **cards**. The month's plan — its projection, its
+category caps and its outlier purchases — is ``budget_alert_service``, which
+runs the same dispatch under its own marker namespace.
 
 Alert kinds (user-locked 2026-06-10): monthly spend pace vs the card cap,
 welcome-bonus (MSR) deadline risk, rotation action due, annual-fee renewal
@@ -26,14 +21,15 @@ require spending X within Y days").
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
 from app.logging_config import get_logger
-from app.services._jenny_review_notifications import upsert_notification
-from app.services.notifier_service import get_notifier
-from app.services.push_service import PushService
+from app.services._alert_dispatch import (
+    ALERT_CLICK_URL,
+    Alert,
+    dispatch_alerts,
+)
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -49,26 +45,17 @@ ANNUAL_FEE_LOOKAHEAD_DAYS = 30
 
 _MARKER_PREFIX = "card_alert_sent"
 
-# Where a pushed alert opens. The plan is the screen that answers "and now
-# what?", so a tapped notification lands there rather than on the app's home.
-# The Budget tab's route value is "spending" — the label and the value differ.
-ALERT_CLICK_URL = "/money?tab=spending"
+# The card kinds' name for the shared alert shape. Kept so the call sites that
+# already import it do not have to care that the dispatch moved.
+SpendAlert = Alert
 
-
-@dataclass
-class SpendAlert:
-    kind: str
-    severity: str  # info | warning | critical
-    title: str
-    body: str
-    marker_key: str  # dedupe key — one push per crossing
-
-
-class _StorageShim:
-    """upsert_notification expects an object with .storage."""
-
-    def __init__(self) -> None:
-        self.storage = get_storage()
+__all__ = [
+    "ALERT_CLICK_URL",
+    "CARD_ALERT_ROUTINE_ID",
+    "SpendAlert",
+    "SpendAlertService",
+    "evaluate_and_dispatch",
+]
 
 
 class SpendAlertService:
@@ -91,47 +78,14 @@ class SpendAlertService:
         alerts.extend(self._annual_fee_alerts(cards))
         alerts.extend(self._catalog_alerts(catalog_changes or []))
 
-        dispatched: list[SpendAlert] = []
-        notifier = get_notifier()
-        push = PushService()
-        shim = _StorageShim()
-        for alert in alerts:
-            if self._already_sent(alert.marker_key):
-                continue
-            upsert_notification(
-                shim,
-                CARD_ALERT_ROUTINE_ID,
-                None,
-                category=f"card_{alert.kind}",
-                severity=alert.severity,
-                title=alert.title,
-                detail=alert.body,
-                recommendation=None,
-            )
-            delivery = push.send(
-                title=alert.title,
-                body=alert.body,
-                severity=alert.severity,
-                url=ALERT_CLICK_URL,
-                # One tag per crossing, so a repeat of the same finding replaces
-                # its own tray entry instead of stacking beneath it.
-                tag=alert.marker_key,
-            )
-            if delivery.delivered == 0:
-                # No phone took it — registered devices are how this reaches a
-                # person, so the shared chat stays the sink until one has.
-                notifier.send(
-                    title=alert.title, body=alert.body, severity=alert.severity
-                )
-            self._mark_sent(alert.marker_key)
-            dispatched.append(alert)
-        if dispatched:
-            logger.info(
-                "card_alerts_dispatched",
-                trigger=trigger,
-                kinds=[a.kind for a in dispatched],
-            )
-        return dispatched
+        return dispatch_alerts(
+            alerts,
+            routine_id=CARD_ALERT_ROUTINE_ID,
+            routine_type="card_spend_alerts",
+            marker_prefix=_MARKER_PREFIX,
+            trigger=trigger,
+            category_prefix="card_",
+        )
 
     # -- welcome (MSR) progress tracker -------------------------------------
 
@@ -269,6 +223,7 @@ class SpendAlertService:
                             "route household spend to this card."
                         ),
                         marker_key=f"welcome_risk:{card['id']}:{deadline.isoformat()}:{'late' if days_left <= 14 else 'early'}",
+                        subject=str(card["id"]),
                     )
                 )
         return alerts
@@ -298,6 +253,7 @@ class SpendAlertService:
                             "next open (alternate players to stay under Chase 5/24)."
                         ),
                         marker_key=f"rotation_due:{card['id']}:{opened.isoformat()}",
+                        subject=str(card["id"]),
                     )
                 )
         return alerts
@@ -324,6 +280,7 @@ class SpendAlertService:
                             "cancel within the first year."
                         ),
                         marker_key=f"annual_fee:{card['id']}:{due.isoformat()}",
+                        subject=str(card["id"]),
                     )
                 )
         return alerts
@@ -399,27 +356,6 @@ class SpendAlertService:
                     except ValueError:
                         continue
         return DEFAULT_MONTHLY_CAP
-
-    def _already_sent(self, marker_key: str) -> bool:
-        with self._storage.connection() as conn:
-            row = conn.execute(
-                "SELECT 1 FROM household_confirmed_facts WHERE fact_key = %s",
-                [f"{_MARKER_PREFIX}:{marker_key}"],
-            ).fetchone()
-        return row is not None
-
-    def _mark_sent(self, marker_key: str) -> None:
-        with self._storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO household_confirmed_facts (fact_key, fact_value, confirmed_at)
-                VALUES (%s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (fact_key) DO UPDATE
-                SET fact_value = EXCLUDED.fact_value, confirmed_at = EXCLUDED.confirmed_at
-                """,
-                [f"{_MARKER_PREFIX}:{marker_key}", datetime.now(UTC).isoformat()],
-            )
-            conn.commit()
 
 
 def evaluate_and_dispatch(

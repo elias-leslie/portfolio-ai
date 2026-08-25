@@ -1,4 +1,9 @@
-"""The phone sink for card alerts is web push now, not the shared chat (D11)."""
+"""The phone sink for alerts is web push now, not the shared chat (D11).
+
+Exercised through the card producer, which is a real caller of the dispatch the
+plan kinds also use (§7 3.7) — the sink behaviour is shared, so testing it once
+against a producer that actually builds alerts beats testing a stub.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +12,8 @@ from typing import Any
 import pytest
 
 from app.models.push_alerts import PushDelivery
-from app.services.spend_alert_service import ALERT_CLICK_URL, SpendAlertService
+from app.services._alert_dispatch import ALERT_CLICK_URL
+from app.services.spend_alert_service import SpendAlertService
 
 
 class _FakeNotifier:
@@ -49,14 +55,6 @@ def _cap(_self: SpendAlertService, _cards: list[dict[str, Any]]) -> float:
     return 6500.0
 
 
-def _never_sent(_self: SpendAlertService, _marker_key: str) -> bool:
-    return False
-
-
-def _no_mark(_self: SpendAlertService, _marker_key: str) -> None:
-    return None
-
-
 @pytest.fixture
 def dispatch(monkeypatch):
     """One over-cap pace alert, with every sink and store stubbed out."""
@@ -64,22 +62,25 @@ def dispatch(monkeypatch):
     def _run(delivery: PushDelivery) -> tuple[_FakePush, _FakeNotifier, list]:
         push = _FakePush(delivery)
         notifier = _FakeNotifier()
-        stubs: dict[str, Any] = {
-            "get_storage": object,
+        dispatch_stubs: dict[str, Any] = {
             "PushService": lambda: push,
             "get_notifier": lambda: notifier,
             "upsert_notification": _noop,
+            "already_sent": lambda _key, **_kwargs: False,
+            "mark_sent": _noop,
+            "_StorageShim": object,
         }
-        for name, replacement in stubs.items():
-            monkeypatch.setattr(f"app.services.spend_alert_service.{name}", replacement)
+        for name, replacement in dispatch_stubs.items():
+            monkeypatch.setattr(f"app.services._alert_dispatch.{name}", replacement)
+        monkeypatch.setattr(
+            "app.services.spend_alert_service.get_storage", object
+        )
         methods: dict[str, Any] = {
             "refresh_welcome_progress": _no_refresh,
             "_owned_cards": _no_cards,
             # $7,000 spent against a $6,500 cap: one critical over-cap alert.
             "_month_to_date_spend": _month_to_date,
             "_monthly_cap": _cap,
-            "_already_sent": _never_sent,
-            "_mark_sent": _no_mark,
         }
         for name, replacement in methods.items():
             monkeypatch.setattr(SpendAlertService, name, replacement)
@@ -121,3 +122,145 @@ def test_the_push_carries_the_crossing_marker_as_its_tray_tag(dispatch) -> None:
     assert sent["tag"] == dispatched[0].marker_key
     assert sent["url"] == ALERT_CLICK_URL
     assert sent["severity"] == "critical"
+
+
+def test_a_pass_with_nothing_new_touches_no_table(monkeypatch) -> None:
+    """Every alert already sent means no routine row and no notification write."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.already_sent", lambda _key, **_kw: True
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch._ensure_routine_row",
+        lambda *_a, **_k: calls.append("routine"),
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.upsert_notification",
+        lambda *_a, **_k: calls.append("notification"),
+    )
+
+    from app.services._alert_dispatch import Alert, dispatch_alerts
+
+    dispatched = dispatch_alerts(
+        [Alert(kind="k", severity="info", title="t", body="b", marker_key="m")],
+        routine_id="test-routine",
+        routine_type="test",
+        marker_prefix="test_sent",
+        trigger="test",
+    )
+
+    assert dispatched == []
+    assert calls == []
+
+
+def test_the_synthetic_routine_row_exists_before_a_notification_needs_it(
+    monkeypatch,
+) -> None:
+    """``jenny_notifications.routine_id`` is a foreign key into ``jenny_routines``.
+
+    An alert producer never runs through the coordinator that creates that row,
+    so without this every write raised a foreign-key violation that each caller
+    swallowed as an error status — the card alerts wrote nothing and left no
+    marker from the day they shipped.
+    """
+    order: list[str] = []
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.already_sent", lambda _key, **_kw: False
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.mark_sent", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch._ensure_routine_row",
+        lambda *_a, **_k: order.append("routine"),
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.upsert_notification",
+        lambda *_a, **_k: order.append("notification"),
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.PushService",
+        lambda: _FakePush(PushDelivery(delivered=1)),
+    )
+    monkeypatch.setattr("app.services._alert_dispatch._StorageShim", object)
+
+    from app.services._alert_dispatch import Alert, dispatch_alerts
+
+    dispatch_alerts(
+        [Alert(kind="k", severity="info", title="t", body="b", marker_key="m")],
+        routine_id="test-routine",
+        routine_type="test",
+        marker_prefix="test_sent",
+        trigger="test",
+    )
+
+    assert order == ["routine", "notification"]
+
+
+def test_two_alerts_of_one_kind_are_two_inbox_rows(monkeypatch) -> None:
+    """The UI sink keeps one open notification per category.
+
+    Three categories over their caps collapsed into a single row until the
+    subject reached the category — the inbox showed whichever was written last.
+    """
+    categories: list[str] = []
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.already_sent", lambda _key, **_kw: False
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.mark_sent", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch._ensure_routine_row", lambda *_a, **_k: None
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.upsert_notification",
+        lambda *_a, **kwargs: categories.append(kwargs["category"]),
+    )
+    monkeypatch.setattr(
+        "app.services._alert_dispatch.PushService",
+        lambda: _FakePush(PushDelivery(delivered=1)),
+    )
+    monkeypatch.setattr("app.services._alert_dispatch._StorageShim", object)
+
+    from app.services._alert_dispatch import Alert, dispatch_alerts
+
+    dispatch_alerts(
+        [
+            Alert(
+                kind="category_at_cap",
+                severity="warning",
+                title="Travel",
+                body="b",
+                marker_key="m1",
+                subject="Travel",
+            ),
+            Alert(
+                kind="category_at_cap",
+                severity="warning",
+                title="Retail",
+                body="b",
+                marker_key="m2",
+                subject="Retail",
+            ),
+            Alert(
+                kind="month_over_plan",
+                severity="critical",
+                title="August",
+                body="b",
+                marker_key="m3",
+            ),
+        ],
+        routine_id="test-routine",
+        routine_type="test",
+        marker_prefix="test_sent",
+        trigger="test",
+        category_prefix="budget_",
+    )
+
+    assert categories == [
+        "budget_category_at_cap:Travel",
+        "budget_category_at_cap:Retail",
+        # A month-wide finding has nothing to disambiguate, so it stays one row.
+        "budget_month_over_plan",
+    ]

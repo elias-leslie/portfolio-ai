@@ -72,4 +72,19 @@ async def sync_accounts_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
         logger.warning("account_sync_card_alerts_failed", error=str(exc))
         results["card_alerts"] = {"status": "error", "error": str(exc)}
 
+    # The plan kinds run on the same fresh ledger: a sync is when a purchase
+    # the household has no precedent for first becomes visible (§7 3.7).
+    try:
+        from app.services.budget_alert_service import (
+            evaluate_and_dispatch as evaluate_budget_alerts,
+        )
+
+        dispatched = await asyncio.to_thread(
+            evaluate_budget_alerts, trigger="account_sync"
+        )
+        results["budget_alerts"] = {"dispatched": [a.kind for a in dispatched]}
+    except Exception as exc:
+        logger.warning("account_sync_budget_alerts_failed", error=str(exc))
+        results["budget_alerts"] = {"status": "error", "error": str(exc)}
+
     return results

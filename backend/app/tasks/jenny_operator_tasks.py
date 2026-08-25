@@ -34,7 +34,24 @@ def run_daily_household_maintenance_task() -> dict[str, Any]:
     result = JennyOperatorService().run_daily_household_maintenance(triggered_by="scheduled")
     payload = result.model_dump()
     payload["card_maintenance"] = _run_card_maintenance()
+    payload["budget_alerts"] = _run_budget_alerts()
     return payload
+
+
+def _run_budget_alerts() -> dict[str, Any]:
+    """Daily plan pass: projection, category caps, novel purchases (§7 3.7).
+
+    Runs daily as well as on sync because a projection drifts with the calendar
+    even when nothing new is spent — the 20th of a quiet month can still be
+    heading past the plan. Failures never break Jenny's maintenance.
+    """
+    from app.services.budget_alert_service import evaluate_and_dispatch
+
+    try:
+        dispatched = evaluate_and_dispatch(trigger="daily_maintenance")
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+    return {"alerts": [alert.kind for alert in dispatched]}
 
 
 def _run_card_maintenance() -> dict[str, Any]:
