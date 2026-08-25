@@ -5,8 +5,14 @@ hard charges all count, per the §5 mirror-row design) and the owned-card state,
 then emits each finding to BOTH:
 
 - ``jenny_notifications`` (UI, deduped by open-notification upsert), and
-- the Telegram notifier (phone push, throttled by a sent-marker so each alert
-  pushes at most once per crossing — no spam when soft charges keep nudging).
+- web push to the household's registered phones (D11), throttled by a sent-marker
+  so each alert pushes at most once per crossing — no spam when soft charges keep
+  nudging.
+
+The phone sink used to be one shared Telegram chat, which could only tell both
+adults everything. Web push subscribes per device, so the alert lands on the
+handsets that asked for it. Until a phone has registered there is nothing to
+push to, and the Telegram chat still carries the alert rather than dropping it.
 
 Alert kinds (user-locked 2026-06-10): monthly spend pace vs the card cap,
 welcome-bonus (MSR) deadline risk, rotation action due, annual-fee renewal
@@ -27,6 +33,7 @@ from typing import Any
 from app.logging_config import get_logger
 from app.services._jenny_review_notifications import upsert_notification
 from app.services.notifier_service import get_notifier
+from app.services.push_service import PushService
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -41,6 +48,11 @@ ROTATION_DUE_DAYS = 90
 ANNUAL_FEE_LOOKAHEAD_DAYS = 30
 
 _MARKER_PREFIX = "card_alert_sent"
+
+# Where a pushed alert opens. The plan is the screen that answers "and now
+# what?", so a tapped notification lands there rather than on the app's home.
+# The Budget tab's route value is "spending" — the label and the value differ.
+ALERT_CLICK_URL = "/money?tab=spending"
 
 
 @dataclass
@@ -81,6 +93,7 @@ class SpendAlertService:
 
         dispatched: list[SpendAlert] = []
         notifier = get_notifier()
+        push = PushService()
         shim = _StorageShim()
         for alert in alerts:
             if self._already_sent(alert.marker_key):
@@ -95,7 +108,21 @@ class SpendAlertService:
                 detail=alert.body,
                 recommendation=None,
             )
-            notifier.send(title=alert.title, body=alert.body, severity=alert.severity)
+            delivery = push.send(
+                title=alert.title,
+                body=alert.body,
+                severity=alert.severity,
+                url=ALERT_CLICK_URL,
+                # One tag per crossing, so a repeat of the same finding replaces
+                # its own tray entry instead of stacking beneath it.
+                tag=alert.marker_key,
+            )
+            if delivery.delivered == 0:
+                # No phone took it — registered devices are how this reaches a
+                # person, so the shared chat stays the sink until one has.
+                notifier.send(
+                    title=alert.title, body=alert.body, severity=alert.severity
+                )
             self._mark_sent(alert.marker_key)
             dispatched.append(alert)
         if dispatched:

@@ -24,6 +24,7 @@ from app.api import (
     plaid,
     portfolio,
     preferences,
+    push,
     rules,
     snaptrade,
     symbols,
@@ -145,6 +146,7 @@ app.include_router(intake.router)
 app.include_router(household.router)
 app.include_router(household_purchases.router)
 app.include_router(cards.router)
+app.include_router(push.router)
 app.include_router(portfolio.router)
 app.include_router(catalyst_router)
 app.include_router(retirement_router)

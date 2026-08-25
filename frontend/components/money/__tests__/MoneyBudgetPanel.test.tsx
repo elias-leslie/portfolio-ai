@@ -38,6 +38,22 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
   }),
 }))
 
+// The push card owns its own query; this panel test is about the plan, not the
+// alert channel, so the device state is stubbed rather than provider-wrapped.
+vi.mock('@/lib/hooks/usePushAlerts', () => ({
+  usePushSubscriptions: () => ({ data: undefined, isLoading: false }),
+  useDevicePushState: () => ({
+    support: 'unsupported',
+    permission: 'default',
+    endpoint: null,
+    isLoading: false,
+  }),
+  useEnablePushOnThisDevice: () => ({ mutate: vi.fn(), isPending: false }),
+  useDisablePushOnThisDevice: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemovePushSubscription: () => ({ mutate: vi.fn(), isPending: false }),
+  useSendTestPush: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
 vi.mock('recharts', () => {
   const MockChart = ({ children }: { children?: ReactNode }) => (
     <div>{children}</div>

@@ -36,6 +36,7 @@ import { NeedsWantsMixedCard } from './NeedsWantsMixedCard'
 import { NewThisMonthCard } from './NewThisMonthCard'
 import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import { normalizeTrustStatus } from './overview-helpers'
+import { PushAlertsCard } from './PushAlertsCard'
 import { RetirementPhaseCard } from './RetirementPhaseCard'
 import { SavingsPlanCard } from './SavingsPlanCard'
 import { SinkingFundsCard } from './SinkingFundsCard'
@@ -415,6 +416,10 @@ export function MoneyBudgetPanel() {
       />
 
       <MoneyInboxCard inbox={dashboard?.inbox} isLoading={isDashboardLoading} />
+
+      {/* The same findings the inbox above collects, on the phone — the inbox
+          only reaches someone already looking at this screen (D11). */}
+      <PushAlertsCard />
 
       <div className="grid gap-3 lg:grid-cols-2">
         <NeedsWantsMixedCard

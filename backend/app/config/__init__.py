@@ -83,6 +83,14 @@ class Settings(BaseSettings):
     sec_user_agent: str = ""
     portfolio_secret_key: str = ""
 
+    # Web push (D11) — the household alert channel. The private key signs the
+    # VAPID assertion and never leaves the server; the public key is handed to
+    # the browser, which needs it to subscribe at all. Blank disables push and
+    # every caller falls back to the sinks it already had.
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_subject: str = "mailto:alerts@portfolio-ai.local"
+
     # Self-referencing URLs (for internal service calls)
     backend_url: str = f"http://localhost:{PORTFOLIO_BACKEND_PORT}"
     frontend_url: str = f"http://localhost:{PORTFOLIO_FRONTEND_PORT}"

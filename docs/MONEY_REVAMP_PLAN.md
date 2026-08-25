@@ -5,14 +5,17 @@ pass (§7). Phase 0 landed 15 of 16 tasks; 0.13 (the staged receipts) waits on t
 household's approval and on the Costco/Walmart order-page parser in Phase 4.2.
 The review screen now answers the month in one place, and the screens that
 answered it a second time are gone. **Phase 3 is live**: the income anchor (3.1)
-is in, and the caps (3.2), savings state (3.3) and sinking funds (3.4) are all
-priced off it. What remains in Phase 3 is card commitments and alerts.
+is in, the caps (3.2), savings state (3.3) and sinking funds (3.4) are all
+priced off it, the cards' standing costs reach the plan (3.5), and alerts now
+have a transport that reaches a phone (3.6). What remains in Phase 3 is the
+alert kinds themselves (3.7).
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-24 (Phase 3: income anchored to the median of the last
+**Last updated:** 2026-08-25 (Phase 3: income anchored to the median of the last
 three complete months, $6,067/mo; saving is a declared state; the four sinking
-funds are priced from their own trailing spend; and the category caps are now
-that anchor minus saving minus the funds, divided by historical shape)
+funds are priced from their own trailing spend; the category caps are now that
+anchor minus saving minus the funds, divided by historical shape; the cards'
+standing costs reach the plan; and money alerts can now reach a phone)
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -65,15 +68,16 @@ its own). **1.1–1.10 and 2.1–2.7 are all done.**
 
 Work top down through §7 Phase 3 — plan, funds, and alerts:
 
-1. **3.6 Web push via the existing PWA** (D19) — `push` + `notificationclick`
-   in `frontend/public/sw.js`, subscription storage, per-device registration
-   for Elias and Mariana separately. Both are on Android, so no install
-   ceremony.
-2. **3.7 Alert kinds** (D19) — month projected over plan; novelty purchase;
-   category at 100% of cap. Better-price-found waits for Phase 5.
-3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+1. **3.7 Alert kinds** (D19) — month projected over plan; novelty purchase;
+   category at 100% of cap. Better-price-found waits for Phase 5. The transport
+   is in (3.6); what is missing is the three findings worth pushing.
+2. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
+3. **Before either adult relies on alerts:** neither phone has subscribed yet.
+   Open the Budget tab on each handset, pick the name, allow notifications,
+   and send the test — a registered device is what turns an alert from an inbox
+   row into something that reaches a person.
 
 **The review inbox is as clear as it can get without the household** — 17 → 12,
 and each of the 12 is waiting on a person, not on a bug:
@@ -2043,13 +2047,24 @@ The screen in the artifact. All seven tasks landed.
     as `deadline_passed`, which is what is actually known, and stops counting as
     a bonus the household could chase. Adding a card is the existing Cards-tab
     operation (D22) — nothing here needs a migration to see a new one.
-3.6 **Web push via the existing PWA** (D19). Add `push` + `notificationclick`
-    handlers to `frontend/public/sw.js`, subscription storage, per-device
-    registration for Elias and Mariana separately. Reuse
-    `spend_alert_service.py`'s evaluate → two-sink → dedupe-marker shape; swap
-    transport only. **Both recipients are on Android** (Pixel 7 Pro, Galaxy S22
-    Ultra), so there is no add-to-home-screen requirement and no install
-    ceremony — the D11 iOS caveat is void.
+3.6 **Web push via the existing PWA** (D19) — **done 2026-08-25**. The alerts
+    were already being written; what was missing was a way for one to reach a
+    person who was not looking at the screen. `sw.js` gained `push`,
+    `notificationclick` and `pushsubscriptionchange`; `household_push_
+    subscriptions` (migration `f6a7b8c9d0e1`) holds one row per device, keyed on
+    the endpoint the browser mints, so a re-granted permission updates a phone
+    rather than adding a second row that buzzes the same handset twice. The
+    endpoint is a bearer capability — holding it is permission to push — so no
+    endpoint is ever returned by the API; the row id addresses a device instead.
+    `spend_alert_service.py` keeps its evaluate → dedupe-marker shape and only
+    the transport changed: the crossing marker is passed through as the tray
+    `tag`, so a repeat of one finding replaces its own notification instead of
+    stacking under it. The shared Telegram chat is **not** deleted — it carries
+    any alert no phone took, because the month can go over the cap the day
+    before the first device subscribes. Recipients come from
+    `household_members` by role, so the girls are never offered (D15). Both
+    adults are on Android, so no install ceremony was needed and the D11 iOS
+    caveat stayed void.
 3.7 **Alert kinds** (D19), in priority order: month projected over plan; novelty /
     outlier purchase; category at 100% of cap (not 85%); better-price-found
     (deferred until Phase 5 unit pricing lands). Existing card kinds continue
@@ -2184,3 +2199,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 3.4 | **The sinking funds stopped being an inference over merchants and became four numbers with their working shown.** What they replace proposed **$7,104/mo** of buffers — more than the household takes home — by treating any merchant it saw on a rhythm as an obligation, and none of it ever reached the UI. The four funds are now the household's own choice (D18), each priced from its own trailing spend over the **12 complete months before the running one** — never the current month, which would quote a fund at a third of its rate in early August. Live: **Travel $815/mo** ($9,785 over 12 months), **Home repair & appliances $291**, **Insurance, taxes & registration $243**, and **Gifts & holidays undeclared** — nothing in this ledger is filed as gifts, they sit inside Retail, so that fund asks for an amount instead of reporting $0/mo as though nothing were owed. Every figure prints the subtraction that produced it, so a number that looks wrong can be checked rather than argued with. The **largest purchase in each window is droppable**: Travel falls to **$639/mo** without the $2,111 Carnival charge, and the card keeps both figures — one cruise should not set a monthly contribution for a year, but hiding that it happened is worse. Two judgements are made out loud instead of guessed. The **$2,144.48 Pinellas County Tax Collector** row is filed under Home; it is a *tax*, not a repair, so a merchant match claims it for the taxes fund and it can only fund one buffer (D23's obligation, finally landing somewhere). And the **$11,633 air conditioner is filed under Household**, the mixed bucket that also holds Costco grocery runs, so home repair does not count it — the card says so and offers a declared amount, rather than quietly funding groceries as appliances. Overrides live in a new `household_sinking_funds` table holding only what the ledger cannot derive: a dated declaration and the one-time flag. The monthly figure is never cached — it is recomputed from `spend_rows_for_window`, the same collapse every total uses, so a fund cannot drift from the purchases it claims to be based on. Verified live end to end: setting aside the cruise moved Travel to $639 on screen and back to $815 when counted again; a $150 gifts declaration read *Declared, 2026-08-24* and cleared back to *Needs an amount*. Both verification writes were reverted. Gate green: 2,554 backend tests (9 new), 492 frontend tests (7 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |
 | 2026-08-24 | Phase 3.2 | **The category caps stopped being a description of what the household already spends and became a division of what it earns.** The old suggestion per row was `_recommended_category_budget` — trailing spend, rounded — so a category that overspent by $600 was handed a cap $600 higher, and the sum of those suggestions had no relationship to income at all: the Budget screen's *Caps waiting on you* quoted **$6,650/mo** against an anchor of $6,067, a plan that was already $583 underwater before a single dollar of saving or any sinking fund came out of it. The caps now start from the anchor and subtract, in order: **$6,067 anchor − $0 saving − $1,349 fund accruals = $4,718 available**. **Essentials are held at what they actually cost** — $3,124 across Groceries, Bills, Healthcare, Gas, Transportation and Education — because a groceries cap the household cannot shop under is not a plan, it is a number that will be broken every month. What is left, **$1,594**, is divided across the 10 remaining categories in proportion to what each already spends, so the shape of the household's own life sets the split while income sets the size. A category with a **sinking fund is capped at that fund's accrual** and taken out of the pool entirely — Travel at $815, not a second $815 shaped on top of the $815 the fund already holds — because funding the same dollar twice is exactly the error that produced $7,104/mo of buffers in 3.4. Two states refuse to propose rather than propose badly: **no_anchor**, when income is not measurable, says to declare one instead of quoting caps off nothing; and **essentials_exceed_income**, which names the shortfall instead of shrinking essentials to fit an income that cannot cover them. The card prints the whole subtraction as a list — anchor, less saving, less funds, less essentials, left to divide — and every row shows what it *runs at* beside what is *proposed*, so a cut is visible as a cut. And the gap is stated outright: **these categories run $2,631/mo above the pool**, so the proposal is a cut, not a description. **Nothing auto-applies.** A proposed cap is a suggestion until it is accepted on the row; confirmed caps stay untouched and are reported separately, which is why *Caps waiting on you* moved from **$6,650 to $4,035**, priced off income instead of off itself. One row left the suggestion list entirely: **Donations** spends **29c/mo**, so its share of the pool is **11c** — a cap nobody can act on and one that would breach on the first donation — and a row with no history to shape from now gets no suggestion at all rather than a token one (17 suggested rows → **16**). Verified live on the running backend and on `/money?tab=spending` after rebuild. Gate green: **2,563 backend tests** (9 new), **497 frontend tests** (5 new), ARCH/ruff/ty/biome/tsc clean; 0 console errors, 0 warnings, 0 failed requests. |
 | 2026-08-25 | Phase 3.5 | **The cards' standing costs stopped being invisible to the plan.** The Cards tab has known the renewal dates and the welcome deadlines all along; the Plan screen knew only a balance, and only as a subtraction inside the affordability check (**P0-20**). `build_card_commitments` now assembles all three per open card and the Budget screen renders them: **$17,336 owed across 3 cards, and $190/yr to keep them** — Amazon Prime Visa (Elias ·9728) $5,513, Sapphire (Mariana ·8054) $5,897, Sapphire (Elias ·3627) $5,927. Cards are named by owner and last four because two Sapphires are **one product and two cards**, and a card whose account reports nothing reads *"Not reporting"* with the reason under it rather than $0 — a card with no feed is exactly the one whose balance is a surprise. The **$190/yr of fees is subtracted as a $16/mo accrual** in `build_cap_plan`, in the same subtraction as saving and the fund accruals, because a fee that posts on a day nobody remembers is money the caps have already been allowed to spend: the pool the categories divide moved **$1,594 → $1,578**, "Caps waiting on you" **$4,035 → $4,020**, and the card prints the new line. Two judgements are stated rather than guessed. A **deadline that has passed while the card row still says `in_progress`** is neither: it is reported as `deadline_passed` — what is actually known — and stops counting as an open bonus the household could still chase. And `_money` here rounds **half away from zero** rather than Python's default, because every figure is printed twice on one row, once by this text and once by the browser's `Intl.NumberFormat`: $5,896.50 was reading **$5,896** in the sentence and **$5,897** in the number beside it. Gate green (2,576 backend / 503 frontend), rebuilt, verified live on `/money?tab=spending` with 0 console errors, 0 warnings, 0 failed requests. |
+| 2026-08-25 | Phase 3.6 | **The alerts got a way to reach a person who is not looking at the screen.** Every finding `spend_alert_service` produced already landed in `jenny_notifications`, which is a place someone has to already be reading, and on one shared Telegram chat with no recipient parameter — so everything went to both adults or to neither. Web push replaces that phone sink (D11): `sw.js` gained `push`, `notificationclick` and `pushsubscriptionchange`, and `household_push_subscriptions` (`f6a7b8c9d0e1`) holds one row per device. **The endpoint is the identity**, because it is the only thing a push service and a browser both know — so registration upserts on it, and a re-granted permission updates a phone instead of adding a second row that buzzes the same handset twice. It is also a **bearer capability**: anyone holding an endpoint can push to that device, so no API response returns one and the row id addresses a device instead; the card marks its own row from a `localStorage` id, which is the one fact only that browser has. The evaluate → dedupe-marker shape is unchanged and only the transport moved: the per-crossing marker is passed through as the notification `tag`, so a repeat of one finding replaces its own tray entry rather than stacking beneath it, and a tapped notification opens the plan. **The Telegram sink is kept for exactly one case** — an alert no phone took — because swapping a transport must not open a window where a finding reaches nobody, and the month can go over the cap the day before the first device subscribes. Recipients come from `household_members` by role rather than a hard-coded list, so the girls are never offered a cap they cannot act on (D15). Two things were found while wiring it: the frontend client rewrites camelCase to snake_case on every request body and renders the browser's `p256dh` key as `p_256_dh`, a field nothing sends and no model binds — the API names it `encryption_key` so the round trip survives; and the click target `/money?tab=budget` was wrong, because the Budget tab's **route value is `spending`** and the label and the value differ, so every tapped notification would have opened the Dashboard. Verified end to end against the running backend with a local listener standing in for a push service: `Content-Encoding: aes128gcm`, a VAPID `Authorization: vapid t=…` JWT, `TTL 86400`, and the ciphertext decrypts with the subscriber's private key to exactly the payload `sw.js` reads. Live on the Budget tab: the card renders *Whose phone is this? Elias / Mariana* from the real member rows, picking one enables the button, and the service worker is `activated` at scope `/` with 0 console errors, 0 warnings, 0 failed requests. **Neither phone has subscribed yet** — that is a one-time action on each handset, not code. Gate green: 2,592 backend tests, 518 frontend tests. |

@@ -38,6 +38,87 @@ self.addEventListener('message', (event) => {
   }
 })
 
+// --- Push (plan §7 3.6, D11) ------------------------------------------------
+// The alert channel. The backend encrypts {title, body, severity, url, tag} to
+// this device's own key, so the payload arrives here and nowhere else.
+
+// The Budget tab's route value is 'spending' -- the label and the value differ.
+const PUSH_FALLBACK_URL = '/money?tab=spending'
+
+function pushPayload(event) {
+  // A push with no data is a real case: a service can wake a worker without
+  // one, and Android will show its own generic notice if we show nothing. So
+  // there is always a notification, even when there is nothing to say.
+  if (!event.data) {
+    return { title: 'Portfolio AI', body: 'Open the plan for the latest.' }
+  }
+  try {
+    return event.data.json()
+  } catch (error) {
+    return { title: 'Portfolio AI', body: event.data.text() }
+  }
+}
+
+self.addEventListener('push', (event) => {
+  const payload = pushPayload(event)
+  const url = payload.url || PUSH_FALLBACK_URL
+  event.waitUntil(
+    self.registration.showNotification(payload.title || 'Portfolio AI', {
+      body: payload.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      // Same tag as the alert's dedupe marker: a repeat of one crossing
+      // replaces its own tray entry instead of stacking under it.
+      tag: payload.tag || 'portfolio-ai-alert',
+      renotify: true,
+      // Money findings are what the household asked to be interrupted for;
+      // anything softer would be a notification nobody sees until later.
+      requireInteraction: payload.severity === 'critical',
+      data: { url },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || PUSH_FALLBACK_URL
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Reuse a tab that is already on this app rather than opening a second
+        // one: the household reads one screen, not a stack of them.
+        for (const client of clientList) {
+          if (new URL(client.url).origin === self.location.origin) {
+            return client.focus().then(() => {
+              if ('navigate' in client) {
+                return client.navigate(target)
+              }
+              return client
+            })
+          }
+        }
+        return self.clients.openWindow(target)
+      }),
+  )
+})
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  // The browser rotated this device's endpoint. Tell the server so the old row
+  // stops being pushed to; the app re-subscribes on its next load.
+  const oldEndpoint = event.oldSubscription && event.oldSubscription.endpoint
+  if (!oldEndpoint) {
+    return
+  }
+  event.waitUntil(
+    fetch('/api/household/push/unsubscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: oldEndpoint }),
+    }).catch(() => undefined),
+  )
+})
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET') {

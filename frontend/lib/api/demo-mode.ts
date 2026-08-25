@@ -517,6 +517,14 @@ const DEMO_FIXTURES: Record<string, unknown> = {
   '/api/portfolio/analytics': DEMO_ANALYTICS,
   '/api/household/dashboard': DEMO_HOUSEHOLD_DASHBOARD,
   '/api/household/net-worth-trend': DEMO_NET_WORTH_TREND,
+  // A device list names real people and their phones, so a recording shows an
+  // empty one rather than the household's handsets.
+  '/api/household/push/subscriptions': {
+    enabled: false,
+    publicKey: '',
+    recipients: [],
+    subscriptions: [],
+  },
 }
 
 /**
