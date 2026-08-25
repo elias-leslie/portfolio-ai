@@ -23,6 +23,7 @@ import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
 import { BudgetTable } from './BudgetTable'
 import { CapPlanCard } from './CapPlanCard'
+import { CardCommitmentsCard } from './CardCommitmentsCard'
 import { CategoryTrendChart } from './CategoryTrendChart'
 import { ConnectedSpendTrendChart } from './ConnectedSpendTrendChart'
 import { IncomeAnchorCard } from './IncomeAnchorCard'
@@ -403,6 +404,13 @@ export function MoneyBudgetPanel() {
           month, before any category cap divides up what is left. */}
       <SinkingFundsCard
         funds={dashboard?.sinkingFunds}
+        isLoading={isDashboardLoading}
+      />
+
+      {/* The fees subtracted one card up, itemised — plus the balances and any
+          bonus deadline, which lived only on the Cards tab until now (P0-20). */}
+      <CardCommitmentsCard
+        commitments={dashboard?.cardCommitments}
         isLoading={isDashboardLoading}
       />
 

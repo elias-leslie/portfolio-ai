@@ -6,20 +6,24 @@ import { CapPlanCard } from '../CapPlanCard'
 function plan(overrides: Partial<HouseholdCapPlan> = {}) {
   return {
     status: 'proposed',
-    headline: '$1,594/mo to divide after essentials, saving and the funds.',
+    headline:
+      '$1,578/mo to divide once saving, the funds, the card fees and essentials are out.',
     detail:
-      '$6,067 anchor - $0 saving - $1,349 fund accruals = $4,718. Essentials take $3,124 at what they actually cost, leaving $1,594 shaped across 10 categories.',
+      '$6,067 anchor - $0 saving - $1,349 fund accruals - $16 card fees = $4,702. Essentials take $3,124 at what they actually cost, leaving $1,578 shaped across 10 categories.',
     anchorMonthlyIncome: 6067.39,
     savingsTarget: 0,
     sinkingFundTotal: 1349.25,
-    availableForCategories: 4718.14,
+    cardFeeMonthly: 15.83,
+    cardFeeDetail:
+      '$190/yr across 2 cards, held back monthly so the renewal is already paid for when it posts.',
+    availableForCategories: 4702.31,
     essentialsTotal: 3124.13,
-    discretionaryPool: 1594.01,
+    discretionaryPool: 1577.94,
     trailingMonthlyTotal: 7349.2,
-    gapToTrailing: -2631.06,
+    gapToTrailing: -2646.89,
     confirmedCapTotal: 0,
     driftDetail:
-      'These categories currently run $2,631/mo above that, so the proposal is a cut, not a description.',
+      'These categories currently run $2,647/mo above that, so the proposal is a cut, not a description.',
     rows: [
       {
         category: 'Groceries',
@@ -66,13 +70,22 @@ describe('CapPlanCard', () => {
     expect(screen.getByText('Income anchor')).toBeInTheDocument()
     expect(screen.getByText('less Sinking fund accruals')).toBeInTheDocument()
     expect(screen.getByText('less Essentials at cost')).toBeInTheDocument()
-    expect(screen.getByText('$1,594')).toBeInTheDocument()
+    expect(screen.getByText('$1,578')).toBeInTheDocument()
+  })
+
+  it('subtracts what the cards cost to keep before the categories divide', () => {
+    render(<CapPlanCard plan={plan()} />)
+    const feeLine = screen.getByText('less Card annual fees')
+
+    expect(feeLine).toBeInTheDocument()
+    expect(feeLine).toHaveAttribute('title', expect.stringContaining('$190/yr'))
+    expect(screen.getByText('−$16')).toBeInTheDocument()
   })
 
   it('says plainly that the proposal is a cut when spending runs above income', () => {
     render(<CapPlanCard plan={plan()} />)
 
-    expect(screen.getByText('$2,631 over')).toBeInTheDocument()
+    expect(screen.getByText('$2,647 over')).toBeInTheDocument()
     expect(screen.getByText(/a cut, not a description/i)).toBeInTheDocument()
   })
 

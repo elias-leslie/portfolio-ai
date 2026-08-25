@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from app.models.household_finance import (
+    HouseholdCardCommitment,
+    HouseholdCardCommitments,
     HouseholdIncomeAnchor,
     HouseholdSavingsPlan,
     HouseholdSinkingFund,
@@ -45,6 +47,22 @@ FUNDS = [
     _fund("travel", "Travel", 800.0),
     _fund("gifts_holidays", "Gifts & holidays", None),
 ]
+
+
+def _card_fees(monthly: float, yearly: float, count: int = 2) -> HouseholdCardCommitments:
+    return HouseholdCardCommitments(
+        status="committed",
+        annual_fee_monthly=monthly,
+        annual_fee_yearly=yearly,
+        cards=[
+            HouseholdCardCommitment(
+                card_id=f"card-{index}",
+                product_name="Chase Sapphire Preferred",
+                annual_fee=yearly / count,
+            )
+            for index in range(count)
+        ],
+    )
 
 
 def test_the_total_comes_from_income_before_history_touches_it() -> None:
@@ -158,3 +176,49 @@ def test_no_measurable_income_proposes_nothing() -> None:
     assert plan.status == "no_anchor"
     assert plan.rows == []
     assert "Declare an anchor" in plan.detail
+
+
+def test_the_cards_annual_fees_come_out_before_the_categories_divide() -> None:
+    """$190 charged once a year is $16/mo the caps cannot also spend (P0-20)."""
+    plan = build_cap_plan(
+        categories=CATEGORIES,
+        anchor=_anchor(6000.0),
+        savings_plan=_savings(500.0),
+        sinking_funds=FUNDS,
+        card_commitments=_card_fees(15.83, 190.0),
+    )
+
+    assert plan.card_fee_monthly == 15.83
+    assert plan.available_for_categories == 4684.17
+    assert plan.discretionary_pool == 3084.17
+    assert "$16 card fees" in plan.detail
+    assert plan.card_fee_detail == (
+        "$190/yr across 2 cards, held back monthly so the renewal is already "
+        "paid for when it posts."
+    )
+
+
+def test_cards_that_cost_nothing_to_keep_subtract_nothing() -> None:
+    plan = build_cap_plan(
+        categories=CATEGORIES,
+        anchor=_anchor(6000.0),
+        savings_plan=_savings(500.0),
+        sinking_funds=FUNDS,
+        card_commitments=HouseholdCardCommitments(status="committed"),
+    )
+
+    assert plan.card_fee_monthly == 0.0
+    assert plan.available_for_categories == 4700.0
+    assert plan.card_fee_detail == "None of the open cards charges an annual fee."
+
+
+def test_no_card_reading_at_all_says_so_rather_than_implying_zero_fees() -> None:
+    plan = build_cap_plan(
+        categories=CATEGORIES,
+        anchor=_anchor(6000.0),
+        savings_plan=_savings(500.0),
+        sinking_funds=FUNDS,
+    )
+
+    assert plan.card_fee_monthly == 0.0
+    assert plan.card_fee_detail == "No card fees are being read into the plan."

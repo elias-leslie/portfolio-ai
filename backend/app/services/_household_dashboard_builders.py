@@ -14,6 +14,7 @@ from app.models.household_finance import (
     HouseholdBudgetSnapshot,
     HouseholdCapPlan,
     HouseholdCapPlanRow,
+    HouseholdCardCommitments,
     HouseholdIncomeAnchor,
     HouseholdIncomeAnchorMonth,
     HouseholdProfile,
@@ -1082,6 +1083,22 @@ SINKING_FUND_CATEGORIES: dict[str, str] = {
 }
 
 
+def _card_fee_detail(
+    card_commitments: HouseholdCardCommitments | None, card_fees: float
+) -> str:
+    """Say where the card-fee line came from, or why it is $0."""
+    if card_commitments is None:
+        return "No card fees are being read into the plan."
+    if card_fees <= 0:
+        return "None of the open cards charges an annual fee."
+    yearly = card_commitments.annual_fee_yearly
+    count = sum(1 for card in card_commitments.cards if card.annual_fee > 0)
+    return (
+        f"{_money(yearly)}/yr across {count} card{'s' if count != 1 else ''}, "
+        f"held back monthly so the renewal is already paid for when it posts."
+    )
+
+
 def build_cap_plan(
     *,
     categories: list[Any],
@@ -1089,12 +1106,20 @@ def build_cap_plan(
     savings_plan: HouseholdSavingsPlan,
     sinking_funds: list[HouseholdSinkingFund],
     confirmed_caps: dict[str, float] | None = None,
+    card_commitments: HouseholdCardCommitments | None = None,
 ) -> HouseholdCapPlan:
     """Decide the total from income first, then let history shape it (D6).
 
     ``categories`` are spending-view rows: each carries the trailing monthly
     run-rate this reads. Nothing here re-derives spend -- the shape comes from
     the same collapse the month on screen is reported from.
+
+    ``card_commitments`` contributes the one figure the cards owe the plan: the
+    annual fees as a monthly accrual. It is subtracted alongside saving and the
+    sinking funds because it is the same kind of money -- a known cost that has
+    not arrived yet. Card *balances* are not subtracted here; they are what the
+    affordability check already answers for, and taking them out of a monthly
+    cap would charge one debt to twelve months at once.
     """
     confirmed_caps = confirmed_caps or {}
     income = anchor.monthly_income
@@ -1105,6 +1130,9 @@ def build_cap_plan(
     )
     fund_total = _money_round(
         sum(fund.monthly_target or 0.0 for fund in sinking_funds)
+    )
+    card_fees = _money_round(
+        card_commitments.annual_fee_monthly if card_commitments else 0.0
     )
     fund_by_category = {
         category: fund
@@ -1118,6 +1146,8 @@ def build_cap_plan(
         anchor_monthly_income=income,
         savings_target=_money_round(savings),
         sinking_fund_total=fund_total,
+        card_fee_monthly=card_fees,
+        card_fee_detail=_card_fee_detail(card_commitments, card_fees),
         confirmed_cap_total=_money_round(sum(confirmed_caps.values())),
     )
 
@@ -1147,7 +1177,7 @@ def build_cap_plan(
         )
         return plan
 
-    available = _money_round(income - savings - fund_total)
+    available = _money_round(income - savings - fund_total - card_fees)
     essentials_total = _money_round(sum(trailing for _, trailing in essentials))
     pool = _money_round(available - essentials_total)
     trailing_total = _money_round(
@@ -1232,8 +1262,9 @@ def build_cap_plan(
             "saving and the sinking funds."
         )
         plan.detail = (
-            f"{_money(income)} anchor, less {_money(savings)} saving and "
-            f"{_money(fund_total)} of fund accruals, leaves "
+            f"{_money(income)} anchor, less {_money(savings)} saving, "
+            f"{_money(fund_total)} of fund accruals and "
+            f"{_money(card_fees)} of card fees, leaves "
             f"{_money(available)} -- against {_money(essentials_total)} of "
             "essentials. Nothing is left to cap, so the fix is the essentials "
             "themselves or the anchor."
@@ -1242,11 +1273,13 @@ def build_cap_plan(
 
     plan.status = "proposed"
     plan.headline = (
-        f"{_money(pool)}/mo to divide after essentials, saving and the funds."
+        f"{_money(pool)}/mo to divide once saving, the funds, the card fees and "
+        "essentials are out."
     )
     plan.detail = (
         f"{_money(income)} anchor - {_money(savings)} saving - "
-        f"{_money(fund_total)} fund accruals = {_money(available)}. "
+        f"{_money(fund_total)} fund accruals - {_money(card_fees)} card fees "
+        f"= {_money(available)}. "
         f"Essentials take {_money(essentials_total)} at what they actually cost, "
         f"leaving {_money(pool)} shaped across "
         f"{sum(1 for _, trailing in shaped if trailing > 0)} categories."

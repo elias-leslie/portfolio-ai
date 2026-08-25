@@ -30,6 +30,7 @@ from app.services._household_account_status import (
     fetch_registry_account_masks,
     fetch_registry_account_overrides,
 )
+from app.services._household_card_commitments import build_card_commitments
 from app.services._household_coverage import build_coverage
 from app.services._household_dashboard_builders import (
     build_budget_snapshot,
@@ -669,6 +670,23 @@ def resolve_dashboard_values(service: Any, *, profile: Any, reports: Any, questi
     return resolved_values, visible_questions
 
 
+def _card_account_values(account_summaries: list[Any]) -> dict[str, float | None]:
+    """What each card account currently reports, keyed by household account.
+
+    Keyed on ``household_account_id`` because that is what a card row links to.
+    A card whose account is absent here keeps its balance unknown rather than
+    being shown as paid off.
+    """
+    values: dict[str, float | None] = {}
+    for account in account_summaries:
+        if getattr(account, "asset_group", None) != "credit":
+            continue
+        account_id = str(getattr(account, "household_account_id", "") or "")
+        if account_id:
+            values[account_id] = getattr(account, "current_value", None)
+    return values
+
+
 def _card_balances_outstanding(account_summaries: list[Any]) -> float | None:
     """What the household still owes on its cards.
 
@@ -736,6 +754,13 @@ def assemble_finance_dashboard(
         sinking_funds=build_sinking_funds(
             spend_rows=service.transaction_service.spend_rows_for_window(months=12),
             overrides=fetch_sinking_fund_overrides(storage),
+        ),
+        # What the cards commit the plan to. Their fees are also subtracted in
+        # the cap plan, so the Plan screen and this card cannot disagree about
+        # what keeping them costs (P0-20).
+        card_commitments=build_card_commitments(
+            cards=service.card_service.list_owned_cards(),
+            account_values=_card_account_values(account_summaries),
         ),
         spend_exclusions=fetch_current_window_spend_exclusions(storage),
         retirement_contribution_tracker=build_retirement_contribution_tracker(

@@ -76,6 +76,8 @@ export type {
   HouseholdBuyGuideTrendPoint,
   HouseholdCapPlan,
   HouseholdCapPlanRow,
+  HouseholdCardCommitment,
+  HouseholdCardCommitments,
   HouseholdCategorizationCandidate,
   HouseholdCategoryBreakdown,
   HouseholdCategoryMonthlyTrendPoint,

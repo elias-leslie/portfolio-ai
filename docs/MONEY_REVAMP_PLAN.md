@@ -65,15 +65,13 @@ its own). **1.1–1.10 and 2.1–2.7 are all done.**
 
 Work top down through §7 Phase 3 — plan, funds, and alerts:
 
-1. **3.5 Card commitments in Plan** (P0-20) — annual-fee dates, welcome-bonus
-   deadlines, balances owed; adding a card must be routine (D22).
-2. **3.6 Web push via the existing PWA** (D19) — `push` + `notificationclick`
+1. **3.6 Web push via the existing PWA** (D19) — `push` + `notificationclick`
    in `frontend/public/sw.js`, subscription storage, per-device registration
    for Elias and Mariana separately. Both are on Android, so no install
    ceremony.
-3. **3.7 Alert kinds** (D19) — month projected over plan; novelty purchase;
+2. **3.7 Alert kinds** (D19) — month projected over plan; novelty purchase;
    category at 100% of cap. Better-price-found waits for Phase 5.
-4. **Carried in from Phase 0:** the API's `balance` field is `null` on every
+3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
 
@@ -94,10 +92,21 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 3.5 **What the cards commit the plan to is on the plan screen now.**
+  **$17,336 owed across 3 cards, and $190/yr to keep them**, itemised per card
+  and named by owner and last four. The fees are stated as a **$16/mo** accrual
+  and subtracted in the cap plan, so the pool the categories divide moved
+  **$1,594 → $1,578** and "Caps waiting on you" **$4,035 → $4,020**. A card
+  whose account reports nothing says **"Not reporting"** rather than $0. Both
+  welcome bonuses are earned; an open one would state the daily pace that still
+  wins it, and a deadline that has passed while the row still says *in
+  progress* is reported as such instead of counting as chaseable.
 - 3.2 **The caps are a division of income now, not a summary of history.**
   **$6,067 anchor − $0 saving − $1,349 fund accruals = $4,718**; essentials
   take **$3,124 at cost**, leaving **$1,594** shared across 10 categories in
-  proportion to what each already spends. A category with a sinking fund is
+  proportion to what each already spends (3.5 has since taken a further
+  **$16/mo** of card fees out of the same subtraction, so the live pool is
+  **$1,578**). A category with a sinking fund is
   capped at that fund's accrual rather than drawing on the same dollar twice.
   The card prints the subtraction and states the gap: these categories run
   **$2,631/mo above the pool**, so the proposal is a cut. Suggested caps still
@@ -2018,9 +2027,22 @@ The screen in the artifact. All seven tasks landed.
     and **Costco appliance purchases sit in Household**, which also holds
     grocery runs, so home repair does not count them and says so. This replaces
     the merchant inference that proposed $7,104/mo — more than take-home.
-3.5 **Card commitments in Plan** (P0-20): annual-fee dates, welcome-bonus
-    deadlines, balances owed. Card rotation is routine (D22), so adding a card
-    must be a supported operation, not a migration.
+3.5 ✅ **Card commitments in Plan** (P0-20) — what the cards commit the plan to
+    now sits on the screen where the plan is read, not only on the Cards tab.
+    Live: **$17,336 owed across 3 cards, and $190/yr to keep them**. The annual
+    fees are stated as a monthly accrual — **$16/mo** — and subtracted in the
+    cap plan alongside saving and the fund accruals, because a fee that posts on
+    a day nobody remembers is money the caps have already been allowed to spend.
+    The pool the categories divide moved **$1,594 → $1,578**. Each card names
+    itself by owner and last four (two Sapphires are one product and two cards),
+    and a card whose account reports nothing reads **"Not reporting"** rather
+    than $0 — a card with no feed is exactly the one whose balance is a
+    surprise. Both welcome bonuses are earned, so the card says so instead of
+    inventing a target; an open one states the daily pace that still wins it. A
+    deadline that has passed while the row still says *in progress* is reported
+    as `deadline_passed`, which is what is actually known, and stops counting as
+    a bonus the household could chase. Adding a card is the existing Cards-tab
+    operation (D22) — nothing here needs a migration to see a new one.
 3.6 **Web push via the existing PWA** (D19). Add `push` + `notificationclick`
     handlers to `frontend/public/sw.js`, subscription storage, per-device
     registration for Elias and Mariana separately. Reuse
@@ -2161,3 +2183,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-24 | Phase 3.3 | **A $0 savings target stopped counting as keeping up.** The live profile carries `monthly_savings_target: 0.0`, and zero trivially keeps up with zero — a pass awarded for having no plan, the same shape of answer the retirement block gave before 2.6, and it sat on screen while net worth grew roughly $19,800/mo on its own. Saving is now one of four declared states. **Active** states what the amount leaves rather than grading it: $1,500/mo *"leaves $4,567 of the $6,067 anchor for everything else"*, and a target above the anchor is told that one of the two is wrong instead of being quietly accepted. **Paused** carries the day it was declared, the reason, and the income level that ends it — *"Paused since Feb 01, 2026. On unemployment while SummitFlow is pending. Restarts at $8,000/mo of income. A normal month currently brings in $6,067 — $1,933 short."* **Restart due** fires when the anchor reaches that level and asks for an amount. **Undeclared** is what the live household reads today: *"The savings target is $0, which is not a plan."* Two deliberate refusals. A pause with no restart trigger is told outright that nothing will ever prompt it to resume, because a pause that cannot end is just a plan to stop saving with extra steps. And nothing here grades contributions: the retirement block already refuses to read $0 of visible retirement activity as $0 contributed (2.6), and repeating that mistake one card over would undo it. The trigger is evaluated against the **3.1 anchor**, declared value included, so the pause and the card above it cannot disagree about what income is; naming an amount clears the pause in the same write, so the two states can never both be on. Verified live end to end through the API: paused at an $8,000 trigger reads *paused, $1,933 short*; lowering the trigger to $5,000 flips it to *Time to resume* on screen; clearing returns the profile to its original state (target $0, no pause). Gate green: 2,545 backend tests (9 new), 485 frontend tests (7 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |
 | 2026-08-24 | Phase 3.4 | **The sinking funds stopped being an inference over merchants and became four numbers with their working shown.** What they replace proposed **$7,104/mo** of buffers — more than the household takes home — by treating any merchant it saw on a rhythm as an obligation, and none of it ever reached the UI. The four funds are now the household's own choice (D18), each priced from its own trailing spend over the **12 complete months before the running one** — never the current month, which would quote a fund at a third of its rate in early August. Live: **Travel $815/mo** ($9,785 over 12 months), **Home repair & appliances $291**, **Insurance, taxes & registration $243**, and **Gifts & holidays undeclared** — nothing in this ledger is filed as gifts, they sit inside Retail, so that fund asks for an amount instead of reporting $0/mo as though nothing were owed. Every figure prints the subtraction that produced it, so a number that looks wrong can be checked rather than argued with. The **largest purchase in each window is droppable**: Travel falls to **$639/mo** without the $2,111 Carnival charge, and the card keeps both figures — one cruise should not set a monthly contribution for a year, but hiding that it happened is worse. Two judgements are made out loud instead of guessed. The **$2,144.48 Pinellas County Tax Collector** row is filed under Home; it is a *tax*, not a repair, so a merchant match claims it for the taxes fund and it can only fund one buffer (D23's obligation, finally landing somewhere). And the **$11,633 air conditioner is filed under Household**, the mixed bucket that also holds Costco grocery runs, so home repair does not count it — the card says so and offers a declared amount, rather than quietly funding groceries as appliances. Overrides live in a new `household_sinking_funds` table holding only what the ledger cannot derive: a dated declaration and the one-time flag. The monthly figure is never cached — it is recomputed from `spend_rows_for_window`, the same collapse every total uses, so a fund cannot drift from the purchases it claims to be based on. Verified live end to end: setting aside the cruise moved Travel to $639 on screen and back to $815 when counted again; a $150 gifts declaration read *Declared, 2026-08-24* and cleared back to *Needs an amount*. Both verification writes were reverted. Gate green: 2,554 backend tests (9 new), 492 frontend tests (7 new), ARCH/ruff/ty/biome/tsc clean; `/money?tab=spending` verified after rebuild with 0 console errors and 0 warnings. |
 | 2026-08-24 | Phase 3.2 | **The category caps stopped being a description of what the household already spends and became a division of what it earns.** The old suggestion per row was `_recommended_category_budget` — trailing spend, rounded — so a category that overspent by $600 was handed a cap $600 higher, and the sum of those suggestions had no relationship to income at all: the Budget screen's *Caps waiting on you* quoted **$6,650/mo** against an anchor of $6,067, a plan that was already $583 underwater before a single dollar of saving or any sinking fund came out of it. The caps now start from the anchor and subtract, in order: **$6,067 anchor − $0 saving − $1,349 fund accruals = $4,718 available**. **Essentials are held at what they actually cost** — $3,124 across Groceries, Bills, Healthcare, Gas, Transportation and Education — because a groceries cap the household cannot shop under is not a plan, it is a number that will be broken every month. What is left, **$1,594**, is divided across the 10 remaining categories in proportion to what each already spends, so the shape of the household's own life sets the split while income sets the size. A category with a **sinking fund is capped at that fund's accrual** and taken out of the pool entirely — Travel at $815, not a second $815 shaped on top of the $815 the fund already holds — because funding the same dollar twice is exactly the error that produced $7,104/mo of buffers in 3.4. Two states refuse to propose rather than propose badly: **no_anchor**, when income is not measurable, says to declare one instead of quoting caps off nothing; and **essentials_exceed_income**, which names the shortfall instead of shrinking essentials to fit an income that cannot cover them. The card prints the whole subtraction as a list — anchor, less saving, less funds, less essentials, left to divide — and every row shows what it *runs at* beside what is *proposed*, so a cut is visible as a cut. And the gap is stated outright: **these categories run $2,631/mo above the pool**, so the proposal is a cut, not a description. **Nothing auto-applies.** A proposed cap is a suggestion until it is accepted on the row; confirmed caps stay untouched and are reported separately, which is why *Caps waiting on you* moved from **$6,650 to $4,035**, priced off income instead of off itself. One row left the suggestion list entirely: **Donations** spends **29c/mo**, so its share of the pool is **11c** — a cap nobody can act on and one that would breach on the first donation — and a row with no history to shape from now gets no suggestion at all rather than a token one (17 suggested rows → **16**). Verified live on the running backend and on `/money?tab=spending` after rebuild. Gate green: **2,563 backend tests** (9 new), **497 frontend tests** (5 new), ARCH/ruff/ty/biome/tsc clean; 0 console errors, 0 warnings, 0 failed requests. |
+| 2026-08-25 | Phase 3.5 | **The cards' standing costs stopped being invisible to the plan.** The Cards tab has known the renewal dates and the welcome deadlines all along; the Plan screen knew only a balance, and only as a subtraction inside the affordability check (**P0-20**). `build_card_commitments` now assembles all three per open card and the Budget screen renders them: **$17,336 owed across 3 cards, and $190/yr to keep them** — Amazon Prime Visa (Elias ·9728) $5,513, Sapphire (Mariana ·8054) $5,897, Sapphire (Elias ·3627) $5,927. Cards are named by owner and last four because two Sapphires are **one product and two cards**, and a card whose account reports nothing reads *"Not reporting"* with the reason under it rather than $0 — a card with no feed is exactly the one whose balance is a surprise. The **$190/yr of fees is subtracted as a $16/mo accrual** in `build_cap_plan`, in the same subtraction as saving and the fund accruals, because a fee that posts on a day nobody remembers is money the caps have already been allowed to spend: the pool the categories divide moved **$1,594 → $1,578**, "Caps waiting on you" **$4,035 → $4,020**, and the card prints the new line. Two judgements are stated rather than guessed. A **deadline that has passed while the card row still says `in_progress`** is neither: it is reported as `deadline_passed` — what is actually known — and stops counting as an open bonus the household could still chase. And `_money` here rounds **half away from zero** rather than Python's default, because every figure is printed twice on one row, once by this text and once by the browser's `Intl.NumberFormat`: $5,896.50 was reading **$5,896** in the sentence and **$5,897** in the number beside it. Gate green (2,576 backend / 503 frontend), rebuilt, verified live on `/money?tab=spending` with 0 console errors, 0 warnings, 0 failed requests. |

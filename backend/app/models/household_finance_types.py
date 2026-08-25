@@ -782,7 +782,8 @@ class HouseholdCapPlan(BaseModel):
     summed to more than the household takes home, so a month could clear every
     one of them and still lose money (D6). Here the total is decided first --
     anchor, less what saving is set aside, less what the sinking funds accrue --
-    and only its distribution comes from history.
+    and only its distribution comes from history, less what the cards cost to
+    keep.
 
     Essentials are held at what they actually cost rather than trimmed by a
     percentage: a groceries cap the household cannot live on is not a plan, it
@@ -797,7 +798,13 @@ class HouseholdCapPlan(BaseModel):
     anchor_monthly_income: float | None = None
     savings_target: float = 0.0
     sinking_fund_total: float = 0.0
-    # anchor - savings - sinking funds: everything the categories may divide.
+    # The cards' annual fees, spread over the year they cover. $190 charged
+    # once is $16/mo of income already spoken for, and caps that ignore it are
+    # over by that much every month they are kept (P0-20).
+    card_fee_monthly: float = 0.0
+    card_fee_detail: str = ""
+    # anchor - savings - sinking funds - card fees: everything the categories
+    # may divide.
     available_for_categories: float = 0.0
     essentials_total: float = 0.0
     discretionary_pool: float = 0.0
@@ -838,7 +845,9 @@ class HouseholdCardCommitment(BaseModel):
     welcome_progress: float = 0.0
     welcome_deadline: str | None = None
     welcome_days_left: int | None = None
-    # not_started | in_progress | earned | missed | none
+    # not_started | in_progress | deadline_passed | earned | missed | none.
+    # ``deadline_passed`` is this builder's reading, not the issuer's: the card
+    # row still says in progress and the window has closed.
     welcome_status: str = "none"
     welcome_detail: str = ""
 

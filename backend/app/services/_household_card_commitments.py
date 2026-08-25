@@ -10,6 +10,7 @@ cards cost to keep, and which bonus is still open.
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from app.models.household_finance import (
@@ -19,7 +20,15 @@ from app.models.household_finance import (
 
 
 def _money(value: float) -> str:
-    return f"${value:,.0f}"
+    """Round half away from zero, the way the screen's own formatter does.
+
+    Every figure here is printed twice: once by this text and once by the card
+    that renders the raw number through ``Intl.NumberFormat``. Python's default
+    rounds $5,896.50 to $5,896 and the browser rounds it to $5,897, which puts
+    two different amounts for one balance on the same row.
+    """
+    cents = Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"${cents:,}"
 
 
 def _as_date(value: Any) -> date | None:
@@ -141,6 +150,11 @@ def build_card_commitments(
             row.welcome_deadline = deadline.isoformat()
             row.welcome_days_left = days_left
             if days_left < 0:
+                # The record still says in progress; the calendar says the
+                # window shut. Neither one alone is the truth, so the state is
+                # named for what is actually known and it stops counting as an
+                # open bonus the household could still chase.
+                row.welcome_status = "deadline_passed"
                 row.welcome_detail = (
                     f"The deadline passed on {deadline.strftime('%b %d, %Y')} "
                     f"with {_money(row.welcome_progress)} of "
@@ -207,7 +221,9 @@ def build_card_commitments(
                 f"{due_label}, {days_away} away."
             )
 
-    open_bonuses = [row for row in rows if row.welcome_status in {"not_started", "in_progress"}]
+    open_bonuses = [
+        row for row in rows if row.welcome_status in {"not_started", "in_progress"}
+    ]
     plan.welcome_open_count = len(open_bonuses)
     if open_bonuses:
         plan.welcome_detail = min(

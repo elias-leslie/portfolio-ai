@@ -434,6 +434,11 @@ class HouseholdFinanceDashboard(BaseModel):
     recurring_commitments: list[HouseholdRecurringCommitment] = Field(default_factory=list)
     transaction_date_issues: list[HouseholdTransactionDateIssue] = Field(default_factory=list)
     sinking_funds: list[HouseholdSinkingFund] = Field(default_factory=list)
+    # What the cards commit the plan to: balances owed, the fees to keep them,
+    # and any welcome deadline still open (P0-20).
+    card_commitments: HouseholdCardCommitments = Field(
+        default_factory=HouseholdCardCommitments
+    )
     # What the spend filters held out of every total above, and why.
     spend_exclusions: HouseholdSpendExclusions = Field(default_factory=HouseholdSpendExclusions)
     retirement_contribution_tracker: HouseholdRetirementContributionTracker

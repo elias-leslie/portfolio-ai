@@ -1580,6 +1580,8 @@ export interface HouseholdCapPlan {
   anchorMonthlyIncome: number | null
   savingsTarget: number
   sinkingFundTotal: number
+  cardFeeMonthly: number
+  cardFeeDetail: string
   availableForCategories: number
   essentialsTotal: number
   discretionaryPool: number
@@ -1588,6 +1590,47 @@ export interface HouseholdCapPlan {
   rows: HouseholdCapPlanRow[]
   confirmedCapTotal: number
   driftDetail: string
+}
+
+export interface HouseholdCardCommitment {
+  cardId: string
+  productName: string
+  accountLabel: string | null
+  accountMask: string | null
+  ownerName: string | null
+  role: string
+  balanceOwed: number | null
+  balanceDetail: string
+  annualFee: number
+  annualFeeDueDate: string | null
+  annualFeeDaysAway: number | null
+  annualFeeDetail: string
+  welcomeMinSpend: number
+  welcomeProgress: number
+  welcomeDeadline: string | null
+  welcomeDaysLeft: number | null
+  welcomeStatus:
+    | 'not_started'
+    | 'in_progress'
+    | 'deadline_passed'
+    | 'earned'
+    | 'missed'
+    | 'none'
+  welcomeDetail: string
+}
+
+export interface HouseholdCardCommitments {
+  status: 'committed' | 'no_cards'
+  headline: string
+  detail: string
+  cards: HouseholdCardCommitment[]
+  balanceTotal: number | null
+  balanceUnknownLabels: string[]
+  annualFeeYearly: number
+  annualFeeMonthly: number
+  nextFeeDetail: string
+  welcomeOpenCount: number
+  welcomeDetail: string
 }
 
 export interface HouseholdSpendingView {
@@ -1714,6 +1757,7 @@ export interface HouseholdFinanceDashboard {
   recurringCommitments: HouseholdRecurringCommitment[]
   transactionDateIssues: HouseholdTransactionDateIssue[]
   sinkingFunds: HouseholdSinkingFund[]
+  cardCommitments: HouseholdCardCommitments
   spendExclusions: HouseholdSpendExclusions
   retirementContributionTracker: HouseholdRetirementContributionTracker
   retirementScenarios: HouseholdRetirementScenario[]

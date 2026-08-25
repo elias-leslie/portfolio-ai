@@ -43,7 +43,12 @@ export function CapPlanCard({
   }
 
   const overspending = plan.gapToTrailing < 0
-  const lines = [
+  const lines: {
+    label: string
+    amount: number
+    subtract: boolean
+    detail?: string
+  }[] = [
     {
       label: 'Income anchor',
       amount: plan.anchorMonthlyIncome ?? 0,
@@ -54,6 +59,14 @@ export function CapPlanCard({
       label: 'less Sinking fund accruals',
       amount: plan.sinkingFundTotal,
       subtract: true,
+    },
+    // The cards' annual fees, spread over the year they cover: $190 charged
+    // once is $16/mo the caps below cannot also spend (P0-20).
+    {
+      label: 'less Card annual fees',
+      amount: plan.cardFeeMonthly,
+      subtract: true,
+      detail: plan.cardFeeDetail,
     },
     {
       label: 'less Essentials at cost',
@@ -93,7 +106,9 @@ export function CapPlanCard({
             key={line.label}
             className="flex items-baseline justify-between gap-3"
           >
-            <dt className="text-text-muted">{line.label}</dt>
+            <dt className="text-text-muted" title={line.detail}>
+              {line.label}
+            </dt>
             <dd className="font-mono tabular-nums text-text-muted">
               {line.subtract ? '−' : ''}
               {formatCurrencyWhole(line.amount)}

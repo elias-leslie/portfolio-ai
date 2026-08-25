@@ -34,6 +34,7 @@ from app.models.household_finance import (
 from app.models.household_planning import HouseholdPlanningSnapshot, HouseholdPlanningUpdate
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
+from app.services._household_card_commitments import build_card_commitments
 from app.services._household_dashboard_builders import (
     build_cap_plan,
     build_income_anchor,
@@ -46,6 +47,7 @@ from app.services._household_dashboard_queries import (
 )
 from app.services._household_finance_document_methods import _HFDocumentMethods
 from app.services._household_finance_intake_methods import _HFIntakeMethods
+from app.services.card_management_service import CardManagementService
 from app.services.household_account_registry_service import HouseholdAccountRegistryService
 from app.services.household_dashboard_composer import HouseholdDashboardComposer
 from app.services.household_document_pipeline import HouseholdDocumentPipeline
@@ -401,6 +403,7 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.transaction_audit_service = HouseholdTransactionAuditService()
         self.tracked_account_service = HouseholdTrackedAccountService()
         self.sinking_fund_service = HouseholdSinkingFundService()
+        self.card_service = CardManagementService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
         self._ensure_dashboard_registry_sync(limit=1000)
@@ -478,6 +481,12 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
                 overrides=fetch_sinking_fund_overrides(self.storage),
             ),
             confirmed_caps=_confirmed_caps_by_category(facts),
+            # Built without account balances on purpose: the caps need only what
+            # the cards cost to keep, and the balances this path would have to
+            # query are the affordability check's question, not the plan's.
+            card_commitments=build_card_commitments(
+                cards=self.card_service.list_owned_cards()
+            ),
         )
 
     def get_net_worth_trend(self, *, days: int = 180) -> HouseholdNetWorthTrend:
