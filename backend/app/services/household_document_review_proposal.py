@@ -351,16 +351,31 @@ def build_document_review_preview(
 
     unique_transactions: list[dict[str, object]] = []
     seen_transactions: set[str] = set()
+    seen_charges: set[str] = set()
     for transaction in transactions:
-        transaction_key = canonical_review_json(
-            {
-                key: str(value) if isinstance(value, Decimal | date) else value
-                for key, value in transaction.items()
-            }
-        )
+        normalized = {
+            key: str(value) if isinstance(value, Decimal | date) else value
+            for key, value in transaction.items()
+        }
+        transaction_key = canonical_review_json(normalized)
         if transaction_key in seen_transactions:
             continue
+        # The same charge reaches this list twice when the document names its
+        # own account and the text parser reads the same rows independently --
+        # they differ only in how they spell the account, and proposing both
+        # would offer the household one purchase to post twice. The readings are
+        # ordered structured-first, so the first spelling is the document's own.
+        charge_key = canonical_review_json(
+            {
+                "date": normalized.get("transaction_date"),
+                "amount": normalized.get("amount"),
+                "merchant": normalized.get("merchant"),
+            }
+        )
+        if charge_key in seen_charges:
+            continue
         seen_transactions.add(transaction_key)
+        seen_charges.add(charge_key)
         unique_transactions.append(transaction)
 
     return HouseholdDocumentReviewProposalPreview.model_validate(

@@ -7,6 +7,10 @@ import re
 from datetime import datetime
 from io import StringIO
 
+from app.services._household_receipt_costco import (
+    looks_like_costco_receipt,
+    parse_costco_receipt,
+)
 from app.services.household_account_identity import looks_generic_account_mask
 
 # Text preview length for structured_data summaries
@@ -191,6 +195,85 @@ def _classify_amazon(text_lower: str, structured_data: _StructuredData) -> tuple
 def _classify_walmart(structured_data: _StructuredData) -> tuple[str, str, float, str]:
     structured_data["merchant"] = "Walmart"
     return "receipt", "receipt", 0.84, "Walmart order details with household shopping line items."
+
+
+def _classify_costco(
+    extracted_text: str | None, structured_data: _StructuredData
+) -> tuple[str, str, float, str] | None:
+    """Read a Costco register receipt outright, or decline and say what did not add up.
+
+    The register's format is regular, so nothing here is inferred: the parse is
+    handed to the pipeline already reconciled against the receipt's own printed
+    subtotal and item count. Asked to transcribe this format instead, the
+    extractor read 8 of 19 lines and filled the rest in from a different
+    receipt, so declining is the safer half of this function, not the sad half.
+    """
+    if not extracted_text or not looks_like_costco_receipt(extracted_text):
+        return None
+    receipt = parse_costco_receipt(extracted_text)
+    structured_data["merchant"] = f"Costco Wholesale {receipt.warehouse or ''}".strip()
+    structured_data["currency"] = "USD"
+    structured_data["receipt_reconciliation"] = {
+        "source": "costco_register_parser",
+        "reconciles": receipt.reconciles,
+        "line_items_read": len(receipt.line_items),
+        "items_read": receipt.item_quantity_total,
+        "declared_items_sold": receipt.declared_items_sold,
+        "failures": list(receipt.unreconciled),
+    }
+    if not receipt.reconciles:
+        structured_data["itemization_incomplete_reason"] = "; ".join(receipt.unreconciled)
+        return (
+            "receipt",
+            "receipt",
+            0.4,
+            "Costco receipt that could not be read to the cent: "
+            + "; ".join(receipt.unreconciled)
+            + ". Held rather than ingested.",
+        )
+
+    account_label = None
+    if receipt.card_mask:
+        account_label = f"Visa ending {receipt.card_mask}"
+    elif receipt.paid_with_shopcard:
+        account_label = "Costco Shop Card"
+    if account_label:
+        structured_data["account_hint"] = account_label
+    structured_data["declared_items_sold"] = str(receipt.declared_items_sold or "")
+    structured_data["total_amount"] = str(receipt.total or "")
+    structured_data["transactions"] = [
+        {
+            "date": receipt.purchased_on.isoformat() if receipt.purchased_on else None,
+            "merchant": structured_data["merchant"],
+            "amount": str(receipt.total or ""),
+            "currency": "USD",
+            "subtotal": str(receipt.subtotal or ""),
+            "tax_amount": str(receipt.tax or ""),
+            "declared_items_sold": str(receipt.declared_items_sold or ""),
+            "account_label": account_label,
+            "account_mask": receipt.card_mask,
+            "line_items": [
+                {
+                    "description": item.description,
+                    "amount": str(item.amount),
+                    "quantity": str(item.quantity),
+                    "unit_price": str(item.unit_price),
+                    "discount": str(item.discount),
+                    "item_code": item.item_code,
+                    "taxable": item.taxable,
+                }
+                for item in receipt.line_items
+            ],
+        }
+    ]
+    return (
+        "receipt",
+        "receipt",
+        0.99,
+        f"Costco register receipt read line by line and reconciled to the cent: "
+        f"{receipt.item_quantity_total} items, subtotal {receipt.subtotal}, "
+        f"total {receipt.total}.",
+    )
 
 
 def _classify_wells_fargo(structured_data: _StructuredData) -> tuple[str, str, float, str]:
@@ -1332,6 +1415,8 @@ def _classify_by_content(
                         inferred_source, inferred_document, confidence, summary = statement_csv
     elif "chase.com/amazon" in text_lower or "autopay is on" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_chase_amazon(structured_data)
+    elif (costco := _classify_costco(extracted_text, structured_data)) is not None:
+        inferred_source, inferred_document, confidence, summary = costco
     elif (
         ("walmart" in text_lower and "order details" in text_lower)
         or "walmart" in filename_lower
