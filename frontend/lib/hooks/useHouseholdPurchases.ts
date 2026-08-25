@@ -21,6 +21,7 @@ import {
   fetchHouseholdProductDetail,
   fetchHouseholdProducts,
   fetchPriceCheckStatus,
+  fetchPurchaseItemLinkage,
   fetchPurchaseItemReviewQueue,
   fetchShoppingListSuggestions,
   fetchShoppingLists,
@@ -106,6 +107,15 @@ export function usePurchaseItemReviewQueue() {
   return useQuery({
     queryKey: ['household', 'purchase-item-review'],
     queryFn: ({ signal }) => fetchPurchaseItemReviewQueue({ signal }),
+    staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function usePurchaseItemLinkage() {
+  return useQuery({
+    queryKey: ['household', 'purchase-item-linkage'],
+    queryFn: ({ signal }) => fetchPurchaseItemLinkage({ signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
   })

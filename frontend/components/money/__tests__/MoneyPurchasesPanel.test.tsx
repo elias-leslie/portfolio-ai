@@ -32,6 +32,11 @@ vi.mock('@/lib/hooks/useHouseholdPurchases', () => ({
   useHouseholdBuyGuide: useHouseholdBuyGuideMock,
   useHouseholdProducts: useHouseholdProductsMock,
   usePurchaseItemReviewQueue: usePurchaseItemReviewQueueMock,
+  usePurchaseItemLinkage: () => ({
+    data: undefined,
+    isLoading: false,
+    error: new Error('not stubbed in this test'),
+  }),
   useHouseholdProductDetail: useHouseholdProductDetailMock,
   usePriceCheckStatus: usePriceCheckStatusMock,
   useShoppingLists: useShoppingListsMock,

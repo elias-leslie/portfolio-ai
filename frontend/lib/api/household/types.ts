@@ -1942,6 +1942,33 @@ export interface HouseholdPurchaseItemReviewQueue {
   items: HouseholdPurchaseItem[]
 }
 
+export interface HouseholdItemLinkageBucket {
+  state: string
+  label: string
+  detail: string
+  itemCount: number
+  amount: number
+}
+
+export interface HouseholdUnknownPayingCard {
+  mask: string
+  itemCount: number
+  amount: number
+  firstSeen: string | null
+  lastSeen: string | null
+}
+
+export interface HouseholdItemLinkageCoverage {
+  generatedAt: string
+  totalItems: number
+  linkedItems: number
+  addressableItems: number
+  addressableLinkedShare: number | null
+  feedStartsOn: string | null
+  buckets: HouseholdItemLinkageBucket[]
+  unknownCards: HouseholdUnknownPayingCard[]
+}
+
 export interface HouseholdProductListParams {
   search?: string
   sort?:

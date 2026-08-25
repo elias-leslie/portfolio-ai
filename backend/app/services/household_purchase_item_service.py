@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from app.logging_config import get_logger
@@ -23,6 +23,7 @@ from app.services._household_report_builder import (
     _merchant_root,
     report_rows_overlap,
 )
+from app.services.household_card_masks import CardMaskDirectory, extract_card_mask
 from app.services.household_product_normalization_service import (
     HouseholdProductNormalizationService,
 )
@@ -61,6 +62,56 @@ def _parse_float(value: Any) -> float | None:
         return float(str(value).replace("$", "").replace(",", ""))
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_day(value: Any) -> str | None:
+    """The date part of a source timestamp, as an ISO day."""
+    if value in (None, ""):
+        return None
+    text = str(value).strip()[:10]
+    if len(text) != 10:
+        return None
+    try:
+        date.fromisoformat(text)
+    except ValueError:
+        return None
+    return text
+
+
+def _linkage_facts(dataset_type: str, metadata: dict[str, Any]) -> dict[str, Any]:
+    """What a source row knows about the charge its items will land on.
+
+    An Amazon order is charged per package as each one ships, not once when the
+    order is placed, so the order id alone names something the card never sees.
+    The export carries the package (a tracking number), the day it left
+    (``Ship Date``), the package's own total, and the card that paid -- and that
+    is enough to look for the right charge even when the order was split.
+    """
+    facts: dict[str, Any] = {}
+    if dataset_type == "receipt_line_items":
+        card_label = str(metadata.get("Account Label") or "").strip()
+        if card_label:
+            facts["card_label"] = card_label
+        return facts
+
+    card_label = str(metadata.get("Payment Method Type") or "").strip()
+    if card_label:
+        facts["card_label"] = card_label
+    ship_day = _coerce_day(metadata.get("Ship Date"))
+    if ship_day:
+        facts["ship_date"] = ship_day
+    tracking = str(metadata.get("Carrier Name & Tracking Number") or "").strip()
+    if tracking and tracking.lower() not in ("not available", "not applicable"):
+        facts["shipment_key"] = tracking
+    elif ship_day:
+        facts["shipment_key"] = f"ship:{ship_day}"
+    # Amazon repeats the package's subtotal on every line of that package, so
+    # it is read once per package and never summed.
+    subtotal = _parse_float(metadata.get("Shipment Item Subtotal"))
+    subtotal_tax = _parse_float(metadata.get("Shipment Item Subtotal Tax"))
+    if subtotal is not None:
+        facts["shipment_total"] = round(subtotal + (subtotal_tax or 0.0), 2)
+    return facts
 
 
 def _normalize_owner_name(value: str | None) -> str | None:
@@ -146,11 +197,12 @@ class HouseholdPurchaseItemService:
 
         summary = {"scanned": 0, "promoted": 0, "skipped": 0, "products_created": 0}
         with self.storage.connection() as conn:
+            directory = CardMaskDirectory.load(conn)
             rows = conn.execute(sql, params).fetchall()
             pending = 0
             for row in rows:
                 summary["scanned"] += 1
-                promoted, product_created = self._promote_row(conn, row)
+                promoted, product_created = self._promote_row(conn, row, directory)
                 if promoted:
                     summary["promoted"] += 1
                     summary["products_created"] += product_created
@@ -163,7 +215,9 @@ class HouseholdPurchaseItemService:
             conn.commit()
         return summary
 
-    def _promote_row(self, conn: Any, row: Any) -> tuple[bool, bool]:
+    def _promote_row(
+        self, conn: Any, row: Any, directory: CardMaskDirectory | None = None
+    ) -> tuple[bool, bool]:
         import_row_id = str(row[0])
         row_document_id = str(row[1]) if row[1] is not None else None
         dataset_type = str(row[2] or "")
@@ -217,6 +271,8 @@ class HouseholdPurchaseItemService:
         account_label = str(metadata.get("Account Label") or "").strip()
         if account_label:
             item_metadata["account_label"] = account_label
+        item_metadata.update(_linkage_facts(dataset_type, metadata))
+        self._stamp_paying_account(item_metadata, directory=directory, row_date=row_date)
         owner_rule = self._active_product_owner_rule(conn, product_id=match.product_id)
         if owner_rule is not None:
             item_metadata["owner_name"] = str(owner_rule[1])
@@ -382,6 +438,39 @@ class HouseholdPurchaseItemService:
         )
         return merchant_id
 
+    @staticmethod
+    def _stamp_paying_account(
+        item_metadata: dict[str, Any],
+        *,
+        directory: CardMaskDirectory | None,
+        row_date: Any,
+    ) -> None:
+        """Name the account that paid, whether or not the charge is ever found.
+
+        This is the half of the item/money link that does not need a matching
+        transaction: the source already printed the card. An item bought on a
+        card the household has since replaced still resolves, because the
+        registry knows what that card used to be called.
+        """
+        card_label = item_metadata.get("card_label") or item_metadata.get("account_label")
+        if not card_label:
+            return
+        mask = extract_card_mask(card_label)
+        if mask:
+            item_metadata["card_mask"] = mask
+        if directory is None:
+            return
+        on_date = row_date.date() if hasattr(row_date, "date") else row_date
+        match = directory.resolve(card_label, on_date=on_date)
+        if match is None:
+            item_metadata.pop("paid_account_id", None)
+            item_metadata.pop("paid_account_label", None)
+            item_metadata["paid_account_state"] = directory.explain(card_label, on_date=on_date)
+            return
+        item_metadata["paid_account_id"] = match.account_id
+        item_metadata["paid_account_label"] = match.account_label
+        item_metadata["paid_account_state"] = "reissued_card" if match.reissued else "current_card"
+
     # ------------------------------------------------------------------
     # Linking + allocation
     # ------------------------------------------------------------------
@@ -389,11 +478,14 @@ class HouseholdPurchaseItemService:
     def link_purchase_groups(self, *, limit: int = 2000) -> dict[str, int]:
         """Link pending purchase groups to ledger charges and allocate splits.
 
-        One group <-> one transaction. Groups that do not find a charge stay
-        pending and contribute nothing to spend math. Refund-flow transactions
-        are excluded (v1).
+        A group is an order. An order is not always one charge: Amazon bills
+        each package as it ships, so a split order shows up in the ledger as two
+        or three charges that no single order total will ever equal. The whole
+        order is tried first; failing that, each package is tried on its own, so
+        the half that shipped Tuesday can find its charge without the half that
+        shipped Friday holding it back. Refund-flow transactions are excluded.
         """
-        summary = {"groups": 0, "linked": 0, "pending": 0, "allocated_items": 0}
+        summary = {"groups": 0, "linked": 0, "partial": 0, "pending": 0, "allocated_items": 0}
         with self.storage.connection() as conn:
             item_rows = conn.execute(
                 """
@@ -418,15 +510,17 @@ class HouseholdPurchaseItemService:
             used_transaction_ids: set[str] = set()
             for group_key, items in groups.items():
                 summary["groups"] += 1
-                linked = self._link_group(
+                allocated = self._link_group(
                     conn,
                     group_key=group_key,
                     items=items,
                     used_transaction_ids=used_transaction_ids,
                 )
-                if linked:
+                summary["allocated_items"] += allocated
+                if allocated == len(items):
                     summary["linked"] += 1
-                    summary["allocated_items"] += len(items)
+                elif allocated:
+                    summary["partial"] += 1
                 else:
                     summary["pending"] += 1
             conn.commit()
@@ -439,22 +533,53 @@ class HouseholdPurchaseItemService:
         group_key: str,
         items: list[Any],
         used_transaction_ids: set[str],
+    ) -> int:
+        """Items linked out of this group."""
+        if self._try_link(
+            conn, items=items, used_transaction_ids=used_transaction_ids, package=False
+        ):
+            return len(items)
+
+        packages: dict[str, list[Any]] = {}
+        for item in items:
+            shipment_key = str(_coerce_metadata(item[4]).get("shipment_key") or "")
+            if not shipment_key:
+                continue
+            packages.setdefault(shipment_key, []).append(item)
+        if len(packages) < 2:
+            return 0
+
+        allocated = 0
+        for subset in packages.values():
+            if self._try_link(
+                conn, items=subset, used_transaction_ids=used_transaction_ids, package=True
+            ):
+                allocated += len(subset)
+        return allocated
+
+    def _try_link(
+        self,
+        conn: Any,
+        *,
+        items: list[Any],
+        used_transaction_ids: set[str],
+        package: bool,
     ) -> bool:
-        dates = [item[2] for item in items if item[2] is not None]
+        dates = [self._charge_date(item) for item in items]
+        dates = [value for value in dates if value is not None]
         if not dates:
             return False
         line_amounts = [float(item[3] or 0.0) for item in items]
         dataset_type = str(items[0][6] or "")
         merchant = str(items[0][5] or "").strip()
         first_metadata = _coerce_metadata(items[0][4])
-        # Receipt charges include tax/fees the line items do not; the printed
-        # receipt total is the amount that hits the card. Amazon item totals
-        # are tax-inclusive, so their sum is the order charge.
-        receipt_total = _parse_float(first_metadata.get("receipt_total"))
-        if dataset_type == "receipt_line_items" and receipt_total is not None:
-            group_total = receipt_total
-        else:
-            group_total = round(sum(line_amounts), 2)
+        group_total = self._group_total(
+            items=items,
+            line_amounts=line_amounts,
+            dataset_type=dataset_type,
+            first_metadata=first_metadata,
+            package=package,
+        )
         if group_total <= 0:
             return False
 
@@ -493,7 +618,11 @@ class HouseholdPurchaseItemService:
             "source_kind": "import",
             "document_type": "import",
             "source_type": dataset_type,
-            "household_account_id": None,
+            # The card the source itself printed. Two rows on different known
+            # accounts are different purchases, and report_rows_overlap refuses
+            # to pair them -- which is what keeps an order paid on one card off
+            # a same-priced charge on another.
+            "household_account_id": str(first_metadata.get("paid_account_id") or "") or None,
             "account_label": str(first_metadata.get("account_label") or "") or None,
         }
         for candidate in candidates:
@@ -525,6 +654,50 @@ class HouseholdPurchaseItemService:
             used_transaction_ids.add(transaction_id)
             return True
         return False
+
+    @staticmethod
+    def _charge_date(item: Any) -> Any:
+        """The day the charge is expected -- when it shipped, not when it was ordered.
+
+        Amazon takes the money as each package leaves, which can be days after
+        the order. Matching on the order date puts the search window in the
+        wrong week for anything that did not ship the same day.
+        """
+        ship_day = _coerce_day(_coerce_metadata(item[4]).get("ship_date"))
+        if ship_day:
+            return date.fromisoformat(ship_day)
+        purchase_date = item[2]
+        return purchase_date.date() if hasattr(purchase_date, "date") else purchase_date
+
+    @staticmethod
+    def _group_total(
+        *,
+        items: list[Any],
+        line_amounts: list[float],
+        dataset_type: str,
+        first_metadata: dict[str, Any],
+        package: bool,
+    ) -> float:
+        # Receipt charges include tax/fees the line items do not; the printed
+        # receipt total is the amount that hits the card. Amazon item totals
+        # are tax-inclusive, so their sum is the order charge.
+        receipt_total = _parse_float(first_metadata.get("receipt_total"))
+        if dataset_type == "receipt_line_items" and receipt_total is not None:
+            return receipt_total
+        if package:
+            # Amazon prints the package's own subtotal on every line of that
+            # package, so it is read once and never summed.
+            totals = {
+                value
+                for item in items
+                if (value := _parse_float(_coerce_metadata(item[4]).get("shipment_total")))
+                is not None
+            }
+            if len(totals) == 1:
+                shipment_total = next(iter(totals))
+                if shipment_total > 0:
+                    return shipment_total
+        return round(sum(line_amounts), 2)
 
     @staticmethod
     def _allocate_group(
@@ -805,6 +978,54 @@ class HouseholdPurchaseItemService:
     # Orchestration entry points
     # ------------------------------------------------------------------
 
+    def refresh_linkage_metadata(self, *, limit: int = 20000) -> dict[str, int]:
+        """Re-read the card, the package and the ship date off already-promoted items.
+
+        Promotion is idempotent by import row, so an item promoted before these
+        facts were being stored never picks them up on a re-run. This reads them
+        back out of the source row the item came from and stamps them, leaving
+        every other field -- category, owner, an existing link -- untouched.
+        """
+        summary = {"scanned": 0, "updated": 0}
+        with self.storage.connection() as conn:
+            directory = CardMaskDirectory.load(conn)
+            rows = conn.execute(
+                """
+                SELECT i.id, i.metadata, r.dataset_type, r.row_metadata, i.purchase_date
+                FROM household_purchase_items i
+                JOIN household_import_rows r ON r.id = i.import_row_id
+                WHERE i.removed IS NOT TRUE
+                ORDER BY i.purchase_date DESC
+                LIMIT %s
+                """,
+                [limit],
+            ).fetchall()
+            now = datetime.now(UTC).isoformat()
+            pending = 0
+            for row in rows:
+                summary["scanned"] += 1
+                current = _coerce_metadata(row[1])
+                updated = dict(current)
+                updated.update(_linkage_facts(str(row[2] or ""), _coerce_metadata(row[3])))
+                self._stamp_paying_account(updated, directory=directory, row_date=row[4])
+                if updated == current:
+                    continue
+                conn.execute(
+                    """
+                    UPDATE household_purchase_items
+                    SET metadata = %s::jsonb, updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [json.dumps(updated), now, str(row[0])],
+                )
+                summary["updated"] += 1
+                pending += 1
+                if pending >= _PROMOTE_COMMIT_BATCH:
+                    conn.commit()
+                    pending = 0
+            conn.commit()
+        return summary
+
     def sync_document(self, *, document_id: str) -> dict[str, int]:
         """Pipeline hook: promote this document's rows, then link pending groups."""
         promote_summary = self.promote_import_rows(document_id=document_id)
@@ -812,7 +1033,12 @@ class HouseholdPurchaseItemService:
         return {**promote_summary, **{f"link_{k}": v for k, v in link_summary.items()}}
 
     def backfill(self, *, limit: int = 10000) -> dict[str, int]:
-        """Promote all eligible import rows, then link pending groups."""
+        """Promote all eligible import rows, refresh their linkage facts, then link."""
         promote_summary = self.promote_import_rows(limit=limit)
+        refresh_summary = self.refresh_linkage_metadata(limit=limit * 2)
         link_summary = self.link_purchase_groups(limit=limit)
-        return {**promote_summary, **{f"link_{k}": v for k, v in link_summary.items()}}
+        return {
+            **promote_summary,
+            **{f"refresh_{k}": v for k, v in refresh_summary.items()},
+            **{f"link_{k}": v for k, v in link_summary.items()},
+        }

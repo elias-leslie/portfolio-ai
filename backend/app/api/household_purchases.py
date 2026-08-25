@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.household_finance import (
+    HouseholdItemLinkageCoverage,
     HouseholdPriceCheckStatus,
     HouseholdPriceCheckTriggerResponse,
     HouseholdProductDetail,
@@ -151,6 +152,12 @@ async def list_transaction_purchase_items(
 ) -> list[HouseholdPurchaseItem]:
     """Return the purchase items linked to a ledger transaction."""
     return await run_in_threadpool(_catalog().list_transaction_items, transaction_id)
+
+
+@router.get("/purchase-items/linkage", response_model=HouseholdItemLinkageCoverage)
+async def get_purchase_item_linkage_coverage() -> HouseholdItemLinkageCoverage:
+    """Return how much of the item layer is tied to money, and why the rest is not."""
+    return await run_in_threadpool(_catalog().linkage_coverage)
 
 
 @router.get("/purchase-items/review", response_model=HouseholdPurchaseItemReviewQueue)

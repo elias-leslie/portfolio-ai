@@ -23,6 +23,7 @@ class _ScriptedConn:
         import_rows: list[tuple[Any, ...]] | None = None,
         unlinked_items: list[tuple[Any, ...]] | None = None,
         candidate_transactions: list[tuple[Any, ...]] | None = None,
+        accounts: list[tuple[Any, ...]] | None = None,
         category_update_product_id: str | None = None,
         owner_update_product_id: str | None = None,
         purchase_item_insert_conflicts: bool = False,
@@ -30,6 +31,7 @@ class _ScriptedConn:
         self.import_rows = import_rows or []
         self.unlinked_items = unlinked_items or []
         self.candidate_transactions = candidate_transactions or []
+        self.accounts = accounts or []
         self.category_update_product_id = category_update_product_id
         self.owner_update_product_id = owner_update_product_id
         self.purchase_item_insert_conflicts = purchase_item_insert_conflicts
@@ -46,7 +48,9 @@ class _ScriptedConn:
 
     def execute(self, sql: str, params: list[Any] | None = None) -> _ScriptedConn:
         params = params or []
-        if "FROM household_import_rows r" in sql:
+        if "FROM household_accounts" in sql:
+            self._result = ("all", self.accounts)
+        elif "FROM household_import_rows r" in sql:
             self._result = ("all", self.import_rows)
         elif "JOIN household_products p" in sql or (
             "FROM household_product_identifiers" in sql and sql.strip().startswith("SELECT")
@@ -138,12 +142,14 @@ def _amazon_import_row(
     order_id: str = "106-2759616-1448213",
     amount: str = "8.40",
     tags: list[str] | None = None,
+    shipment: dict[str, Any] | None = None,
 ) -> tuple[Any, ...]:
     metadata: dict[str, Any] = {
         "Order ID": order_id,
         "Product Name": "FreeKey System",
         "Unit Price": "7.85",
         "Original Quantity": "1",
+        **(shipment or {}),
         "product_enrichment": {
             "identifiers": {"asin": "B00AQ664H6"},
             "normalized_item_key": "amazon freekey system",
@@ -163,6 +169,49 @@ def _receipt_item(
 ) -> tuple[Any, ...]:
     metadata = json.dumps({"receipt_total": receipt_total, "account_label": "Visa credit 9728"})
     return (item_id, group_key, _MAY_FOURTH, amount, metadata, "Ulta Beauty", "receipt_line_items")
+
+
+def _amazon_item(
+    *,
+    item_id: str,
+    group_key: str = "amazon:113-0000000-0000000",
+    amount: float,
+    shipment_key: str,
+    shipment_total: float,
+    ship_date: str,
+    paid_account_id: str | None = "acct-1",
+) -> tuple[Any, ...]:
+    metadata = json.dumps(
+        {
+            "card_label": "Visa - 9728",
+            "card_mask": "9728",
+            "ship_date": ship_date,
+            "shipment_key": shipment_key,
+            "shipment_total": shipment_total,
+            "paid_account_id": paid_account_id,
+        }
+    )
+    return (item_id, group_key, _MAY_FOURTH, amount, metadata, "Amazon", "amazon_order_history")
+
+
+def _amazon_charge(
+    *,
+    transaction_id: str,
+    amount: float,
+    day: int,
+    account_id: str = "acct-1",
+) -> tuple[Any, ...]:
+    return (
+        transaction_id,
+        datetime(2026, 5, day, 12, 0, tzinfo=UTC),
+        "Amazon",
+        "AMAZON MKTPL*BV4O36640",
+        amount,
+        account_id,
+        "Chase Prime Visa / Amazon card",
+        "statement",
+        "credit_card",
+    )
 
 
 def _candidate_transaction(
@@ -203,6 +252,93 @@ def test_promote_amazon_row_inserts_item_and_observation() -> None:
     assert conn.committed >= 1
 
 
+def test_promote_stamps_the_package_the_ship_date_and_the_card() -> None:
+    """The half of the item/money link that does not need a matching charge."""
+    conn = _ScriptedConn(
+        import_rows=[
+            _amazon_import_row(
+                shipment={
+                    "Ship Date": "2026-05-06T20:20:16.546Z",
+                    "Carrier Name & Tracking Number": "AMZN_US(TBA331050966070)",
+                    "Shipment Item Subtotal": "85.49",
+                    "Shipment Item Subtotal Tax": "5.98",
+                    "Payment Method Type": "Visa - 2000",
+                }
+            )
+        ],
+        accounts=[
+            (
+                "acct-prime",
+                "Chase Prime Visa / Amazon card",
+                "1000",
+                {
+                    "prior_masks": [
+                        {"mask": "2000", "from": "2025-12-30", "through": "2026-04-08"}
+                    ]
+                },
+            )
+        ],
+    )
+    _service(conn).promote_import_rows()
+    metadata = json.loads(conn.purchase_item_inserts[0][17])
+    assert metadata["ship_date"] == "2026-05-06"
+    assert metadata["shipment_key"] == "AMZN_US(TBA331050966070)"
+    assert metadata["shipment_total"] == 91.47
+    assert metadata["card_mask"] == "2000"
+
+
+def test_promote_names_a_card_retired_before_the_purchase_rather_than_guessing() -> None:
+    """The order is dated May; that number was replaced in April, so it is not this account's."""
+    conn = _ScriptedConn(
+        import_rows=[_amazon_import_row(shipment={"Payment Method Type": "Visa - 2000"})],
+        accounts=[
+            (
+                "acct-prime",
+                "Chase Prime Visa / Amazon card",
+                "1000",
+                {
+                    "prior_masks": [
+                        {"mask": "2000", "from": "2025-12-30", "through": "2026-04-08"}
+                    ]
+                },
+            )
+        ],
+    )
+    _service(conn).promote_import_rows()
+    metadata = json.loads(conn.purchase_item_inserts[0][17])
+    assert "paid_account_id" not in metadata
+    assert metadata["paid_account_state"] == "outside_card_window"
+
+
+def test_promote_resolves_a_card_the_account_used_to_carry() -> None:
+    conn = _ScriptedConn(
+        import_rows=[
+            _amazon_import_row(
+                shipment={
+                    "Payment Method Type": "Visa - 2000",
+                    "Ship Date": "2026-02-14T00:00:00Z",
+                }
+            )
+        ],
+        accounts=[
+            (
+                "acct-prime",
+                "Chase Prime Visa / Amazon card",
+                "1000",
+                {
+                    "prior_masks": [
+                        {"mask": "2000", "from": "2025-12-30", "through": "2026-06-30"}
+                    ]
+                },
+            )
+        ],
+    )
+    _service(conn).promote_import_rows()
+    metadata = json.loads(conn.purchase_item_inserts[0][17])
+    assert metadata["paid_account_id"] == "acct-prime"
+    assert metadata["paid_account_state"] == "reissued_card"
+
+
 def test_promote_uses_open_food_facts_tag_map_for_category() -> None:
     conn = _ScriptedConn(import_rows=[_amazon_import_row(tags=["en:beverages"])])
     _service(conn).promote_import_rows()
@@ -236,7 +372,13 @@ def test_link_group_allocates_receipt_total_with_tax_overhead() -> None:
         candidate_transactions=[_candidate_transaction()],
     )
     summary = _service(conn).link_purchase_groups()
-    assert summary == {"groups": 1, "linked": 1, "pending": 0, "allocated_items": 2}
+    assert summary == {
+        "groups": 1,
+        "linked": 1,
+        "partial": 0,
+        "pending": 0,
+        "allocated_items": 2,
+    }
     assert len(conn.link_updates) == 2
     allocated = {params[3]: params[1] for params in conn.link_updates}
     assert allocated == {"item-a": 29.67, "item-b": 5.29}
@@ -287,6 +429,113 @@ def test_link_rejects_merchant_mismatch() -> None:
     summary = _service(conn).link_purchase_groups()
     assert summary["pending"] == 1
     assert conn.link_updates == []
+
+
+def test_link_falls_back_to_packages_when_the_order_total_matches_nothing() -> None:
+    """An order billed as it ships is two charges, and no order total equals either."""
+    conn = _ScriptedConn(
+        unlinked_items=[
+            _amazon_item(
+                item_id="item-a",
+                amount=20.0,
+                shipment_key="TRK-A",
+                shipment_total=20.0,
+                ship_date="2026-05-05",
+            ),
+            _amazon_item(
+                item_id="item-b",
+                amount=15.0,
+                shipment_key="TRK-B",
+                shipment_total=15.0,
+                ship_date="2026-05-08",
+            ),
+        ],
+        candidate_transactions=[
+            _amazon_charge(transaction_id="tx-a", amount=20.0, day=5),
+            _amazon_charge(transaction_id="tx-b", amount=15.0, day=8),
+        ],
+    )
+    summary = _service(conn).link_purchase_groups()
+    assert summary["linked"] == 1
+    assert summary["allocated_items"] == 2
+    assert {params[3]: params[0] for params in conn.link_updates} == {
+        "item-a": "tx-a",
+        "item-b": "tx-b",
+    }
+
+
+def test_link_reports_a_partly_charged_order_as_partial() -> None:
+    conn = _ScriptedConn(
+        unlinked_items=[
+            _amazon_item(
+                item_id="item-a",
+                amount=20.0,
+                shipment_key="TRK-A",
+                shipment_total=20.0,
+                ship_date="2026-05-05",
+            ),
+            _amazon_item(
+                item_id="item-b",
+                amount=15.0,
+                shipment_key="TRK-B",
+                shipment_total=15.0,
+                ship_date="2026-05-08",
+            ),
+        ],
+        candidate_transactions=[_amazon_charge(transaction_id="tx-a", amount=20.0, day=5)],
+    )
+    summary = _service(conn).link_purchase_groups()
+    assert summary == {
+        "groups": 1,
+        "linked": 0,
+        "partial": 1,
+        "pending": 0,
+        "allocated_items": 1,
+    }
+
+
+def test_link_refuses_a_charge_on_a_card_the_order_was_not_paid_with() -> None:
+    """One charge lands on one card; a same-priced charge elsewhere is someone else's."""
+    conn = _ScriptedConn(
+        unlinked_items=[
+            _amazon_item(
+                item_id="item-a",
+                amount=20.0,
+                shipment_key="TRK-A",
+                shipment_total=20.0,
+                ship_date="2026-05-05",
+                paid_account_id="acct-prime",
+            )
+        ],
+        candidate_transactions=[
+            _amazon_charge(
+                transaction_id="tx-other", amount=20.0, day=5, account_id="acct-sapphire"
+            )
+        ],
+    )
+    summary = _service(conn).link_purchase_groups()
+    assert summary["pending"] == 1
+    assert conn.link_updates == []
+
+
+def test_link_dates_the_search_from_the_day_it_shipped() -> None:
+    """The card is charged when the package leaves, which can be a week after the order."""
+    late_charge = _amazon_charge(transaction_id="tx-late", amount=20.0, day=12)
+    conn = _ScriptedConn(
+        unlinked_items=[
+            _amazon_item(
+                item_id="item-a",
+                amount=20.0,
+                shipment_key="TRK-A",
+                shipment_total=20.0,
+                ship_date="2026-05-11",
+            )
+        ],
+        candidate_transactions=[late_charge],
+    )
+    summary = _service(conn).link_purchase_groups()
+    assert summary["linked"] == 1
+    assert conn.link_updates[0][0] == "tx-late"
 
 
 # ---------------------------------------------------------------------------

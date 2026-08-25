@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.models.household_finance import (
+    HouseholdItemLinkageBucket,
+    HouseholdItemLinkageCoverage,
     HouseholdProductDetail,
     HouseholdProductIdentifier,
     HouseholdProductList,
@@ -13,8 +15,10 @@ from app.models.household_finance import (
     HouseholdProductSummary,
     HouseholdPurchaseItem,
     HouseholdPurchaseItemReviewQueue,
+    HouseholdUnknownPayingCard,
 )
 from app.services._household_finance_utils import iso_or_none, to_float
+from app.services._household_item_linkage import build_linkage_coverage
 from app.services.household_product_normalization_service import (
     HouseholdProductNormalizationService,
 )
@@ -634,6 +638,30 @@ class HouseholdProductCatalogService:
             generated_at=datetime.now(UTC).isoformat(),
             total_count=int(total_row[0]) if total_row else 0,
             items=[_purchase_item(row) for row in rows],
+        )
+
+    def linkage_coverage(self) -> HouseholdItemLinkageCoverage:
+        """How much of the item layer is tied to money, and why the rest is not."""
+        with self.storage.connection() as conn:
+            coverage = build_linkage_coverage(conn)
+        return HouseholdItemLinkageCoverage(
+            generated_at=coverage.generated_at,
+            total_items=coverage.total_items,
+            linked_items=coverage.linked_items,
+            addressable_items=coverage.addressable_items,
+            addressable_linked_share=coverage.addressable_linked_share,
+            feed_starts_on=iso_or_none(coverage.feed_starts_on),
+            buckets=[HouseholdItemLinkageBucket(**bucket) for bucket in coverage.buckets],
+            unknown_cards=[
+                HouseholdUnknownPayingCard(
+                    mask=card.mask,
+                    item_count=card.item_count,
+                    amount=card.amount,
+                    first_seen=iso_or_none(card.first_seen),
+                    last_seen=iso_or_none(card.last_seen),
+                )
+                for card in coverage.unknown_cards
+            ],
         )
 
     def assign_product(

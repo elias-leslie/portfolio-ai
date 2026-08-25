@@ -84,8 +84,9 @@ Work top down through §7 Phase 3 — plan, funds, and alerts:
 3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
-4. **Phase 4** — item ↔ money linkage, and the Costco/Walmart parsers that
-   0.13's staged receipts are waiting on.
+4. **Phase 4** — 4.1 is done; next are the Costco parser (4.2) and the Walmart
+   fulfillment-token fix (4.3) that 0.13's staged receipts are waiting on. 4.4
+   still depends on Phase 5.0.
 
 **The review inbox is as clear as it can get without the household** — 17 → 12,
 and each of the 12 is waiting on a person, not on a bug:
@@ -99,11 +100,32 @@ and each of the 12 is waiting on a person, not on a bug:
   now says that instead of the generic review failure (P0-31).
 
 **Still open for the household** (surfaced in the money inbox, blocking nothing):
-- What is the **·4635 card**? Five Walmart receipts name it and no account
-  matches. Answering it links those rows to a real account (P0-30).
+- **·4635 is very likely the Prime Visa, and needs a yes.** The Amazon export
+  names that card for 2025-01-24 → 2025-10-06 and no other window, sitting
+  between ·4199 and ·3136 in an unbroken succession — and the last day it appears
+  there is the same day as the last Walmart receipt that names it. It is declared
+  as a prior number on that window (P0-30). What still needs an answer: two
+  Walmart receipts dated **2026-02-15** and **2026-04-27** also name ·4635, which
+  the succession says was dead by then. Those two resolve to nothing rather than
+  to the wrong account, because the declaration is windowed — but either Walmart
+  is showing a stored card that never updated, or ·4635 is a second card.
+- **Five older cards no account claims**, surfaced on the Purchases tab with the
+  window each was used in: ·6016 (274 items, 2011–2014), ·6026 (33, 2006–2009),
+  ·2325 (14, 2018–2020), a MasterCard ·8869 and an AmEx ·2043 (one item each).
+  Naming any of them ties every item bought on it to an account.
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 4.1 **Items and money are tied together, and the share finally means something.**
+  **121 of 295** items whose charge could be in the ledger are tied to one
+  (**41%**), against a headline that used to read 2.6% because it counted a 2014
+  Amazon order against a feed that starts in December 2025. A charge turned out
+  to be a *package*, not an order — Amazon bills each one as it ships — so the
+  linker tries the order, then each package, dated from the ship date. Separately,
+  the card was sitting in the source all along: **2,364 of 3,128** items now name
+  the account that paid, up from 81, because the Prime Visa's four earlier
+  numbers are declared as windowed prior masks instead of looking like cards
+  nobody owns.
 - 3.5 **What the cards commit the plan to is on the plan screen now.**
   **$17,336 owed across 3 cards, and $190/yr to keep them**, itemised per card
   and named by owner and last four. The fees are stated as a **$16/mo** accrual
@@ -220,9 +242,10 @@ and each of the 12 is waiting on a person, not on a bug:
   7 charges, line items carried to the surviving charge (`b5094ec5a`).
 
 **Known-but-deliberately-deferred** (do not treat as bugs to fix on sight):
-- Purchase items cannot span charges, so a split order keeps its line items on
-  the retired receipt rather than restating their prices against one leg
-  (0.14). Phase 4.
+- Purchase items cannot span charges *within a receipt document*, so a split
+  order keeps its line items on the retired receipt rather than restating their
+  prices against one leg (0.14). Amazon orders that span charges are handled as
+  of 4.1 — the package, not the order, is what the card sees.
 
 ---
 
@@ -2094,7 +2117,35 @@ The screen in the artifact. All seven tasks landed.
 ### Phase 4 — Item ↔ money linkage
 Prerequisite for D2.4 owner attribution and for all per-item price work.
 
-4.1 **Link purchase items to transactions** (U-4) — currently 81 of 3,067 (2.6%).
+4.1 **Link purchase items to transactions** (U-4) — **DONE**. The 2.6% was a
+    denominator problem before it was a matching problem: it counted Amazon
+    orders back to 2002 against a ledger whose oldest charge is 2025-12-24.
+    Three things came out of building it:
+    - **A charge is a package, not an order.** Amazon bills each package as it
+      ships, so a split order is two or three charges that no order total will
+      ever equal, and the export repeats the package's own subtotal on every
+      line of that package. The linker now tries the whole order, then each
+      package on its own, and dates the search from the ship date rather than
+      the order date.
+    - **The card was in the source and was being thrown away.** Every Amazon row
+      carries `Payment Method Type`, every receipt row an `Account Label`. That
+      is the half of the item/money link that needs no matching charge at all —
+      items with a named paying account went **81 → 2,364 of 3,128**.
+    - **The Prime Visa has been reissued four times** and the registry knew only
+      the current number, so its own older purchases looked like they were made
+      on a card nobody owns. `household_accounts.metadata.prior_masks` now holds
+      the succession, each entry windowed to the days it was live, declared
+      through `scripts/household_declare_card_masks.py` (the numbers stay out of
+      this repository).
+    Linked items **102 → 121**, and the reported share is now **121 of 295
+    addressable (41%)** with every other item carrying a named reason rather
+    than a silent pending: older than the feed (2,071), card no account claims
+    (323), no card named (439), no charge found (174). `GET
+    /api/household/purchase-items/linkage`, on the Purchases tab.
+    The 174 real misses are mostly Shop with Points — the Prime Visa lets Amazon
+    reward points cover part of an order, and no export field records how much,
+    so the charge is smaller than the order by an amount nothing can reconstruct.
+    Matching those on a tolerance would invent links, so they stay unmatched.
 4.2 **Costco receipt parser** (§6b): item-number + abbreviated-name + qty-line-above
     + markdown-line-below format. **Gate ingestion on arithmetic**, not confidence:
     `Σ items − instant savings == SUBTOTAL` and `Σ line quantities == TOTAL NUMBER

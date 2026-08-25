@@ -1,6 +1,7 @@
 import { get, post, put } from '../client'
 import type {
   HouseholdBuyGuide,
+  HouseholdItemLinkageCoverage,
   HouseholdPriceCheckStatus,
   HouseholdPriceCheckTriggerParams,
   HouseholdPriceCheckTriggerResponse,
@@ -80,6 +81,15 @@ export async function fetchPurchaseItemReviewQueue(
 ): Promise<HouseholdPurchaseItemReviewQueue> {
   return get<HouseholdPurchaseItemReviewQueue>(
     '/api/household/purchase-items/review',
+    options,
+  )
+}
+
+export async function fetchPurchaseItemLinkage(
+  options: RequestInit = {},
+): Promise<HouseholdItemLinkageCoverage> {
+  return get<HouseholdItemLinkageCoverage>(
+    '/api/household/purchase-items/linkage',
     options,
   )
 }

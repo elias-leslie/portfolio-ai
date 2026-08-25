@@ -17,6 +17,7 @@ import {
   useTriggerPriceCheck,
 } from '@/lib/hooks/useHouseholdPurchases'
 import { BuyGuideCard } from './BuyGuideCard'
+import { ItemLinkageCard } from './ItemLinkageCard'
 import { PriceCheckStatusCard } from './PriceCheckStatusCard'
 import { PriceSignalsTable } from './PriceSignalsTable'
 import {
@@ -107,6 +108,14 @@ export function MoneyPurchasesPanel({
 
   return (
     <div className="space-y-6">
+      <SectionCard
+        variant="surface"
+        title="Items and money"
+        description="An item is only spending once it is tied to a charge. The share below is over the items whose charge could be in the ledger at all — everything older than the feeds, or bought on a card no account claims, is listed with its reason instead."
+      >
+        <ItemLinkageCard />
+      </SectionCard>
+
       <SectionCard
         variant="surface"
         title="Buy Guide"

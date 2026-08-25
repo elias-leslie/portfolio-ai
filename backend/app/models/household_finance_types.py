@@ -1430,6 +1430,37 @@ class HouseholdPurchaseItemReviewQueue(BaseModel):
     items: list[HouseholdPurchaseItem] = Field(default_factory=list)
 
 
+class HouseholdItemLinkageBucket(BaseModel):
+    state: str
+    label: str
+    detail: str
+    item_count: int = 0
+    amount: float = 0.0
+
+
+class HouseholdUnknownPayingCard(BaseModel):
+    mask: str
+    item_count: int = 0
+    amount: float = 0.0
+    first_seen: str | None = None
+    last_seen: str | None = None
+
+
+class HouseholdItemLinkageCoverage(BaseModel):
+    """How much of the item layer is tied to money, over a denominator that means something."""
+
+    generated_at: str
+    total_items: int = 0
+    linked_items: int = 0
+    # Items whose charge could be in the ledger at all: a known card, an
+    # account that reports, and a purchase date the feed covers.
+    addressable_items: int = 0
+    addressable_linked_share: float | None = None
+    feed_starts_on: str | None = None
+    buckets: list[HouseholdItemLinkageBucket] = Field(default_factory=list)
+    unknown_cards: list[HouseholdUnknownPayingCard] = Field(default_factory=list)
+
+
 class HouseholdPurchaseItemProductAssignment(BaseModel):
     action: str  # confirm | reassign | detach
     product_id: str | None = None
