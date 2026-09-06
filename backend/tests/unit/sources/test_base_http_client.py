@@ -460,6 +460,30 @@ class TestBaseHTTPClient:
 
         client.close()
 
+    def test_no_connection_is_parked_between_requests(self) -> None:
+        """Idle connections are not pooled.
+
+        Every subclass is a process-wide singleton in a long-running worker,
+        making a handful of rate-limited requests a minute. A pooled connection
+        outlives what the vendor keeps open, so the vendor closes it and the
+        socket sits in CLOSE_WAIT until the pool is next touched - a leaked file
+        descriptor, and one that network monitoring reads as a beacon.
+        """
+        client = MockHTTPClient(api_key="test_key", rate_calls_per_minute=60)
+        try:
+            pool = client._client._transport._pool
+            assert pool._max_keepalive_connections == 0
+        finally:
+            client.close()
+
+    def test_keepalive_can_still_be_asked_for(self) -> None:
+        """A caller that genuinely wants pooling can still have it."""
+        client = MockHTTPClient(api_key="test_key", rate_calls_per_minute=60, max_keepalive_connections=4)
+        try:
+            assert client._client._transport._pool._max_keepalive_connections == 4
+        finally:
+            client.close()
+
     def test_del_closes_client(self) -> None:
         """__del__ closes client on garbage collection."""
         client = MockHTTPClient(api_key="test_key", rate_calls_per_minute=60)

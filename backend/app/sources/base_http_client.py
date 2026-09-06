@@ -223,7 +223,7 @@ class BaseHTTPClient(ABC):
         rate_calls_per_minute: int | None = None,
         rate_calls_per_day: int | None = None,
         timeout: float = DEFAULT_HTTP_TIMEOUT,
-        max_keepalive_connections: int | None = None,
+        max_keepalive_connections: int = 0,
     ) -> None:
         """Initialize HTTP client.
 
@@ -232,7 +232,8 @@ class BaseHTTPClient(ABC):
             rate_calls_per_minute: Maximum requests per minute (None = no limit)
             rate_calls_per_day: Maximum requests per day (None = no limit)
             timeout: Request timeout in seconds (default: 30)
-            max_keepalive_connections: Optional per-client keepalive pool cap
+            max_keepalive_connections: Keepalive pool cap. Zero, the default,
+                means no connection is parked between requests - see below.
 
         Raises:
             RuntimeError: If API key not provided and not in environment
@@ -243,12 +244,21 @@ class BaseHTTPClient(ABC):
         if not self.api_key:
             raise RuntimeError(f"{env_var} is not set")
 
-        # Initialize HTTP client
-        if max_keepalive_connections is None:
-            self._client = httpx.Client(timeout=timeout)
-        else:
-            limits = httpx.Limits(max_keepalive_connections=max_keepalive_connections)
-            self._client = httpx.Client(timeout=timeout, limits=limits)
+        # Initialize HTTP client.
+        #
+        # No connection is parked between requests by default. Every subclass
+        # of this client is a process-wide singleton living inside a worker
+        # that runs for days, and every one of them is rate limited to a
+        # handful of requests a minute, so a pooled connection is idle far
+        # longer than any vendor keeps one open. The vendor closes it, httpx
+        # only notices the next time the pool is touched, and until then the
+        # socket sits in CLOSE_WAIT holding a file descriptor. Ten of them had
+        # accumulated against Twelve Data, Finnhub and FRED on one host - and
+        # network monitoring on that host read the leftovers as a service
+        # beaconing every thirty seconds. At these request rates a fresh
+        # handshake costs nothing worth measuring.
+        limits = httpx.Limits(max_keepalive_connections=max_keepalive_connections)
+        self._client = httpx.Client(timeout=timeout, limits=limits)
 
         # Initialize rate limiter
         self._rate_limiter = RateLimiter(
