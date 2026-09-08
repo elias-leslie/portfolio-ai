@@ -59,7 +59,7 @@ dependencies = [
     # <2 until the 2.x transport rewrite is exercised against app/mcp_server.
     "mcp>=1.28.1,<2",  # 1.28.1 fixes PYSEC-2026-3481/3482/3483
     "openpyxl>=3.1.5",
-    "httpx2>=2.5.0",
+    "httpx2>=2.12.0",
     "edgartools>=5.40.1",
 ]
 
