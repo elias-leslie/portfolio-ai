@@ -428,7 +428,17 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
     assert dashboard["overview"]["cash_reserve"] == 0
     assert dashboard["overview"]["retirement_assets"] == 4740
     assert dashboard["overview"]["taxable_assets"] == 14750
-    assert dashboard["overview"]["visibility_score"] >= 75
+    # Profile targets and connected portfolios do not establish fresh balance
+    # or spending evidence. Coverage must expose those gaps, not reward setup.
+    assert dashboard["overview"]["visibility_score"] == 20
+    assert dashboard["overview"]["visibility_label"] == "Limited coverage"
+    coverage = dashboard["overview"]["coverage"]
+    assert {part["key"]: part["score"] for part in coverage["components"]} == {
+        "balances": 0,
+        "spending_feeds": 0,
+        "connected_accounts": 100,
+        "classified_spend": 0,
+    }
     assert dashboard["overview"]["tracked_account_count"] >= 2
     assert dashboard["overview"]["needs_refresh_count"] >= 2
     assert dashboard["overview"]["inbox_count"] >= 1
