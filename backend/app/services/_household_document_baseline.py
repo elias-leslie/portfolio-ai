@@ -11,6 +11,12 @@ from app.services._household_receipt_costco import (
     looks_like_costco_receipt,
     parse_costco_receipt,
 )
+from app.services._household_receipt_walmart import (
+    looks_like_walmart_order_page,
+    looks_like_walmart_store_receipt,
+    parse_walmart_order_page,
+    parse_walmart_store_receipt,
+)
 from app.services.household_account_identity import looks_generic_account_mask
 
 # Text preview length for structured_data summaries
@@ -192,9 +198,173 @@ def _classify_amazon(text_lower: str, structured_data: _StructuredData) -> tuple
     return "receipt", "receipt", 0.9, summary
 
 
-def _classify_walmart(structured_data: _StructuredData) -> tuple[str, str, float, str]:
+def _classify_walmart(
+    extracted_text: str | None, structured_data: _StructuredData
+) -> tuple[str, str, float, str]:
+    """Read a Walmart order page outright when it adds up, and say so when it does not.
+
+    The page's own arithmetic settles two things a general read gets wrong: the
+    fulfilment note carries a number that is not the quantity, and the first
+    printed total is the *subtotal*, which is the order before its savings and
+    never what the card was charged.
+    """
     structured_data["merchant"] = "Walmart"
-    return "receipt", "receipt", 0.84, "Walmart order details with household shopping line items."
+    if extracted_text and looks_like_walmart_store_receipt(extracted_text):
+        return _classify_walmart_store_receipt(extracted_text, structured_data)
+    if not extracted_text or not looks_like_walmart_order_page(extracted_text):
+        return "receipt", "receipt", 0.84, "Walmart order details with household shopping line items."
+
+    order = parse_walmart_order_page(extracted_text)
+    structured_data["currency"] = "USD"
+    structured_data["receipt_reconciliation"] = {
+        "source": "walmart_order_page_parser",
+        "reconciles": order.reconciles,
+        "line_items_read": len(order.line_items),
+        "items_read": order.item_quantity_total,
+        "failures": list(order.unreconciled),
+    }
+    if not order.reconciles:
+        structured_data["itemization_incomplete_reason"] = "; ".join(order.unreconciled)
+        return (
+            "receipt",
+            "receipt",
+            0.4,
+            "Walmart order page that could not be read to the cent: "
+            + "; ".join(order.unreconciled)
+            + ". Held rather than ingested.",
+        )
+
+    structured_data["declared_items_sold"] = str(order.item_quantity_total)
+    structured_data["total_amount"] = str(order.total or "")
+    structured_data["transactions"] = [
+        {
+            "date": order.ordered_on.isoformat() if order.ordered_on else None,
+            "merchant": "Walmart",
+            "amount": str(order.total or ""),
+            "currency": "USD",
+            "subtotal": str(order.subtotal or ""),
+            "tax_amount": str(order.tax or ""),
+            "order_number": order.order_number,
+            "declared_items_sold": str(order.item_quantity_total),
+            "line_items": [
+                {
+                    "description": item.description,
+                    "amount": str(item.amount),
+                    "quantity": str(item.quantity),
+                    "fulfilment": item.fulfilment,
+                    "returned": item.returned,
+                }
+                for item in order.line_items
+                if item.billed
+            ],
+            # The savings are taken off the order, not off any one line, so they
+            # are reported whole rather than spread across items that never
+            # carried them.
+            "discounts": (
+                [{"applies_to": "order savings", "amount": str(order.savings)}]
+                if order.savings
+                else []
+            ),
+        }
+    ]
+    return (
+        "receipt",
+        "receipt",
+        0.99,
+        f"Walmart order page read line by line and reconciled to the cent: "
+        f"{order.item_quantity_total} items, subtotal {order.subtotal}, "
+        f"savings {order.savings}, charged {order.total}.",
+    )
+
+
+def _classify_walmart_store_receipt(
+    extracted_text: str, structured_data: _StructuredData
+) -> tuple[str, str, float, str]:
+    """Read a Walmart register tape, judging what it charged apart from what it listed.
+
+    A store purchase is filed under the same order URL as a delivery, but it
+    prints the register tape, and the tape survives extraction unevenly: a line
+    can lose its price while the totals below it stay perfectly legible. The
+    charge is then plainly stated and the itemisation is not, so the two are
+    settled separately -- the money is reported, the unread items are not
+    invented, and the reason they are missing is written down.
+    """
+    receipt = parse_walmart_store_receipt(extracted_text)
+    structured_data["currency"] = "USD"
+    structured_data["receipt_reconciliation"] = {
+        "source": "walmart_store_receipt_parser",
+        "reconciles": receipt.charge_reconciles and receipt.items_reconcile,
+        "charge_reconciles": receipt.charge_reconciles,
+        "items_reconcile": receipt.items_reconcile,
+        "line_items_read": len(receipt.line_items),
+        "failures": [*receipt.charge_failures, *receipt.itemisation_failures],
+    }
+    if receipt.card_mask:
+        structured_data["account_mask"] = receipt.card_mask
+    if receipt.card_label:
+        structured_data["account_label"] = receipt.card_label
+
+    if not receipt.charge_reconciles:
+        structured_data["itemization_incomplete_reason"] = "; ".join(
+            [*receipt.charge_failures, *receipt.itemisation_failures]
+        )
+        return (
+            "receipt",
+            "receipt",
+            0.4,
+            "Walmart register tape whose charge could not be read: "
+            + "; ".join(receipt.charge_failures)
+            + ". Held rather than ingested.",
+        )
+
+    readable = [item for item in receipt.line_items if item.readable]
+    structured_data["total_amount"] = str(receipt.charged)
+    structured_data["transactions"] = [
+        {
+            "date": None,
+            "merchant": "Walmart",
+            "amount": str(receipt.charged),
+            "currency": "USD",
+            "subtotal": str(receipt.subtotal or ""),
+            "tax_amount": str(receipt.tax or ""),
+            "account_label": receipt.card_label,
+            "account_mask": receipt.card_mask,
+            "store_number": receipt.store_number,
+            "line_items": [
+                {
+                    "description": item.description,
+                    "amount": str(item.amount),
+                    "quantity": "1",
+                    "upc": item.upc,
+                }
+                for item in readable
+            ],
+        }
+    ]
+
+    if receipt.items_reconcile:
+        return (
+            "receipt",
+            "receipt",
+            0.99,
+            f"Walmart register tape read line by line and reconciled to the cent: "
+            f"{len(readable)} items, subtotal {receipt.subtotal}, "
+            f"tax {receipt.tax}, charged {receipt.charged}.",
+        )
+
+    structured_data["itemization_incomplete_reason"] = "; ".join(receipt.itemisation_failures)
+    # The charge is what the tape says it is; the items are short, so this stays
+    # under the auto-apply bar and goes to a person with the gap spelled out.
+    return (
+        "receipt",
+        "receipt",
+        0.6,
+        f"Walmart register tape charged {receipt.charged} on "
+        f"{receipt.card_label or 'an unnamed card'}"
+        f"{' ending ' + receipt.card_mask if receipt.card_mask else ''}, "
+        f"but its itemisation is short: {'; '.join(receipt.itemisation_failures)}. "
+        f"The charge is reported and the unread lines are not guessed.",
+    )
 
 
 def _classify_costco(
@@ -1421,7 +1591,9 @@ def _classify_by_content(
         ("walmart" in text_lower and "order details" in text_lower)
         or "walmart" in filename_lower
     ):
-        inferred_source, inferred_document, confidence, summary = _classify_walmart(structured_data)
+        inferred_source, inferred_document, confidence, summary = _classify_walmart(
+            extracted_text, structured_data
+        )
     elif "wells fargo everyday checking" in text_lower:
         inferred_source, inferred_document, confidence, summary = _classify_wells_fargo(structured_data)
     elif (

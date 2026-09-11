@@ -84,9 +84,9 @@ Work top down through §7 Phase 3 — plan, funds, and alerts:
 3. **Carried in from Phase 0:** the API's `balance` field is `null` on every
    portfolio-origin account row while `current_value` carries the number. Pick
    one field.
-4. **Phase 4** — 4.1 is done; next are the Costco parser (4.2) and the Walmart
-   fulfillment-token fix (4.3) that 0.13's staged receipts are waiting on. 4.4
-   still depends on Phase 5.0.
+4. **Phase 4** — 4.1, 4.2 and 4.3 are done: the staged receipts 0.13 was waiting
+   on now read exactly, and the one that cannot be read whole says so. 4.4 still
+   depends on Phase 5.0, so Phase 4 has nothing further that is actionable.
 
 **The review inbox is as clear as it can get without the household** — 17 → 12,
 and each of the 12 is waiting on a person, not on a bug:
@@ -116,6 +116,18 @@ and each of the 12 is waiting on a person, not on a bug:
 - Who owns each of the two **Fidelity 529s** (·6273 and ·6277)?
 
 **Recently cleared** (kept for a few sessions so a cold start can see the arc):
+- 4.2/4.3 **The staged receipts are read by arithmetic instead of by a model.**
+  Both parsers are deterministic and both refuse rather than approximate. Costco:
+  all 5 receipts reconcile to the cent, **$884.23 / 68 items** — replacing an LLM
+  read that was inventing totals, dates and line items outright ($133.70 on the
+  wrong two days for a $172.89 receipt). Walmart: **every order page had been
+  proposed at its subtotal, not its total**, overstating each by its savings, and
+  `Unavailable` lines were being summed into the subtotal though they are never
+  billed; 6 of 7 pages now reconcile at the charged total, **$660.09**. The
+  seventh is an in-store register tape, not an order page: its charge is stated
+  ($22.06 on the current Prime Visa) and reported, its items come up $3.96 short, and the
+  missing line is named rather than guessed. Nothing was ingested — all of it is
+  still `needs_review` under the 0.13 hold, waiting on the household.
 - 4.1 **Items and money are tied together, and the share finally means something.**
   **121 of 295** items whose charge could be in the ledger are tied to one
   (**41%**), against a headline that used to read 2.6% because it counted a 2014
@@ -2146,14 +2158,46 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
     reward points cover part of an order, and no export field records how much,
     so the charge is smaller than the order by an amount nothing can reconstruct.
     Matching those on a tolerance would invent links, so they stay unmatched.
-4.2 **Costco receipt parser** (§6b): item-number + abbreviated-name + qty-line-above
-    + markdown-line-below format. **Gate ingestion on arithmetic**, not confidence:
-    `Σ items − instant savings == SUBTOTAL` and `Σ line quantities == TOTAL NUMBER
-    OF ITEMS SOLD`. All 5 sample receipts reconcile exactly — use them as fixtures
-    ($884.23 / 68 items).
-4.3 **Walmart parser hardening**: the fulfillment token sits between name and qty
-    (`Fresh Hass Avocados, Each 16 shopped Qty 10 $8.20` → qty is 10, not 16);
-    handle `weight adjusted` rows.
+4.2 **Costco receipt parser** — **DONE**. `_household_receipt_costco.py` reads the
+    register format deterministically and gates on arithmetic, not confidence:
+    `Σ items − instant savings == SUBTOTAL`, `Σ line quantities == TOTAL NUMBER OF
+    ITEMS SOLD`, and `SUBTOTAL + TAX == TOTAL`. All 5 staged receipts reconcile to
+    the cent — **$884.23 / 68 items**, exactly the fixture figures above.
+
+    The LLM path this replaces was not merely weak, it was **fabricating**: doc
+    `651a0512` is a $172.89 receipt bought 2026-08-17 with 19 items, and the model
+    proposed $133.70 on two different dates with line items belonging to a
+    different receipt. A receipt that fails any gate is now held at confidence 0.4
+    with the failing arithmetic written into `itemization_incomplete_reason`,
+    rather than proposed at a confidence the reading does not support.
+4.3 **Walmart parser hardening** — **DONE**, and the fulfilment token was the
+    smaller of the two defects. `_household_receipt_walmart.py` takes the line
+    apart from the right, where it is unambiguous, so `Fresh Hass Avocados, Each 30
+    shopped Qty 10 $8.20` reads as ten avocados; `substituted`, `weight adjusted`,
+    `Unavailable` and `Return to Walmart store` all parse.
+
+    The defect that was costing money: **every order was being proposed at its
+    SUBTOTAL rather than its TOTAL**, which overstates each order by its savings
+    ($106.52 proposed against a $100.62 charge). And an `Unavailable` line prints
+    with a price but is never billed — summing it broke the subtotal gate on 3 of
+    7 pages. Six of the seven staged order pages now reconcile and propose the
+    charged total: **$660.09** across 100.62 / 99.59 / 79.88 / 77.67 / 195.59 /
+    106.74.
+
+    The seventh is a different document than it looked. `61b83783` is an
+    **in-store register tape** filed under the same order URL (`storePurchase=true`),
+    not an order page, so a second parser reads it — and it survives extraction
+    unevenly: one item block lost its price line entirely, while the totals below
+    it stayed perfectly legible. So the tape's **charge and its itemisation are
+    judged apart**: the charge is stated ($22.06 subtotal, $0.00 tax, paid on the current Prime
+    Visa) and is reported; the items come to $18.10 against a printed $22.06, so
+    the missing $3.96 line is named and **not guessed**. The document is held.
+
+    That hold exposed a real gap in the gate, now closed: `ambiguity_remaining`
+    was only ever set by account resolution, so a receipt could state a charge
+    confidently and auto-apply with an itemisation known to be short. A recorded
+    `itemization_incomplete_reason` now holds the document on its own, rather
+    than the document being held incidentally by an unrelated account question.
 4.4 **Owner attribution** (D2.4) — today 91% "Family". **Depends on Phase 5.0**
     (identity propagation), which makes attribution a byproduct of who captured or
     uploaded rather than a dropdown nobody fills in. Manual override stays for
@@ -2271,3 +2315,4 @@ household-level habits and per-person habits are different products.
 | 2026-08-25 | Phase 3.5 | **The cards' standing costs stopped being invisible to the plan.** The Cards tab has known the renewal dates and the welcome deadlines all along; the Plan screen knew only a balance, and only as a subtraction inside the affordability check (**P0-20**). `build_card_commitments` now assembles all three per open card and the Budget screen renders them: **$17,336 owed across 3 cards, and $190/yr to keep them** — Amazon Prime Visa (Elias ·9728) $5,513, Sapphire (Mariana ·8054) $5,897, Sapphire (Elias ·3627) $5,927. Cards are named by owner and last four because two Sapphires are **one product and two cards**, and a card whose account reports nothing reads *"Not reporting"* with the reason under it rather than $0 — a card with no feed is exactly the one whose balance is a surprise. The **$190/yr of fees is subtracted as a $16/mo accrual** in `build_cap_plan`, in the same subtraction as saving and the fund accruals, because a fee that posts on a day nobody remembers is money the caps have already been allowed to spend: the pool the categories divide moved **$1,594 → $1,578**, "Caps waiting on you" **$4,035 → $4,020**, and the card prints the new line. Two judgements are stated rather than guessed. A **deadline that has passed while the card row still says `in_progress`** is neither: it is reported as `deadline_passed` — what is actually known — and stops counting as an open bonus the household could still chase. And `_money` here rounds **half away from zero** rather than Python's default, because every figure is printed twice on one row, once by this text and once by the browser's `Intl.NumberFormat`: $5,896.50 was reading **$5,896** in the sentence and **$5,897** in the number beside it. Gate green (2,576 backend / 503 frontend), rebuilt, verified live on `/money?tab=spending` with 0 console errors, 0 warnings, 0 failed requests. |
 | 2026-08-25 | Phase 3.6 | **The alerts got a way to reach a person who is not looking at the screen.** Every finding `spend_alert_service` produced already landed in `jenny_notifications`, which is a place someone has to already be reading, and on one shared Telegram chat with no recipient parameter — so everything went to both adults or to neither. Web push replaces that phone sink (D11): `sw.js` gained `push`, `notificationclick` and `pushsubscriptionchange`, and `household_push_subscriptions` (`f6a7b8c9d0e1`) holds one row per device. **The endpoint is the identity**, because it is the only thing a push service and a browser both know — so registration upserts on it, and a re-granted permission updates a phone instead of adding a second row that buzzes the same handset twice. It is also a **bearer capability**: anyone holding an endpoint can push to that device, so no API response returns one and the row id addresses a device instead; the card marks its own row from a `localStorage` id, which is the one fact only that browser has. The evaluate → dedupe-marker shape is unchanged and only the transport moved: the per-crossing marker is passed through as the notification `tag`, so a repeat of one finding replaces its own tray entry rather than stacking beneath it, and a tapped notification opens the plan. **The Telegram sink is kept for exactly one case** — an alert no phone took — because swapping a transport must not open a window where a finding reaches nobody, and the month can go over the cap the day before the first device subscribes. Recipients come from `household_members` by role rather than a hard-coded list, so the girls are never offered a cap they cannot act on (D15). Two things were found while wiring it: the frontend client rewrites camelCase to snake_case on every request body and renders the browser's `p256dh` key as `p_256_dh`, a field nothing sends and no model binds — the API names it `encryption_key` so the round trip survives; and the click target `/money?tab=budget` was wrong, because the Budget tab's **route value is `spending`** and the label and the value differ, so every tapped notification would have opened the Dashboard. Verified end to end against the running backend with a local listener standing in for a push service: `Content-Encoding: aes128gcm`, a VAPID `Authorization: vapid t=…` JWT, `TTL 86400`, and the ciphertext decrypts with the subscriber's private key to exactly the payload `sw.js` reads. Live on the Budget tab: the card renders *Whose phone is this? Elias / Mariana* from the real member rows, picking one enables the button, and the service worker is `activated` at scope `/` with 0 console errors, 0 warnings, 0 failed requests. **Neither phone has subscribed yet** — that is a one-time action on each handset, not code. Gate green: 2,592 backend tests, 518 frontend tests. |
 | 2026-08-25 | Phase 3.7 + Phase 3 closed | **The alerts got something worth saying, and the sink they were saying it into turned out never to have worked.** Three kinds landed (D19), all read off the **published spending view** rather than re-derived, so an alert and the screen it links to are reading one set of numbers by construction. **Projected over plan**: month-to-date run to the end of the month against what the anchor leaves the categories, held back until a week of days has elapsed — a rate taken from three days projects a month that never happens — and escalated to `month_over_plan` when the plan is already spent with days still to go, which is a different fact from heading for it. **A category at its cap**: confirmed caps only, because a suggested cap is the system's own guess at what the household already spends and alerting on one interrupts a person to tell them they are spending what they usually spend; at 100% rather than 85%, and only for caps that are at least 2% of the household's own plan — live they hold a **$17.09 Fitness cap and a $10.68 Entertainment cap** beside a $1,100 Groceries one, and pushing the small ones is how a person learns to swipe these away. Caps that break together arrive at most three per pass, worst first, so eight breaches are not eight simultaneous notifications. **A purchase with no precedent** reuses `find_one_time_purchases` rather than inventing a second definition of unusual, with **one substitution**: the screen measures a purchase against the month so far, which on the 3rd is three days long, so every large purchase would clear a fifth of it — the alert measures against a *normal* month, and only inside a 7-day window, or the first pass after a deploy would push the whole month at once. **Then running it for real found the defect underneath.** `jenny_notifications.routine_id` is a foreign key into `jenny_routines`, and an alert producer is a synthetic routine that never runs through the coordinator which creates that row — so every notification write raised a foreign-key violation, which each caller swallowed as `{"status": "error"}`. The evidence: **zero `card_alert_sent` markers and zero `card_*` notifications ever written**, against 105 notifications from routines that do have rows. The card alerts have written nothing, pushed nothing and left no marker since the day they shipped, silently, and 3.6 had just rewired that same path. `_ensure_routine_row` upserts the producer's routine before the first notification of a pass. A second defect surfaced immediately after: the UI sink keeps one open notification per `(category, symbol)`, so three categories over their caps collapsed into **one** inbox row showing whichever was written last — and the fix could not go in `symbol`, which is itself a foreign key into `symbols` and only ever holds a real ticker, so the subject rides on the category (`budget_category_at_cap:Travel`), the pattern `household_inbox:` already uses. Both producers now share one dispatch under separate marker namespaces. Verified live end to end: two passes over the real ledger dispatched **4 alerts then 0**, the markers suppressing the repeat; `/api/portfolio/jenny` returns all four as distinct rows — *August 2026 is already over plan* (critical, $7,488 against a $4,702 plan) plus Travel, Retail and Healthcare at their caps, with Bills correctly deferred to the next pass as the fourth-worst. **Phase 3 is closed.** Gate green: 2,614 backend tests, 518 frontend tests. |
+| 2026-08-25 | Phase 4.2 + 4.3 | **The staged receipts stopped being guessed at.** Both formats now parse deterministically and both gate on the receipt's own arithmetic rather than on a confidence score. **Costco** (`_household_receipt_costco.py`): item-number + abbreviated-name, with the quantity line above and the markdown line below, checked three ways — `Σ items − instant savings == SUBTOTAL`, `Σ quantities == TOTAL NUMBER OF ITEMS SOLD`, `SUBTOTAL + TAX == TOTAL`. All 5 staged receipts reconcile to the cent, **$884.23 / 68 items**, matching the fixture figures the plan recorded in August. What it replaced was not a weak read but a **fabricating** one: for the $172.89 receipt of 2026-08-17 (19 items) the model proposed $133.70, twice, on 2026-08-10 and 2026-08-22, with line items lifted from a different receipt. **Walmart** (`_household_receipt_walmart.py`): the fulfilment token was the advertised defect and the least expensive one — `Fresh Hass Avocados, Each 30 shopped Qty 10 $8.20` is ten avocados, and taking the line apart from the right fixes it. Two real ones sat underneath. **Every order page was being proposed at its SUBTOTAL rather than its TOTAL**, overstating each order by exactly its savings — $106.52 filed against a $100.62 charge. And an `Unavailable` line prints with a price but is never billed, so summing it broke the subtotal gate on 3 of 7 pages. Six of seven now reconcile and propose what the card was actually charged: **$660.09** (100.62 / 99.59 / 79.88 / 77.67 / 195.59 / 106.74). The seventh, `61b83783`, was **misread as an empty page and is not one**: it is an in-store register tape filed under the same order URL (`storePurchase=true`), and it survives extraction unevenly — one item block lost its price line while the totals below it stayed legible. So the tape's **charge and its itemisation are settled separately**: the charge is printed and trustworthy ($22.06 subtotal, $0.00 tax, on the current Prime Visa) and is reported; the items come to $18.10 against a printed $22.06, so the missing $3.96 line is named and left unguessed, and the document is held. That hold exposed a gap worth more than the receipt: `ambiguity_remaining` was only ever set by **account** resolution, so a document could state a charge confidently and auto-apply with an itemisation known to be short — this one was being held incidentally, by an unrelated account question. A recorded `itemization_incomplete_reason` now holds a document on its own terms. Nothing was ingested: all 12 receipts remain `needs_review` under the 0.13 hold. Gate green: **2,672 backend** tests (+8), **522 frontend**, ARCH/ruff/ty/biome/tsc clean. Phase 4 now has nothing actionable left — 4.4 depends on Phase 5.0. |

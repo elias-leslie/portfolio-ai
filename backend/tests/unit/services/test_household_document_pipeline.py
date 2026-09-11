@@ -95,6 +95,43 @@ def test_review_payload_derives_ambiguity_from_unresolved_questions() -> None:
     )
 
 
+def test_a_confident_review_still_holds_when_its_itemisation_is_short() -> None:
+    """A stated total plus a short item list must not apply on confidence alone.
+
+    A register tape can print its charge perfectly and still lose a line on the
+    way in. Filing it would record the total against an itemisation known to be
+    incomplete, so the reader that noticed the gap is what holds the document.
+    """
+    reviewed = {
+        "source_type": "receipt",
+        "document_type": "receipt",
+        "confidence": 0.95,
+        "review_checks": {"ambiguity_remaining": False},
+        "structured_data": {
+            "itemization_incomplete_reason": "the items come to 18.10, and the tape says 22.06",
+        },
+    }
+
+    gated = HouseholdDocumentPipeline._review_gate_summaries(reviewed)
+
+    assert gated is not None
+    application_summary, _ = gated
+    assert "itemisation is incomplete" in str(application_summary["review_blocker"])
+    assert "18.10" in str(application_summary["review_blocker"])
+
+
+def test_a_confident_review_applies_when_its_itemisation_is_whole() -> None:
+    reviewed = {
+        "source_type": "receipt",
+        "document_type": "receipt",
+        "confidence": 0.95,
+        "review_checks": {"ambiguity_remaining": False},
+        "structured_data": {"itemization_incomplete_reason": ""},
+    }
+
+    assert HouseholdDocumentPipeline._review_gate_summaries(reviewed) is None
+
+
 def test_review_decision_requires_exact_review_id_and_bounds_reason() -> None:
     with pytest.raises(ValidationError, match="string_too_long"):
         HouseholdDocumentReviewDecisionRequest.model_validate(

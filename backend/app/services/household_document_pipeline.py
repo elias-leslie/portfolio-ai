@@ -269,11 +269,22 @@ class HouseholdDocumentPipeline:
         confidence = to_float(reviewed.get("confidence"))
         review_checks = _review_checks_dict(reviewed)
         ambiguity_remaining = _bool_value(review_checks.get("ambiguity_remaining")) or False
-        if confidence is not None and confidence >= 0.65 and not ambiguity_remaining:
+        # A receipt can state its charge plainly and still lose lines on the way
+        # in. Applying it then would file a total against an itemisation known to
+        # be short, so the reader that noticed the gap also holds the document.
+        structured_data = reviewed.get("structured_data")
+        itemization_gap = (
+            str(structured_data.get("itemization_incomplete_reason") or "").strip()
+            if isinstance(structured_data, dict)
+            else ""
+        )
+        if confidence is not None and confidence >= 0.65 and not ambiguity_remaining and not itemization_gap:
             return None
 
         if ambiguity_remaining:
             reason = "The review still has unresolved account or evidence ambiguity."
+        elif itemization_gap:
+            reason = f"The document's itemisation is incomplete: {itemization_gap}"
         elif confidence is None:
             reason = "The review did not provide a confidence score."
         else:
