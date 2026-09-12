@@ -230,7 +230,7 @@ export function CardStrategyPanel({
           </div>
           <div className="text-right">
             <p className="text-xs text-text-muted">
-              Ordinary bonus-spend allowance
+              Calculated monthly spending available for welcome bonuses
             </p>
             <p className="text-2xl font-semibold">
               {formatCurrencyWhole(view.baseline.monthlyAvailable)}
