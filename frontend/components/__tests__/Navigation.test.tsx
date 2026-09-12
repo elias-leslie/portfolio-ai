@@ -60,7 +60,7 @@ describe('Navigation', () => {
     ).toBeGreaterThan(0)
   })
 
-  it('marks only Status current and hides Today actions on the status route', () => {
+  it('marks only Status current and keeps the shared Actions control reachable', () => {
     usePathnameMock.mockReturnValue('/status')
 
     render(<Navigation />)
@@ -72,6 +72,21 @@ describe('Navigation', () => {
     for (const todayLink of screen.getAllByRole('link', { name: /today\./i })) {
       expect(todayLink).not.toHaveAttribute('aria-current')
     }
-    expect(screen.queryByRole('button', { name: 'Actions 0' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Actions 0' }),
+    ).toBeInTheDocument()
   })
+})
+
+it.each([
+  '/',
+  '/money',
+  '/portfolio',
+  '/symbols/VTI',
+  '/status',
+])('keeps Actions in the top navigation on %s', (pathname) => {
+  usePathnameMock.mockReturnValue(pathname)
+  render(<Navigation />)
+  const actions = screen.getByRole('button', { name: 'Actions 0' })
+  expect(actions.closest('nav')).not.toBeNull()
 })

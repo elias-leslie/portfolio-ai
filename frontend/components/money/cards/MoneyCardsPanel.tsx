@@ -21,6 +21,7 @@ import { AddCardDialog, type LinkableAccount } from './AddCardDialog'
 import { AddSoftChargeDialog, SoftChargesSection } from './AddSoftChargeDialog'
 import { CardAlertSettings } from './CardAlertSettings'
 import { CardRankingTable } from './CardRankingTable'
+import { CardStrategyPanel } from './CardStrategyPanel'
 import { CardTermsReview } from './CardTermsReview'
 import { PLAYER_PRESETS, RotationTimeline } from './RotationTimeline'
 import { RotationValueChart } from './RotationValueChart'
@@ -107,6 +108,10 @@ export function MoneyCardsPanel({
 
   return (
     <div className="space-y-6">
+      <CardStrategyPanel
+        cards={ownedCards}
+        onAddCard={() => setAddCardOpen(true)}
+      />
       {ownedCardsQuery.isError ? (
         <LoadErrorState
           title="Failed to load the household wallet."
@@ -143,7 +148,9 @@ export function MoneyCardsPanel({
         onAdd={() => setAddSoftChargeOpen(true)}
       />
 
-      <CardTermsReview />
+      <div id="card-offer-terms">
+        <CardTermsReview />
+      </div>
 
       <details
         className="rounded-2xl border border-border/40 p-4"

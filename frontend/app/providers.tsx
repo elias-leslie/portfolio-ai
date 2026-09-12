@@ -16,7 +16,9 @@ function MemberProviders({ children }: { children: React.ReactNode }) {
   const identity = useHouseholdIdentity()
   return (
     <HomeActionQueueProvider
-      enabled={pathname === '/' && identity.access !== 'capture_only'}
+      enabled={
+        !pathname.startsWith('/capture') && identity.access !== 'capture_only'
+      }
     >
       <ChatWidgetProvider>{children}</ChatWidgetProvider>
     </HomeActionQueueProvider>

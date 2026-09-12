@@ -32,6 +32,7 @@ class SourceAccountRow:
     cash_balance: Decimal | None
     currency: str | None
     last_synced_at: datetime | None
+    transaction_synced_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +89,8 @@ def _source_value(row: SourceAccountRow) -> dict[str, Any]:
         "cash_balance": row.cash_balance,
         "last_synced_at": row.last_synced_at,
         "account_mask": row.account_mask,
+        "transaction_synced_at": row.transaction_synced_at,
+        "source": row.source,
     }
 
 
@@ -111,7 +114,9 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
                 sa.balance AS current_value,
                 sa.cash_balance,
                 sa.currency,
-                sa.last_synced_at
+                sa.last_synced_at,
+                CASE WHEN sa.metadata->'activity_coverage'->>'complete' = 'true'
+                     THEN sa.metadata->'activity_coverage'->>'through' END AS transaction_synced_at
             FROM snaptrade_accounts sa
             JOIN snaptrade_connections sc
               ON sc.authorization_id = sa.authorization_id
@@ -120,8 +125,7 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             LEFT JOIN household_accounts ha ON ha.id = sa.household_account_id
             LEFT JOIN household_account_preferences hap
               ON hap.household_account_id = sa.household_account_id
-            WHERE (sa.balance IS NOT NULL OR sa.cash_balance IS NOT NULL)
-              AND sa.is_active = true
+            WHERE sa.is_active = true
               AND hap.hidden_at IS NULL
             UNION ALL
             SELECT
@@ -135,14 +139,15 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
                 COALESCE(pa.current_balance, pa.available_balance) AS current_value,
                 NULL::numeric AS cash_balance,
                 pa.iso_currency_code AS currency,
-                pa.last_synced_at
+                pa.last_synced_at,
+                CASE WHEN pi.last_error IS NULL AND NULLIF(pi.transactions_cursor, '') IS NOT NULL
+                     THEN pi.last_successful_sync_at::text END AS transaction_synced_at
             FROM plaid_accounts pa
             LEFT JOIN plaid_items pi ON pi.item_id = pa.item_id
             LEFT JOIN household_accounts ha ON ha.id = pa.household_account_id
             LEFT JOIN household_account_preferences hap
               ON hap.household_account_id = pa.household_account_id
-            WHERE (pa.current_balance IS NOT NULL OR pa.available_balance IS NOT NULL)
-              AND pa.is_active = true
+            WHERE pa.is_active = true
               AND pi.status = 'active'
               AND hap.hidden_at IS NULL
             """
@@ -160,6 +165,7 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             cash_balance=_decimal(row[8]),
             currency=str(row[9]) if row[9] is not None else None,
             last_synced_at=_timestamp(row[10]),
+            transaction_synced_at=_timestamp(row[11]),
         )
         for row in rows
     ]
@@ -295,6 +301,11 @@ def _collapse_source_rows(
         )
         chosen = ordered[-1]
         values[household_account_id] = _source_value(chosen)
+        activity_rows = [r for r in account_rows if r.transaction_synced_at]
+        if activity_rows:
+            coverage = max(activity_rows, key=lambda r: r.transaction_synced_at or datetime.min.replace(tzinfo=UTC))
+            values[household_account_id]["transaction_synced_at"] = coverage.transaction_synced_at
+            values[household_account_id]["source"] = coverage.source
         if len(account_rows) <= 1:
             continue
 
@@ -501,3 +512,14 @@ def account_control_inbox_items(
             )
         )
     return items
+
+
+def synced_activity_coverage(storage: Any) -> dict[str, datetime]:
+    """Completed provider activity coverage, also valid for zero-activity accounts."""
+    result: dict[str, datetime] = {}
+    for row in _source_rows(storage):
+        if row.household_account_id and row.transaction_synced_at:
+            previous = result.get(row.household_account_id)
+            if previous is None or row.transaction_synced_at > previous:
+                result[row.household_account_id] = row.transaction_synced_at
+    return result

@@ -1091,6 +1091,8 @@ export interface HouseholdAccountSummary {
   balanceFreshnessStatus: string
   balanceFreshnessLabel: string
   lastTransactionAt: string | null
+  transactionCoverageAt?: string | null
+  transactionCoverageSource?: string | null
   daysSinceTransaction: number | null
   transactionFreshnessStatus: string
   transactionFreshnessLabel: string

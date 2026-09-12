@@ -183,6 +183,8 @@ class _FreshnessState:
     balance_status: str
     balance_label: str
     last_transaction_dt: datetime | None
+    transaction_coverage_dt: datetime | None
+    transaction_coverage_source: str | None
     days_since_transaction: int | None
     transaction_status: str
     transaction_label: str
@@ -297,6 +299,11 @@ def _compute_freshness(
         latest_transaction_dates_by_account_label=latest_transaction_dates_by_account_label,
     )
     coverage_dt = _latest_transaction_coverage_timestamp(accounts, latest_transaction_dt=last_transaction_dt)
+    coverage_source = "Evidence" if coverage_dt else None
+    activity_sync = _parse_datetime((source_account_value or {}).get("transaction_synced_at")) if source_owned else None
+    if activity_sync and (coverage_dt is None or activity_sync > coverage_dt):
+        coverage_dt = activity_sync
+        coverage_source = str((source_account_value or {}).get("source", "Account")).title() + " sync"
     days_since_transaction = (
         (datetime.now(UTC).date() - coverage_dt.date()).days if coverage_dt is not None else None
     )
@@ -313,15 +320,6 @@ def _compute_freshness(
             balance_status, balance_label = _freshness_state_from_thresholds(
                 _BALANCE_FRESHNESS_THRESHOLDS, effective_asset_group, days_since=days_since_balance
             )
-            # A successful brokerage sync also refreshes activity coverage: the
-            # sync pulls transactions up through the sync time, so anchor
-            # transaction freshness to the sync whenever it is more recent than
-            # the latest document-derived transaction. Without this, source-synced
-            # spending accounts (e.g. cash management) flag "stale activity" right
-            # after a sync, because transaction freshness otherwise reads only from
-            # uploaded-statement transactions in household_transactions.
-            if days_since_transaction is None or days_since_balance < days_since_transaction:
-                days_since_transaction = days_since_balance
 
     txn_status, txn_label = _transaction_freshness_pair(effective_money_role, days_since_transaction)
     freshness_status, freshness_label = _combine_freshness(
@@ -337,6 +335,8 @@ def _compute_freshness(
         balance_status=balance_status,
         balance_label=balance_label,
         last_transaction_dt=last_transaction_dt,
+        transaction_coverage_dt=coverage_dt,
+        transaction_coverage_source=coverage_source,
         days_since_transaction=days_since_transaction,
         transaction_status=txn_status,
         transaction_label=txn_label,
@@ -434,6 +434,8 @@ def _assemble_evidence_summary(
         balance_freshness_status=fs.balance_status,
         balance_freshness_label=fs.balance_label,
         last_transaction_at=fs.last_transaction_dt.isoformat() if fs.last_transaction_dt is not None else None,
+        transaction_coverage_at=fs.transaction_coverage_dt.isoformat() if fs.transaction_coverage_dt else None,
+        transaction_coverage_source=fs.transaction_coverage_source,
         days_since_transaction=fs.days_since_transaction,
         transaction_freshness_status=fs.transaction_status,
         transaction_freshness_label=fs.transaction_label,
@@ -713,6 +715,12 @@ def _build_portfolio_summary(
         else portfolio_current_value
     )
     effective_cash = source_cash_value if source_cash_value is not None else portfolio_cash_balance
+    role = _money_role(effective_asset_group, effective_account_type, effective_label)
+    activity_dt = _parse_datetime((source_account_value or {}).get("transaction_synced_at")) if source_owned else None
+    activity_days = (datetime.now(UTC).date()-activity_dt.date()).days if activity_dt else None
+    activity_status, activity_label = _transaction_freshness_pair(role, activity_days)
+    freshness_status, freshness_label = _combine_freshness(money_role=role, balance_status=balance_status,
+        balance_label=balance_label, transaction_status=activity_status, transaction_label=activity_label)
     return HouseholdAccountSummary(
         id=_portfolio_summary_key(account),
         household_account_id=portfolio_household_account_id,
@@ -737,19 +745,19 @@ def _build_portfolio_summary(
         linked_portfolio_account_id=account.id,
         linked_portfolio_account_name=_portfolio_label(account),
         account_origin="portfolio",
-        money_role=_money_role(
-            effective_asset_group, effective_account_type, effective_label
-        ),
+        money_role=role,
         last_balance_at=source_balance_dt.isoformat() if source_balance_dt is not None else None,
         days_since_balance=days_since_source_balance,
         balance_freshness_status=balance_status,
         balance_freshness_label=balance_label,
         last_transaction_at=None,
-        days_since_transaction=None,
-        transaction_freshness_status="not_applicable",
-        transaction_freshness_label="Not required",
-        freshness_status=balance_status,
-        freshness_label=balance_label,
+        transaction_coverage_at=activity_dt.isoformat() if activity_dt else None,
+        transaction_coverage_source=str((source_account_value or {}).get("source", "Account")).title()+" sync" if activity_dt else None,
+        days_since_transaction=activity_days,
+        transaction_freshness_status=activity_status,
+        transaction_freshness_label=activity_label,
+        freshness_status=freshness_status,
+        freshness_label=freshness_label,
         match_status="tracked",
         match_confidence=None,
         **_quote_fields(portfolio_valuation, has_live_pricing=has_live_pricing),

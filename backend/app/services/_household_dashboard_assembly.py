@@ -280,7 +280,7 @@ def _monthly_spend_trust(account_summaries: list[Any], statement_freshness: dict
     gap_months = statement_freshness.get("gap_months") or []
     coverage_months = int(statement_freshness.get("coverage_months") or 0)
     visible_spend_accounts = max(fresh_count + aging_count + stale_count, historical_count)
-    latest_suffix = f" Latest covered transaction date {latest_transaction_date}." if latest_transaction_date is not None else ""
+    latest_suffix = f" Latest recorded activity {latest_transaction_date}." if latest_transaction_date is not None else ""
 
     if coverage_months <= 0 and visible_spend_accounts <= 0:
         return ("unavailable", "Monthly spend is not available yet because Jenny does not have any usable spending history.")
@@ -292,9 +292,9 @@ def _monthly_spend_trust(account_summaries: list[Any], statement_freshness: dict
         issue_parts.append(f"{stale_count} {_pluralize(stale_count, 'spending account')} stale")
     if gap_months:
         issue_parts.append(str(gap_months[0]).lower())
-    if days_since_latest is None:
+    if days_since_latest is None and not statement_freshness.get("sync_coverage_current"):
         issue_parts.append("latest covered transaction date unknown")
-    elif days_since_latest > 7:
+    elif days_since_latest is not None and days_since_latest > 7:
         issue_parts.append(f"latest covered transaction is {days_since_latest} days old")
     if fresh_count + aging_count <= 0 and visible_spend_accounts > 0:
         return (

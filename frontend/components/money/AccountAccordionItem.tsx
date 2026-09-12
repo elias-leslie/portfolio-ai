@@ -242,11 +242,21 @@ export function AccountAccordionItem({
                   <p>
                     {account.moneyRole === 'spend_driver'
                       ? `Transactions ${account.transactionFreshnessLabel} · ${accountEvidenceDate(
-                          account.lastTransactionAt,
+                          account.transactionCoverageAt ??
+                            account.lastTransactionAt,
                           account.daysSinceTransaction,
                         )}`
                       : 'Transactions not required'}
                   </p>
+                  {account.transactionCoverageSource ? (
+                    <p className="text-text-muted">
+                      Checked via {account.transactionCoverageSource}. Last
+                      purchase/activity:{' '}
+                      {account.lastTransactionAt?.slice(0, 10) ??
+                        'none recorded'}
+                      .
+                    </p>
+                  ) : null}
                   {pricedPositionCount > 0 ? (
                     <p>Quotes {account.quoteFreshnessLabel ?? 'Live'}</p>
                   ) : null}

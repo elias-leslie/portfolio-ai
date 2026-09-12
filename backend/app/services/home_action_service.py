@@ -1,4 +1,4 @@
-"""Aggregate prioritized product actions for the home page."""
+"""Aggregate prioritized product actions for the shared header."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from app.services._home_action_sources import (
     build_portfolio_health_actions,
     build_workflow_actions_from_service,
 )
+from app.services.card_strategy_service import CardStrategyService
 from app.services.household_finance_service import HouseholdFinanceService
 from app.services.jenny_operator_service import JennyOperatorService
 from app.services.symbol_workflow_service import SymbolWorkflowService
@@ -63,7 +64,7 @@ def _action_specificity_score(action: dict[str, object]) -> float:
 
 
 class HomeActionService:
-    """Build a ranked cross-product action queue for the home dashboard."""
+    """Build the ranked cross-product action queue shown in the shared header."""
 
     def __init__(self) -> None:
         self.storage = get_storage()
@@ -96,6 +97,11 @@ class HomeActionService:
             self.workflow_service = service
         return service
 
+    def _card_strategy_actions(self) -> list[dict[str, object]]:
+        if getattr(self, "storage", None) is None:
+            return []
+        return CardStrategyService(self.storage, self._household_service()).actions()
+
     def _ensure_cache_state(self) -> None:
         if not hasattr(self, "_build_lock"):
             self._build_lock = Lock()
@@ -107,7 +113,7 @@ class HomeActionService:
             self._queue_cached_at = None
 
     def invalidate_cache(self) -> None:
-        """Clear the short-lived Today action queue cache."""
+        """Clear the short-lived header action queue cache."""
         self._ensure_cache_state()
         with self._cache_lock:
             self._queue_cache = None
@@ -133,6 +139,7 @@ class HomeActionService:
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {
+                "cards": executor.submit(self._card_strategy_actions),
                 "portfolio": executor.submit(
                     getattr(self, "_portfolio_health_actions", build_portfolio_health_actions)
                 ),

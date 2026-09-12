@@ -63,6 +63,7 @@ def test_statement_freshness_excludes_future_rows_and_surfaces_date_quality() ->
             (2, today + timedelta(days=30), today + timedelta(days=120)),
             (0, None, None),
             (today - timedelta(days=5), 2, today - timedelta(days=35)),
+            [], [],
         ]
     )
 
@@ -181,3 +182,15 @@ def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for
     detected = queries.detect_unknown_accounts(storage, documents)
 
     assert detected == []
+
+
+def test_quiet_synced_accounts_do_not_generate_missing_transaction_months(monkeypatch) -> None:
+    today = datetime.now(UTC).date()
+    monkeypatch.setattr(queries, "review_coverage", lambda *_args, **_kwargs: {
+        "coverage_status": "current", "coverage_through": today.isoformat()})
+    storage = _FakeStorage([(0, None, None), (0, None, None), (today-timedelta(days=40), 1, today-timedelta(days=100))])
+    freshness = queries.check_statement_freshness(storage)
+    assert freshness["days_since_latest"] == 0
+    assert freshness["gap_months"] == []
+    assert freshness["sync_coverage_current"] is True
+    assert freshness["most_recent_date"] == (today-timedelta(days=40)).isoformat()

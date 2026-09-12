@@ -91,6 +91,9 @@ export function CardTermsReview() {
           >
             <summary className="cursor-pointer font-medium">
               {proposal.productSlug} ·{' '}
+              {Object.keys(proposal.previousFields).length === 0
+                ? 'New card to compare · '
+                : ''}
               {Object.keys(proposal.proposedFields).length} proposed terms
             </summary>
             <dl className="my-3 space-y-3 text-sm">

@@ -22,12 +22,15 @@ logger = get_logger(__name__)
 
 CARD_RESEARCH_AGENT_SLUG = "credit-card-researcher"
 RESEARCH_MARKER_KEY = "card_catalog_research_last_run"
+RESEARCH_ATTEMPT_KEY = "card_catalog_research_last_attempt"
 # Monthly cadence (user-locked): a research run is due this many days after the last.
 RESEARCH_INTERVAL_DAYS = 30
 
 _HOUSEHOLD_CONTEXT = (
     "Maintain the existing household card catalog. Research factual issuer terms, not spending assumptions or application recommendations. "
-    "Do not add speculative new products; new offers enter through household intake."
+    "Also look for up to three source-backed personal travel-card offers missing from the catalog. "
+    "Use new_candidates[{product: catalog fields including slug, evidence: per-field issuer sources}]. "
+    "New products are proposals for review; do not infer an offer from an article or invent eligibility."
 )
 
 
@@ -36,24 +39,40 @@ class CardResearchService:
         self._client_cls = AgentHubAPIClient
 
     def research_due(self) -> bool:
-        """True when the monthly cadence says a catalog refresh is due."""
+        """Opt-in, approaching-decision research with a cooldown on failed runs."""
         with get_storage().connection() as conn:
-            row = conn.execute(
-                "SELECT fact_value FROM household_confirmed_facts WHERE fact_key = %s",
-                [RESEARCH_MARKER_KEY],
-            ).fetchone()
-        if row is None or not row[0]:
+            facts = dict(conn.execute(
+                "SELECT fact_key,fact_value FROM household_confirmed_facts WHERE fact_key = ANY(%s)",
+                [["card_strategy_settings", RESEARCH_MARKER_KEY, RESEARCH_ATTEMPT_KEY]],
+            ).fetchall())
+            try:
+                enabled = json.loads(str(facts.get("card_strategy_settings", "{}"))).get("automatic_research") is True
+            except (ValueError, AttributeError):
+                enabled = False
+            if not enabled:
+                return False
+            approaching = conn.execute("""SELECT 1 FROM card_strategy_plans p
+                LEFT JOIN household_credit_cards c ON c.id=p.actual_card_id
+                WHERE p.status='approved' AND p.snapshot->'candidate' != 'null'::jsonb AND
+                ((p.actual_card_id IS NULL AND (p.snapshot->'candidate'->>'application_on')::date <= CURRENT_DATE+30)
+                 OR c.welcome_deadline <= CURRENT_DATE+30) LIMIT 1""").fetchone()
+        if not approaching:
+            return False
+        stamps = [str(facts[k]) for k in (RESEARCH_MARKER_KEY, RESEARCH_ATTEMPT_KEY) if facts.get(k)]
+        if not stamps:
             return True
         try:
-            last = datetime.fromisoformat(str(row[0]))
-        except ValueError:
-            return True
+            last = max(datetime.fromisoformat(stamp).replace(tzinfo=UTC) for stamp in stamps)
+        except (ValueError, TypeError):
+            return False
         return (datetime.now(UTC) - last).days >= RESEARCH_INTERVAL_DAYS
 
     def refresh_catalog(self, *, trigger: str) -> dict[str, Any]:
         """Run the research agent and stage its proposed catalog changes."""
         # Lazy: card_management_service pulls the transaction-service stack.
         from app.services.card_management_service import CardManagementService  # noqa: PLC0415
+
+        self._claim_attempt(trigger)
 
         catalog = CardManagementService().get_catalog()
         catalog_json = json.dumps(
@@ -120,6 +139,26 @@ class CardResearchService:
         )
         return result
 
+    def _claim_attempt(self, trigger: str) -> None:
+        # Serialize the check and persisted attempt before any model call. Manual
+        # retries also have a short cooldown; refresh clicks cannot fan out calls.
+        with get_storage().connection() as conn:
+            conn.execute("SELECT pg_advisory_xact_lock(781947012)")
+            if trigger != "on_demand" and not self.research_due():
+                raise ValueError("Automatic research is disabled or not due.")
+            row = conn.execute("SELECT fact_value FROM household_confirmed_facts WHERE fact_key=%s", [RESEARCH_ATTEMPT_KEY]).fetchone()
+            if row:
+                try:
+                    previous = datetime.fromisoformat(str(row[0])).replace(tzinfo=UTC)
+                except ValueError:
+                    raise ValueError("The last research attempt needs review before retrying.") from None
+                if (datetime.now(UTC)-previous).total_seconds() < 3600:
+                    raise ValueError("Research was already attempted recently. Reuse its results or retry after one hour.")
+            conn.execute("""INSERT INTO household_confirmed_facts (fact_key,fact_value,confirmed_at)
+                VALUES (%s,%s,now()) ON CONFLICT (fact_key) DO UPDATE
+                SET fact_value=excluded.fact_value,confirmed_at=now()""", [RESEARCH_ATTEMPT_KEY, datetime.now(UTC).isoformat()])
+            conn.commit()
+
     # -- internals ---------------------------------------------------------
 
     def _apply(self, payload: dict[str, Any]) -> dict[str, int]:
@@ -128,7 +167,7 @@ class CardResearchService:
         pending = CardTermsReviewService().stage(payload)
         return {"updates": 0, "candidates": 0, "pending": pending}
 
-    def _stamp_marker(self) -> None:
+    def _stamp_marker(self, key: str = RESEARCH_MARKER_KEY) -> None:
         with get_storage().connection() as conn:
             conn.execute(
                 """
@@ -137,7 +176,7 @@ class CardResearchService:
                 ON CONFLICT (fact_key) DO UPDATE
                 SET fact_value = EXCLUDED.fact_value, confirmed_at = EXCLUDED.confirmed_at
                 """,
-                [RESEARCH_MARKER_KEY, datetime.now(UTC).isoformat()],
+                [key, datetime.now(UTC).isoformat()],
             )
             conn.commit()
 

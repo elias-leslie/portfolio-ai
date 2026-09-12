@@ -1,8 +1,16 @@
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 
+import pytest
+
+from app.services import household_review_coverage
 from app.services.household_review_coverage import review_coverage
+
+
+@pytest.fixture(autouse=True)
+def no_synced_accounts(monkeypatch):
+    monkeypatch.setattr(household_review_coverage, "synced_activity_coverage", lambda _storage: {})
 
 
 class Storage:
@@ -39,3 +47,12 @@ def test_missing_coverage_is_not_a_zero_spending_success():
     storage = Storage([("Everyday card", "credit", "credit_card", {}, "active", None)])
     assert review_coverage(storage, end_date=date(2026, 9, 11))["coverage_status"] == "incomplete"
     assert review_coverage(Storage([]), end_date=date(2026, 9, 11))["coverage_status"] == "unknown"
+
+
+def test_completed_empty_sync_covers_a_quiet_bank_account(monkeypatch):
+    monkeypatch.setattr(household_review_coverage, "synced_activity_coverage",
+        lambda _storage: {"bank": datetime(2026, 9, 11, tzinfo=UTC)})
+    storage = Storage([("Checking", "cash", "checking", {}, "active", None, "bank")])
+    result = review_coverage(storage, end_date=date(2026, 9, 11))
+    assert result["coverage_status"] == "current"
+    assert result["coverage_through"] == "2026-09-11"

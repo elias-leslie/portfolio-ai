@@ -1247,23 +1247,31 @@ class PlaidService:
         removed: list[dict[str, object]] = []
         has_more = True
         next_cursor: str | None = cursor
-        while has_more:
+        seen_cursors = {cursor}
+        for _page_index in range(100):
             response = _to_dict(
                 client.transactions_sync(
                     TransactionsSyncRequest(access_token=access_token, cursor=next_cursor or "")
                 )
             )
-            added.extend(response.get("added") if isinstance(response.get("added"), list) else [])
-            modified.extend(
-                response.get("modified") if isinstance(response.get("modified"), list) else []
-            )
-            removed.extend(
-                response.get("removed") if isinstance(response.get("removed"), list) else []
-            )
-            has_more = bool(response.get("has_more"))
-            next_cursor = str(response.get("next_cursor") or next_cursor or "")
-            if not next_cursor:
+            if (not isinstance(response.get("has_more"), bool)
+                    or not isinstance(response.get("next_cursor"), str) or not response["next_cursor"]
+                    or any(not isinstance(response.get(key), list) for key in ("added", "modified", "removed"))
+                    or any(not isinstance(row, dict) or not row.get("transaction_id")
+                           for key in ("added", "modified", "removed") for row in response.get(key, []))):
+                raise PlaidIntegrationError("Transaction response is incomplete; coverage is unverified")
+            added.extend(response["added"])
+            modified.extend(response["modified"])
+            removed.extend(response["removed"])
+            has_more = response["has_more"]
+            next_cursor = response["next_cursor"]
+            if not has_more:
                 break
+            if next_cursor in seen_cursors:
+                raise PlaidIntegrationError("Transaction pagination did not advance; coverage is unverified")
+            seen_cursors.add(next_cursor)
+        else:
+            raise PlaidIntegrationError("Transaction history exceeded bounded pagination; coverage is unverified")
 
         with self.storage.connection() as conn:
             for transaction in added:

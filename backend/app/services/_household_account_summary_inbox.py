@@ -67,7 +67,7 @@ def _cashflow_coverage_items(
 ) -> list[HouseholdInboxItem]:
     """Coverage and data-quality items derived from statement freshness."""
     items: list[HouseholdInboxItem] = []
-    if tracked_documents > 0 and int(statement_freshness.get("coverage_months") or 0) == 0:
+    if tracked_documents > 0 and int(statement_freshness.get("coverage_months") or 0) == 0 and not statement_freshness.get("sync_coverage_current"):
         items.append(HouseholdInboxItem(
             id="cashflow-missing-ledger",
             category="coverage",

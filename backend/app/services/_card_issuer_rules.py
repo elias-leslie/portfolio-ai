@@ -59,6 +59,14 @@ def welcome_eligible(product: CreditCardProduct, state: IssuerRuleState) -> bool
     rules = product.issuer_rules or {}
     if product.slug in _SAPPHIRE_SLUGS and any(opened.slug == product.slug for _, opened in state.opens):
         return False
+    family = rules.get("bonus_family_slugs")
+    family_months = rules.get("bonus_family_months")
+    if isinstance(family, list) and isinstance(family_months, int) and family_months > 0:
+        for slug in family:
+            if slug in state.bonus_dates:
+                received = parse_day(state.bonus_dates[slug])
+                if received is None or add_months(received, family_months) > state.as_of:
+                    return False
     repeat_months = rules.get("repeat_product_months")
     if isinstance(repeat_months, int) and repeat_months > 0:
         if product.slug in state.held_products:

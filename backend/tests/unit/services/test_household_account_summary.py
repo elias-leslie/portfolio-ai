@@ -2056,6 +2056,8 @@ def test_source_sync_refreshes_transaction_freshness_for_spend_driver() -> None:
                 "current_value": 41840.64,
                 "cash_balance": None,
                 "last_synced_at": datetime.now(UTC),
+                "transaction_synced_at": datetime.now(UTC),
+                "source": "snaptrade",
                 "account_mask": "7298",
             }
         },
@@ -2771,3 +2773,28 @@ def test_an_identity_override_still_outranks_the_registry_mask() -> None:
 
     assert summaries[0].label == "Chase Sapphire Preferred ·3627"
     assert summaries[0].account_mask == "3627"
+
+
+def test_plaid_sync_proves_coverage_without_a_new_purchase_or_portfolio_account() -> None:
+    last_purchase = (datetime.now(UTC)-timedelta(days=15)).date()
+    evidence = HouseholdEvidenceAccount(id="plaid-evidence", document_id="plaid-doc", household_account_id="card",
+        source_type="credit_card", asset_group="credit", account_type="credit_card", institution_name="Chase",
+        account_name="Sapphire", account_mask="8054", owner_name="Test Owner", currency="USD", balance=100,
+        holdings_value=None, cash_balance=None, as_of_date=_iso(1), confidence=0.99, metadata={})
+    source_values: dict[str, dict[str, object]] = {"card": {"source": "plaid", "current_value": 100, "last_synced_at": _iso(0), "transaction_synced_at": _iso(0)}}
+    def summarize():
+        return build_account_summaries(evidence_accounts=[evidence], documents=[], portfolio_accounts=[], tracked_accounts=[],
+            holdings_by_account={}, statement_freshness={"coverage_months": 1, "gap_months": []},
+            source_owned_household_account_ids={"card"}, source_owned_account_values=source_values,
+            latest_transaction_dates_by_household_account={"card": last_purchase})[0]
+    summary = summarize()
+    assert summary.transaction_freshness_status == "fresh"
+    assert summary.last_transaction_at[:10] == last_purchase.isoformat()
+    assert summary.transaction_coverage_source == "Plaid sync"
+    assert summary.days_since_transaction == 0
+    assert not any(g.code == "stale_transactions" for g in summary.gap_flags)
+    # A balance refresh alone must not hide a failed or never-finished transaction sync.
+    source_values["card"]["transaction_synced_at"] = None
+    assert summarize().transaction_freshness_status == "stale"
+    source_values["card"]["transaction_synced_at"] = _iso(10)
+    assert summarize().transaction_freshness_status == "stale"

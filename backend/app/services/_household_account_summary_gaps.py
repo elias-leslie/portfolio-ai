@@ -138,7 +138,8 @@ def _contextual_gaps(
     gaps: list[HouseholdAccountGap] = []
     if summary.match_status == "candidate":
         gaps.append(_gap("unconfirmed_match", "medium", "Needs confirmation", "Jenny found a possible account/entity here, but the match is not strong enough to treat it as fully confirmed."))
-    if summary.evidence_count == 1 and summary.last_evidence_at is not None:
+    synced = bool(summary.transaction_coverage_source and summary.transaction_coverage_source != "Evidence")
+    if summary.evidence_count == 1 and summary.last_evidence_at is not None and not synced:
         gaps.append(_gap("thin_evidence", "low", "Thin evidence", "This account is backed by a single document so far. More evidence will make the state more trustworthy."))
     if duplicate:
         gaps.append(_gap("possible_duplicate", "medium", "Possible duplicate", "Jenny sees another similar account and is keeping them separate until the identity is clearer."))

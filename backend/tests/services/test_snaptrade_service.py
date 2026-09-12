@@ -1285,3 +1285,19 @@ def test_activity_pagination_failure_never_marks_partial_history_complete(monkey
     with pytest.raises(SnapTradeIntegrationError,match='duplicate'):
         service._sync_activities(client=client,user=SimpleNamespace(user_id='user',user_secret='secret'),account_id='account')
     assert conn.calls==[]
+
+
+def test_empty_activity_sync_is_complete_but_malformed_response_is_not():
+    conn = _RecordingConnection()
+    service = SnapTradeService(storage=_RecordingStorage(conn))
+    user = SimpleNamespace(user_id='user', user_secret='secret')
+    client = SimpleNamespace(account_information=SimpleNamespace(get_account_activities=lambda **_: {'data': []}))
+    assert service._sync_activities(client=client, user=user, account_id='account') == 0
+    coverage = next(params for sql, params in conn.calls if 'activity_coverage' in sql)
+    assert coverage is not None
+    assert json.loads(str(coverage[0]))['complete'] is True
+    conn.calls.clear()
+    client.account_information.get_account_activities = lambda **_: {}
+    with pytest.raises(SnapTradeIntegrationError, match='malformed'):
+        service._sync_activities(client=client, user=user, account_id='account')
+    assert conn.calls == []

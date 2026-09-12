@@ -123,7 +123,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
 
           {/* Utility Items */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {activeRoute?.href === '/' ? <HomeActionQueueBadge /> : null}
+            <HomeActionQueueBadge />
             <FreshnessStatusBadge />
             <div className="hidden md:block">
               <MarketStatusBadge />

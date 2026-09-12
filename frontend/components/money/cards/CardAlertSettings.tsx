@@ -39,7 +39,7 @@ export function CardAlertSettings({
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="card-monthly-cap">
-              Monthly card-spend cap (currently{' '}
+              Total card-spending alert threshold (currently{' '}
               {formatCurrencyWhole(currentCap)})
             </Label>
             <Input
@@ -72,6 +72,10 @@ export function CardAlertSettings({
           </Button>
         </div>
 
+        <p className="text-xs text-text-muted">
+          This alert includes all card spending, including Amazon and Costco. It
+          does not increase the travel-bonus allowance.
+        </p>
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
             <Button
@@ -85,10 +89,16 @@ export function CardAlertSettings({
                 : 'Refresh catalog research'}
             </Button>
             <span className="text-xs text-text-muted">
-              Proposes sourced changes to fees, bonuses, and rewards (also runs
-              monthly). Review them before they change the plan.
+              Uses AI to propose issuer-sourced terms and new cards. Automatic
+              research is controlled in Strategy preferences and defaults off.
+              Manual retries are limited to once per hour.
             </span>
           </div>
+          {refreshResearch.error ? (
+            <p role="alert" className="text-sm text-loss">
+              {refreshResearch.error.message}
+            </p>
+          ) : null}
           {researchResult ? (
             <div className="space-y-2 rounded-2xl border border-border/40 bg-surface-muted/10 px-4 py-3 text-sm">
               <p className="text-text">

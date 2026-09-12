@@ -16,6 +16,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
+from app.api.card_strategy import router as strategy_router
 from app.models.credit_cards import (
     CardRanking,
     CreditCardCreate,
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
     from app.services.household_soft_charge_service import HouseholdSoftChargeService
 
 router = APIRouter(prefix="/api/household/cards", tags=["cards"])
+router.include_router(strategy_router)
 
 
 @lru_cache(maxsize=1)
@@ -199,8 +201,8 @@ async def intake_card_offer(
 @router.post("/research/refresh")
 async def refresh_catalog_research() -> dict[str, object]:
     """On-demand catalog refresh via the credit-card-researcher Agent Hub agent
-    (also runs monthly from household maintenance). Verifies fees/bonuses/
-    valuations against current public sources and applies whitelisted changes."""
+    (automatic runs require opt-in). Stages source-backed terms and new
+    products for review; never silently changes the catalog or an approved plan."""
     research_service = import_module("app.services.card_research_service").get_card_research_service()
     try:
         return await run_in_threadpool(research_service.refresh_catalog, trigger="on_demand")

@@ -417,3 +417,30 @@ def test_remove_item_deactivates_accounts_and_current_evidence() -> None:
         for sql in queries
     )
     assert any(sql.startswith("DELETE FROM household_evidence_accounts") for sql in queries)
+
+
+def test_empty_transaction_sync_is_valid_and_keeps_its_cursor():
+    service = _service()
+    conn = _RecordingConnection()
+    service.storage = _RecordingStorage(conn)
+    client = SimpleNamespace(transactions_sync=lambda _: {'added': [], 'modified': [], 'removed': [], 'has_more': False, 'next_cursor': 'unchanged'})
+    counts, cursor = service._sync_transactions(client=client, item={'transactions_cursor': 'unchanged'}, document_id='doc', access_token='test')
+    assert counts['transaction_added_count'] == 0
+    assert cursor == 'unchanged'
+    assert conn.calls == [('COMMIT', None)]
+
+
+@pytest.mark.parametrize('response', [
+    {},
+    {'added': [], 'modified': [], 'removed': [], 'has_more': True, 'next_cursor': 'unchanged'},
+    {'added': 'invalid', 'modified': [], 'removed': [], 'has_more': False, 'next_cursor': 'next'},
+    {'added': [{}], 'modified': [], 'removed': [], 'has_more': False, 'next_cursor': 'next'},
+])
+def test_incomplete_transaction_sync_never_writes_a_successful_batch(response):
+    service = _service()
+    conn = _RecordingConnection()
+    service.storage = _RecordingStorage(conn)
+    client = SimpleNamespace(transactions_sync=lambda _: response)
+    with pytest.raises(PlaidIntegrationError, match='coverage is unverified'):
+        service._sync_transactions(client=client, item={'transactions_cursor': 'unchanged'}, document_id='doc', access_token='test')
+    assert conn.calls == []

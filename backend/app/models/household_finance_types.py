@@ -1187,6 +1187,8 @@ class HouseholdAccountSummary(BaseModel):
     balance_freshness_status: str = "needs_evidence"
     balance_freshness_label: str = "Needs evidence"
     last_transaction_at: str | None = None
+    transaction_coverage_at: str | None = None
+    transaction_coverage_source: str | None = None
     days_since_transaction: int | None = None
     transaction_freshness_status: str = "needs_evidence"
     transaction_freshness_label: str = "Needs evidence"

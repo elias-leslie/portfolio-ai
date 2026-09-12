@@ -190,7 +190,7 @@ def _jenny_freshness_needs(documents: list[Any], days_since_latest: int | None) 
             id="need_freshness", need_type="provide",
             title="Add newer evidence",
             detail=(
-                f"The most recent transaction is {days_since_latest} days old. "
+                f"The latest activity coverage is {days_since_latest} days old. "
                 "Fresher evidence keeps pacing accurate."
             ),
             priority="low", status="unsatisfied", recurrence="periodic", action_href=MONEY_EVIDENCE_ROUTE,

@@ -46,6 +46,7 @@ from app.services._household_recurrence import (
     RecurrencePattern,
     detect_recurrence,
 )
+from app.services.household_review_coverage import review_coverage
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.services.retirement_planning_assumptions import _split_members
 
@@ -105,28 +106,28 @@ def _gap_months(most_recent_date: date, coverage_months: int, earliest_raw: Any)
     if total_months <= coverage_months:
         return []
     gap_months_count = total_months - coverage_months
-    return [f"{gap_months_count} month{'s' if gap_months_count != 1 else ''} missing in range"]
+    return [f"{gap_months_count} month{'s' if gap_months_count != 1 else ''} without recorded activity in range"]
 
 
 def check_statement_freshness(storage: Any) -> dict[str, Any]:
     future_quality = _fetch_future_transaction_quality(storage)
     with storage.connection() as conn:
         row = conn.execute(STATEMENT_FRESHNESS_SQL).fetchone()
-    if row is None or row[0] is None:
-        return {
-            "most_recent_date": None,
-            "days_since_latest": None,
-            "coverage_months": 0,
-            "gap_months": [],
-            **future_quality,
-        }
-    most_recent_date = _date_value(row[0])
-    coverage_months = int(row[1] or 0)
+    most_recent_date = _date_value(row[0]) if row and row[0] is not None else None
+    coverage_months = int(row[1] or 0) if row else 0
+    coverage = review_coverage(storage, end_date=datetime.now(UTC).date())
+    current = coverage["coverage_status"] == "current"
+    checked_through = date.fromisoformat(coverage["coverage_through"]) if current and coverage["coverage_through"] else None
     return {
-        "most_recent_date": most_recent_date.isoformat(),
-        "days_since_latest": _days_since(most_recent_date),
+        "most_recent_date": most_recent_date.isoformat() if most_recent_date else None,
+        "days_since_latest": _days_since(checked_through or most_recent_date) if checked_through or most_recent_date else None,
         "coverage_months": coverage_months,
-        "gap_months": _gap_months(most_recent_date, coverage_months, row[2]),
+        # Counting months containing purchases cannot establish missing data.
+        # Keep quiet-month observations separate from actionable coverage gaps.
+        "gap_months": [],
+        "months_without_activity": _gap_months(most_recent_date, coverage_months, row[2]) if most_recent_date and row else [],
+        "sync_coverage_current": current,
+        "coverage_through": checked_through.isoformat() if checked_through else None,
         **future_quality,
     }
 

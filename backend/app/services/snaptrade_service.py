@@ -1791,7 +1791,10 @@ class SnapTradeService:
                 account_id=account_id, user_id=user.user_id, user_secret=user.user_secret,
                 start_date=coverage_start.isoformat(), end_date=date.today().isoformat(),
                 limit=_SYNC_ACTIVITY_LIMIT, offset=page_index*_SYNC_ACTIVITY_LIMIT)))
-            page = [_dict(item) for item in _list(response.get("data"))]
+            raw_page = response.get("data")
+            if not isinstance(raw_page, list) or any(not isinstance(item, dict) for item in raw_page):
+                raise SnapTradeIntegrationError("Activity response is malformed; coverage is unverified")
+            page = [_dict(item) for item in raw_page]
             for item in page:
                 identity = _string(item.get("id")) or _string(item.get("external_reference_id"))
                 if identity is None or identity in seen_ids:
@@ -1862,7 +1865,7 @@ class SnapTradeService:
             conn.execute("""UPDATE snaptrade_accounts SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),
                 '{activity_coverage}',%s::jsonb) WHERE account_id=%s""",
                 [_json({"from":coverage_start.isoformat(),"through":coverage_end.isoformat(),
-                        "complete":bool(count),"checked_at":synced_at.isoformat(),"source":"paginated_provider_history"}),account_id])
+                        "complete":True,"checked_at":synced_at.isoformat(),"source":"paginated_provider_history"}),account_id])
             conn.commit()
         return count
 

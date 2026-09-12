@@ -7,6 +7,7 @@ from typing import Any
 
 from app.services._household_account_status import metadata_indicates_closed
 from app.services._household_account_summary_utils import _money_role
+from app.services.household_account_control import synced_activity_coverage
 
 
 def review_coverage(storage: Any, *, end_date: date) -> dict[str, Any]:
@@ -19,13 +20,15 @@ def review_coverage(storage: Any, *, end_date: date) -> dict[str, Any]:
     with storage.connection() as conn:
         rows = conn.execute(
             """SELECT a.canonical_label, a.asset_group, a.account_type, a.metadata,
-                      a.feed_status, GREATEST(a.coverage_through, (SELECT MAX(t.transaction_date)::date FROM household_transactions t WHERE t.household_account_id=a.id AND NOT t.removed))
+                      a.feed_status, GREATEST(a.coverage_through, (SELECT MAX(t.transaction_date)::date FROM household_transactions t WHERE t.household_account_id=a.id AND NOT t.removed AND t.transaction_date <= CURRENT_DATE)), a.id::text
                FROM household_accounts a
                WHERE a.archived_at IS NULL AND a.merged_into_account_id IS NULL
                  AND NOT EXISTS (SELECT 1 FROM household_account_preferences p
                                  WHERE p.household_account_id=a.id AND p.hidden_at IS NOT NULL)
                ORDER BY a.canonical_label"""
         ).fetchall()
+    synced = synced_activity_coverage(storage)
+    rows = [(*row[:5], max([day for day in (row[5], synced.get(row[6]).date() if len(row) > 6 and synced.get(row[6]) else None) if day is not None], default=None)) for row in rows]
     drivers = [
         row for row in rows
         if row[4] != "closed" and not metadata_indicates_closed(row[3])
@@ -38,6 +41,6 @@ def review_coverage(storage: Any, *, end_date: date) -> dict[str, Any]:
     through = min(dates).isoformat() if dates else None
     detail = (
         f"Confirm transaction coverage for {', '.join(str(row[0]) for row in missing)}. A gap in posted activity does not prove that transactions are missing."
-        if missing else "No known late spending feeds. Transaction recency does not certify a complete statement."
+        if missing else "All spending feeds have recent transaction evidence or completed activity-sync coverage. An empty sync is valid coverage."
     )
     return {"coverage_status": "incomplete" if missing else "current", "coverage_detail": detail, "coverage_through": through}
