@@ -60,7 +60,6 @@ def complete_conversation(
         return client.complete_messages(
             messages=[{"role": "user", "content": prompt}],
             purpose=PURPOSE_CHAT,
-            disable_agent_fallbacks=True,
             session_id=session_id,
             thinking_level="low",
             system_prompt=require_agent_hub_prompt(PROMPT_CHAT_SYSTEM),
@@ -92,7 +91,6 @@ def reconcile_message(
         response = client.complete_messages(
             messages=[{"role": "user", "content": prompt}],
             purpose=PURPOSE_RECONCILE,
-            disable_agent_fallbacks=True,
             thinking_level="low",
             system_prompt=require_agent_hub_prompt(PROMPT_RECONCILE_SYSTEM),
             response_format=RECONCILIATION_RESPONSE_FORMAT,
@@ -147,7 +145,6 @@ def extract_planning_updates(
         request_kwargs = {
             "messages": [{"role": "user", "content": prompt}],
             "purpose": PURPOSE_PLANNING_EXTRACT,
-            "disable_agent_fallbacks": True,
             "thinking_level": "low",
             "system_prompt": require_agent_hub_prompt(PROMPT_PLANNING_EXTRACT_SYSTEM),
             "use_memory": False,

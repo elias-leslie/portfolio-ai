@@ -18,6 +18,7 @@ Thanks for your interest in improving Portfolio AI.
 - Add or update tests when behavior changes.
 - Run the relevant quality checks before opening a PR.
 - Grounding checks in `backend/scripts/evaluate_financial_grounding.py` are offline by default. Use `--live` only intentionally; `--only` limits the cases/routes sent. The evaluator batches synthetic facts, disables application retries, fallback, tools and memory, and records the actual serving model and reported tokens. Never substitute real financial records into these fixtures. A pass is regression evidence, not a claim that a model cannot hallucinate.
+- Jenny uses Agent Hub's canonical persona route. Codex is preferred; suitable Gemini fallbacks are explicitly allowed. Keep production fallback enabled and preserve grounding instructions and structured response validation across providers. Only identity-specific diagnostics should disable fallback; do not copy that restriction into production requests.
 
 ## Pull requests
 

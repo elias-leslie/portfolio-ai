@@ -115,7 +115,7 @@ def test_make_client_uses_persona_with_memory(mock_client_cls: Mock) -> None:
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_reconcile_message_uses_codex_persona_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
+def test_reconcile_message_uses_canonical_persona_with_fallbacks_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"answers":[{"question_id":"question-1","answer_text":"60"}]}'
@@ -129,16 +129,21 @@ def test_reconcile_message_uses_codex_persona_agent_without_memory(mock_make_cli
     )
 
     mock_make_client.assert_called_once_with(agent_slug="persona", use_memory=False)
+    assert not client.complete_messages.call_args.kwargs.get("disable_agent_fallbacks", False)
 
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
 def test_complete_conversation_uses_scoped_session_without_shared_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
-    client.complete_messages.return_value = SimpleNamespace(content="ok", session_id="session-1")
+    completion = SimpleNamespace(
+        content="ok", session_id="session-1", model_used="gemini-3.8-flash",
+        fallback_used=True, fallback_reason="Codex unavailable",
+    )
+    client.complete_messages.return_value = completion
     mock_make_client.return_value = client
 
-    complete_conversation(
+    result = complete_conversation(
         message="hello",
         session_id="session-1",
         context={"generated_at": datetime(2026, 4, 4, 7, 21, tzinfo=UTC)},
@@ -147,6 +152,8 @@ def test_complete_conversation_uses_scoped_session_without_shared_memory(mock_ma
 
     mock_make_client.assert_called_once_with(agent_slug="persona", use_memory=False)
     kwargs = client.complete_messages.call_args.kwargs
+    assert not kwargs.get("disable_agent_fallbacks", False)
+    assert result is completion
     assert kwargs["use_memory"] is False
     assert kwargs["execute_tools"] is True
     assert kwargs["task_type"] == "chat"
@@ -157,7 +164,7 @@ def test_complete_conversation_uses_scoped_session_without_shared_memory(mock_ma
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_uses_codex_persona_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
+def test_extract_planning_updates_uses_canonical_persona_with_fallbacks_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"profile_updates":{},"planning_items":[]}'
@@ -171,6 +178,7 @@ def test_extract_planning_updates_uses_codex_persona_agent_without_memory(mock_m
     )
 
     mock_make_client.assert_called_once_with(agent_slug="persona", use_memory=False)
+    assert not client.complete_messages.call_args.kwargs.get("disable_agent_fallbacks", False)
 
 
 @patch(_PROMPT_LOADER, return_value="system")
@@ -184,7 +192,7 @@ def test_extract_planning_updates_does_not_retry_or_relax_schema(mock_make_clien
     client.complete_messages.assert_called_once()
     kwargs = client.complete_messages.call_args.kwargs
     assert kwargs["response_format"] == {"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA}
-    assert kwargs["disable_agent_fallbacks"] is True
+    assert not kwargs.get("disable_agent_fallbacks", False)
 
 
 @patch(_PROMPT_LOADER, return_value="system")
