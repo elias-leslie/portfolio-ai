@@ -127,6 +127,12 @@ def cache_prices(
     # price_cache is the canonical current quote table: one latest row per symbol.
     with storage.connection() as conn:
         for row in rows:
+            # A first quote may arrive before any holding or watchlist entry
+            # creates its symbol (especially market indexes in a new database).
+            conn.execute(
+                "INSERT INTO symbols (symbol) VALUES (?) ON CONFLICT (symbol) DO NOTHING",
+                [row["symbol"]],
+            )
             conn.execute(_PRICE_CACHE_UPSERT_SQL, [row.get(column) for column in _PRICE_CACHE_COLUMNS])
         conn.commit()
         if storage.metadata_mgr:

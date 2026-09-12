@@ -195,6 +195,40 @@ def _source_document_linked_accounts_are_closed(conn: Any, question: HouseholdQu
 class HouseholdQuestionReconciler:
     """Keep household questions deduped, contextual, and profile-aware."""
 
+    def visible_open_questions(
+        self, conn: Any, questions: list[HouseholdQuestion]
+    ) -> list[HouseholdQuestion]:
+        """Project known context without changing answers or running inference."""
+        if not questions:
+            return []
+        answered = _fetch_questions(conn, "q.status='answered'", "q.answered_at DESC")
+        visible: list[HouseholdQuestion] = []
+        closed_documents: dict[str | None, bool] = {}
+        for candidate in sorted(questions, key=question_sort_key):
+            if any(
+                self.question_is_answered_by_context(
+                    answered_question=prior,
+                    candidate_question=candidate,
+                    answer_text=prior.answer_text or "",
+                    answered_family=question_family(prior.question, prior.field_name),
+                )
+                for prior in answered
+            ):
+                continue
+            if _question_allows_closed_account_dismissal(candidate):
+                document_id = candidate.source_document_id
+                if document_id not in closed_documents:
+                    closed_documents[document_id] = _source_document_linked_accounts_are_closed(
+                        conn, candidate
+                    )
+                if _question_label_context_is_closed(candidate) or closed_documents[document_id]:
+                    continue
+            if any(self.questions_are_semantic_duplicates(prior, candidate) for prior in visible):
+                continue
+            visible.append(candidate)
+        ids = {question.id for question in visible}
+        return [question for question in questions if question.id in ids]
+
     def parse_answer_value(self, field_name: str, answer_text: str) -> str | float | int | None:
         return parse_answer_value(field_name, answer_text)
 

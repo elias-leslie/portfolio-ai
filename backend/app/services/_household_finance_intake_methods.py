@@ -69,13 +69,11 @@ class _HFIntakeMethods:
                 ORDER BY
                     CASE q.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
                     q.created_at ASC
-                LIMIT %s
                 """,
-                [limit],
             ).fetchall()
-        return HouseholdQuestionList(
-            items=[row_to_question(row, iso=iso, iso_or_none=iso_or_none) for row in rows]
-        )
+            questions = [row_to_question(row, iso=iso, iso_or_none=iso_or_none) for row in rows]
+            visible = self.question_reconciler.visible_open_questions(conn, questions)
+        return HouseholdQuestionList(items=visible[:limit])
 
     def _reconcile_open_questions(self) -> None:
         self.question_reconciler.reconcile_open_questions(self)

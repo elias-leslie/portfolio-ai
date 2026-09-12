@@ -406,7 +406,7 @@ def test_household_dashboard_uses_profile_documents_and_portfolio(
             },
         ),
         patch(
-            "app.services.household_finance_service.PriceDataFetcher.fetch_price_data",
+            "app.services.household_finance_service.PriceDataFetcher.fetch_cached_price_data",
             return_value={
                 "VTI": PriceData(symbol="VTI", price=275),
                 "VXUS": PriceData(symbol="VXUS", price=62),
@@ -1133,7 +1133,9 @@ def test_household_list_questions_suppresses_closed_account_followups(
             "SELECT status, metadata->>'reconciliation_reason' FROM household_questions WHERE id = %s",
             [question_id],
         ).fetchone()
-    assert row == ("dismissed", "closed_account_context")
+    # A read suppresses obsolete context but preserves the stored decision.
+    # Persistent reconciliation belongs to the explicit maintenance command.
+    assert row == ("open", None)
 
 
 def test_household_list_questions_collapses_semantic_shopping_channel_duplicates(

@@ -1,7 +1,7 @@
 """Real observations prove package arithmetic, confirmations and role boundaries."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -14,6 +14,7 @@ from app.models.household_shopping_pilot import (
     PilotProduct,
     ShoppingComparison,
 )
+from app.services._household_price_location import shopping_today
 from app.services.household_buy_guide_service import HouseholdBuyGuideService
 from app.services.household_identity import HouseholdIdentity, capture_path_allowed
 from app.services.household_product_catalog_service import HouseholdProductCatalogService
@@ -39,7 +40,7 @@ def setup_pilot(monkeypatch):
                     """INSERT INTO household_product_price_observations
                     (id,product_id,observed_date,total_price,quantity,unit_price,source,package_display_label,package_normalized_quantity,package_normalized_unit)
                     VALUES (%s,%s,%s,%s,2,%s,'receipt','6 x 9 softgels',54,'count')""",
-                    [str(uuid.uuid4()), pid, date.today() - timedelta(days=days), price, price / 2],
+                    [str(uuid.uuid4()), pid, shopping_today() - timedelta(days=days), price, price / 2],
                 )
         conn.commit()
     monkeypatch.setattr(
@@ -61,8 +62,8 @@ def offer(pid, **overrides):
         price=25,
         fees=0,
         coupon=2,
-        observed_date=date.today(),
-        valid_until=date.today() + timedelta(days=7),
+        observed_date=shopping_today(),
+        valid_until=shopping_today() + timedelta(days=7),
         conditions="In store, no membership, coupon checked today",
         availability_confirmed=True,
         equivalence_confirmed=True,
@@ -147,7 +148,7 @@ def test_child_cannot_confirm_and_unknown_conditions_do_not_pass(monkeypatch):
     with pytest.raises(ValidationError):
         offer(ids[0], membership_confirmed=False)
     with pytest.raises(HTTPException):
-        service.confirm_offer(ADULT, offer(ids[0], observed_date=date.today() - timedelta(days=15)))
+        service.confirm_offer(ADULT, offer(ids[0], observed_date=shopping_today() - timedelta(days=15)))
     assert capture_path_allowed("GET", "/api/captures/shopping/products")
     assert capture_path_allowed("POST", "/api/captures/shopping/compare")
     for path in ["review", "offers", "families", f"{ids[0]}/package"]:
