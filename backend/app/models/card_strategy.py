@@ -52,6 +52,11 @@ class CardCandidate(BaseModel):
     source_urls: list[str]
     checks: list[str]
     rationale: str
+    spending_gap: float = 0
+    monthly_gap: float = 0
+    value_rank: int | None = None
+    compared_offers: int = 0
+    catalog_offers: int = 0
 
 
 class BillPaymentPreference(BaseModel):
@@ -100,6 +105,7 @@ class StrategySnapshot(BaseModel):
     bills: list[BillSuggestion]
     settings: StrategySettings
     recommendation: str
+    additional_spend_plan: str | None = None
 
 
 class SavedStrategy(BaseModel):
@@ -131,6 +137,7 @@ class StrategyView(BaseModel):
 class ProposeStrategy(BaseModel):
     candidate_key: str | None = None
     wait: bool = False
+    additional_spend_plan: str | None = Field(default=None, min_length=10, max_length=500)
 
 
 class StrategyDecision(BaseModel):
@@ -138,6 +145,7 @@ class StrategyDecision(BaseModel):
     action: Literal["approve", "pause", "resume", "link_card"]
     eligibility_confirmed: bool = False
     cash_flow_confirmed: bool = False
+    additional_spend_confirmed: bool = False
     card_id: str | None = None
 
 

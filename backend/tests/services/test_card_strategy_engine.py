@@ -158,3 +158,30 @@ def test_ordinary_bank_accounts_are_not_assumed_to_be_cma_accounts():
     accounts = [SimpleNamespace(household_account_id="bank", account_type="checking", label="Other bank")]
     rows = [{**purchase(100), "merchant":"Phone", "household_account_id":"bank", "account_label":"Other bank"}]
     assert not suggest_bills([bill], rows, [], accounts)[0].paid_from_cma
+
+
+def test_nearby_spending_options_are_visible_without_displacing_the_best_fit():
+    fit = product()
+    stretch = product(id="stretch", slug="stretch", welcome_min_spend=5600, welcome_bonus_points=100000)
+    far = product(id="far", slug="far", welcome_min_spend=8000, welcome_bonus_points=150000)
+    results = rank_candidates([fit, stretch, far], [], baseline(1800), [], TODAY)
+    assert len(results) == 4
+    assert results[0].product_id == fit.id
+    assert results[0].value_rank == 2
+    assert results[0].compared_offers == 2
+    assert results[0].catalog_offers == 3
+    option = next(c for c in results if c.product_id == "stretch")
+    assert option.value_rank == 1
+    assert option.spending_gap == round(5600 - 1800 * 83 / 30.4375, 2)
+    assert option.monthly_gap == round(option.spending_gap * 30.4375 / 83, 2)
+    assert "Additional planned purchases" in option.rationale
+
+
+def test_unverified_offers_do_not_receive_a_value_rank_and_ties_share_rank():
+    first = product()
+    tied = product(id="tied", slug="tied")
+    unknown = product(id="unknown", slug="unknown", welcome_bonus_points=100000)
+    unknown.verified_terms = {}
+    results = rank_candidates([first, tied, unknown], [], baseline(), [], TODAY)
+    assert all(c.value_rank == 1 and c.compared_offers == 2 for c in results if c.terms_current)
+    assert all(c.value_rank is None for c in results if not c.terms_current)

@@ -39,6 +39,11 @@ export interface CardCandidate {
   sourceUrls: string[]
   checks: string[]
   rationale: string
+  spendingGap: number
+  monthlyGap: number
+  valueRank: number | null
+  comparedOffers: number
+  catalogOffers: number
 }
 export type BillPaymentPreference =
   | 'automatic'
@@ -98,6 +103,7 @@ export interface SavedStrategy {
     bills: BillSuggestion[]
     settings: StrategySettings
     recommendation: string
+    additionalSpendPlan: string | null
   }
 }
 export interface StrategyView {
@@ -119,6 +125,7 @@ export interface StrategyDecision {
   action: 'approve' | 'pause' | 'resume' | 'link_card'
   eligibilityConfirmed?: boolean
   cashFlowConfirmed?: boolean
+  additionalSpendConfirmed?: boolean
   cardId?: string
 }
 export interface BillDecision {
@@ -132,8 +139,16 @@ export interface BillDecision {
 const base = '/api/household/cards/strategy'
 export const fetchStrategy = (signal?: AbortSignal) =>
   get<StrategyView>(base, { signal })
-export const proposeStrategy = (candidateKey?: string, wait = false) =>
-  post<SavedStrategy>(base + '/plans', { candidateKey, wait })
+export const proposeStrategy = (
+  candidateKey?: string,
+  wait = false,
+  additionalSpendPlan?: string,
+) =>
+  post<SavedStrategy>(base + '/plans', {
+    candidateKey,
+    wait,
+    additionalSpendPlan,
+  })
 export const decideStrategy = (id: string, decision: StrategyDecision) =>
   post<SavedStrategy>(base + '/plans/' + id, decision)
 export const saveStrategySettings = (settings: StrategySettings) =>

@@ -30,8 +30,15 @@ export function useStrategyActions() {
     )
   }
   const proposal = useMutation({
-    mutationFn: ({ key, wait }: { key?: string; wait?: boolean }) =>
-      proposeStrategy(key, wait),
+    mutationFn: ({
+      key,
+      wait,
+      additionalSpendPlan,
+    }: {
+      key?: string
+      wait?: boolean
+      additionalSpendPlan?: string
+    }) => proposeStrategy(key, wait, additionalSpendPlan),
     onSuccess: refresh,
   })
   const decision = useMutation({

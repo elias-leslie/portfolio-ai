@@ -11,7 +11,9 @@ import {
 } from '@/lib/hooks/useCardStrategy'
 import { CardBonusControls } from './CardBonusControls'
 import { StrategyBillChecklist } from './StrategyBillChecklist'
+import { StrategyCandidateChoice } from './StrategyCandidateChoice'
 import { StrategyPreferences } from './StrategyPreferences'
+import { StrategyProposalComparison } from './StrategyProposalComparison'
 
 function CandidateDetails({ candidate }: { candidate: CardCandidate }) {
   return (
@@ -81,17 +83,38 @@ function CandidateDetails({ candidate }: { candidate: CardCandidate }) {
   )
 }
 
-function DraftApproval({ draft }: { draft: SavedStrategy }) {
+function DraftApproval({
+  draft,
+  candidates,
+}: {
+  draft: SavedStrategy
+  candidates: CardCandidate[]
+}) {
   const [eligibility, setEligibility] = useState(false)
   const [cashFlow, setCashFlow] = useState(false)
+  const [extraSpend, setExtraSpend] = useState(false)
   const decision = useStrategyActions().decision
   const candidate = draft.snapshot.candidate
+  const currentCandidate = candidates.find((c) => c.key === candidate?.key)
+  const currentEvidence =
+    !candidate ||
+    !!(
+      currentCandidate?.termsCurrent &&
+      currentCandidate.termsFingerprint === candidate.termsFingerprint &&
+      currentCandidate.spendingGap <= candidate.spendingGap + 0.01
+    )
   return (
     <section
       className="space-y-4 rounded-xl border border-primary/40 bg-primary/5 p-5"
       aria-label="Proposed card strategy"
     >
       <h3 className="font-semibold">Review this proposal</h3>
+      {candidate ? (
+        <StrategyProposalComparison
+          candidate={candidate}
+          candidates={candidates}
+        />
+      ) : null}
       {candidate ? (
         <CandidateDetails candidate={candidate} />
       ) : (
@@ -104,6 +127,24 @@ function DraftApproval({ draft }: { draft: SavedStrategy }) {
         /month in ordinary purchases, after merchant reservations and the
         buffer.
       </p>
+      {candidate && candidate.spendingGap > 0 ? (
+        <div className="space-y-2 rounded-lg border border-warning/40 p-3 text-sm">
+          <p>
+            Also requires {formatCurrencyWhole(candidate.spendingGap)} in
+            additional planned purchases during the spending window.
+          </p>
+          <p>{draft.snapshot.additionalSpendPlan}</p>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={extraSpend}
+              onChange={(event) => setExtraSpend(event.target.checked)}
+            />
+            These additional purchases are already planned, fit our budget, and
+            can be paid in full
+          </label>
+        </div>
+      ) : null}
       {draft.snapshot.baseline.warnings.length ? (
         <ul className="list-disc space-y-1 pl-5 text-sm text-text-muted">
           {draft.snapshot.baseline.warnings.map((warning) => (
@@ -135,6 +176,8 @@ function DraftApproval({ draft }: { draft: SavedStrategy }) {
         disabled={
           decision.isPending ||
           !cashFlow ||
+          !currentEvidence ||
+          (!!candidate?.spendingGap && !extraSpend) ||
           (!!candidate && (!eligibility || !candidate.termsCurrent))
         }
         onClick={() =>
@@ -145,12 +188,29 @@ function DraftApproval({ draft }: { draft: SavedStrategy }) {
               fingerprint: draft.fingerprint,
               eligibilityConfirmed: eligibility,
               cashFlowConfirmed: cashFlow,
+              ...(candidate?.spendingGap
+                ? { additionalSpendConfirmed: extraSpend }
+                : {}),
             },
           })
         }
       >
         {decision.isPending ? 'Approving…' : 'Approve this strategy'}
       </Button>
+      {!currentEvidence && candidate?.termsCurrent ? (
+        <div className="space-y-2 text-sm text-warning">
+          <p>
+            Current offer or spending evidence changed. Refresh this proposal
+            before approving.
+          </p>
+          {currentCandidate ? (
+            <StrategyCandidateChoice
+              candidate={currentCandidate}
+              label="Refresh this proposal"
+            />
+          ) : null}
+        </div>
+      ) : null}
       <p className="text-xs text-text-muted">
         Approval starts tracking this revision. Record an application or payment
         change only after you make it.
@@ -255,6 +315,14 @@ export function CardStrategyPanel({
                 Keep the current cards; wait for a better-supported opportunity.
               </p>
             )}
+            {active.snapshot.additionalSpendPlan ? (
+              <p className="text-sm text-text-muted">
+                Additional planned purchases:{' '}
+                {active.snapshot.additionalSpendPlan}. The forecast counts
+                observed purchases; check that these occur before the bonus
+                deadline.
+              </p>
+            ) : null}
             <Button
               size="sm"
               variant="outline"
@@ -397,7 +465,11 @@ export function CardStrategyPanel({
       ) : null}
 
       {view.draft ? (
-        <DraftApproval key={view.draft.id} draft={view.draft} />
+        <DraftApproval
+          key={view.draft.id}
+          draft={view.draft}
+          candidates={view.candidates}
+        />
       ) : null}
       <details
         className="rounded-xl border border-border/40 p-4"
@@ -414,13 +486,10 @@ export function CardStrategyPanel({
         ) : null}
         <div className="my-4 flex flex-wrap gap-2">
           {view.candidates[0] ? (
-            <Button
-              size="sm"
-              disabled={proposal.isPending}
-              onClick={() => proposal.mutate({ key: view.candidates[0]?.key })}
-            >
-              Prepare this proposal
-            </Button>
+            <StrategyCandidateChoice
+              candidate={view.candidates[0]}
+              label="Prepare this proposal"
+            />
           ) : null}
           <Button
             size="sm"
@@ -453,14 +522,7 @@ export function CardStrategyPanel({
                       {!c.termsCurrent ? ' · terms need review' : ''}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={proposal.isPending}
-                    onClick={() => proposal.mutate({ key: c.key })}
-                  >
-                    Review proposal
-                  </Button>
+                  <StrategyCandidateChoice candidate={c} />
                 </li>
               ))}
             </ul>

@@ -191,6 +191,31 @@ def test_cma_payment_move_requires_an_exception_as_well_as_cost_checks(strategy)
     assert service.view().bills[0].status == "kept_in_place"
 
 
+def test_stretch_proposal_requires_planned_purchases_and_separate_confirmation(strategy):
+    service, state = strategy
+    state.candidates[0].spending_gap = 300
+    state.candidates[0].monthly_gap = 110
+    key = state.candidates[0].key
+    with pytest.raises(ValueError, match="already-planned purchases"):
+        service.propose(ProposeStrategy(candidate_key=key))
+    draft = service.propose(ProposeStrategy(candidate_key=key, additional_spend_plan="Already-budgeted insurance renewal"))
+    with pytest.raises(ValueError, match="additional planned purchases"):
+        approve(service, draft)
+    active = service.decide(draft.id, StrategyDecision(action="approve", fingerprint=draft.fingerprint,
+        eligibility_confirmed=True, cash_flow_confirmed=True, additional_spend_confirmed=True))
+    assert active.snapshot.additional_spend_plan == "Already-budgeted insurance renewal"
+    assert active.snapshot.baseline == state.baseline
+    assert service.view().baseline == state.baseline
+
+
+def test_a_larger_spending_gap_requires_a_fresh_draft_even_within_five_percent(strategy):
+    service, state = strategy
+    draft = service.propose(ProposeStrategy())
+    state.candidates[0].spending_gap = 10
+    with pytest.raises(ValueError, match="spending assumptions changed"):
+        approve(service, draft)
+
+
 def test_automatic_research_is_opt_in_and_failed_attempts_consume_the_cooldown(strategy):
     service,_ = strategy
     research = CardResearchService()

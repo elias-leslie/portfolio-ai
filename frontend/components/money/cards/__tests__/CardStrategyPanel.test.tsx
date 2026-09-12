@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { BillSuggestion, StrategyView } from '@/lib/api/cards/strategy'
@@ -8,6 +8,7 @@ import { StrategyBillChecklist } from '../StrategyBillChecklist'
 const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   decision: vi.fn(),
+  proposal: vi.fn(),
   bill: vi.fn(),
   billPreference: vi.fn(),
   error: null as Error | null,
@@ -15,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/hooks/useCardStrategy', () => ({
   useCardStrategy: () => mocks.query(),
   useStrategyActions: () => ({
-    proposal: { mutate: vi.fn(), isPending: false },
+    proposal: { mutate: mocks.proposal, isPending: false },
     decision: { mutate: mocks.decision, isPending: false, error: mocks.error },
     bill: { mutate: mocks.bill, isPending: false },
     billPreference: { mutate: mocks.billPreference, isPending: false },
@@ -64,6 +65,11 @@ function view(): StrategyView {
     sourceUrls: ['https://www.capitalone.com/credit-cards/venture/'],
     checks: ['Confirm eligibility'],
     rationale: 'Ordinary spending covers the requirement.',
+    spendingGap: 0,
+    monthlyGap: 0,
+    valueRank: 1,
+    comparedOffers: 1,
+    catalogOffers: 4,
   }
   const draft = {
     id: 'draft',
@@ -79,6 +85,7 @@ function view(): StrategyView {
       candidate,
       bills: [],
       recommendation: 'One bonus at a time',
+      additionalSpendPlan: null,
     },
   }
   return {
@@ -119,6 +126,7 @@ const bill: BillSuggestion = {
 
 beforeEach(() => {
   mocks.decision.mockReset()
+  mocks.proposal.mockReset()
   mocks.bill.mockReset()
   mocks.billPreference.mockReset()
   mocks.error = null
@@ -306,4 +314,109 @@ it('lets an exception return to the automatic CMA rule', async () => {
     key: 'phone',
     preference: 'automatic',
   })
+})
+
+it('compares higher-spend alternatives beside the proposal and requires a purchase plan', async () => {
+  const data = view()
+  data.candidates.push({
+    ...data.candidates[0],
+    key: 'stretch:p2',
+    productId: 'stretch',
+    productName: 'Higher-value card',
+    spendingGap: 400,
+    monthlyGap: 146.69,
+    minimumSpend: 5400,
+    incrementalValue: 900,
+    valueRank: 1,
+    comparedOffers: 2,
+  })
+  data.candidates[0].valueRank = 2
+  data.candidates[0].comparedOffers = 2
+  mocks.query.mockReturnValue({ data })
+  const user = userEvent.setup()
+  render(<CardStrategyPanel cards={[]} onAddCard={vi.fn()} />)
+  const proposal = within(
+    screen.getByRole('region', { name: 'Proposed card strategy' }),
+  )
+  await user.click(
+    proposal.getByRole('button', { name: 'Value #2 of 2 checked offers' }),
+  )
+  expect(
+    proposal.getByText(/not every market or personalized offer/),
+  ).toBeInTheDocument()
+  expect(proposal.getByText(/Needs \$400.00 more in total/)).toBeInTheDocument()
+  await user.click(
+    proposal.getByRole('button', { name: 'Review Higher-value card' }),
+  )
+  expect(mocks.proposal).not.toHaveBeenCalled()
+  const prepare = proposal.getByRole('button', {
+    name: 'Prepare this higher-spend proposal',
+  })
+  expect(prepare).toBeDisabled()
+  await user.type(
+    proposal.getByRole('textbox'),
+    'Already-budgeted annual insurance renewal',
+  )
+  await user.click(prepare)
+  expect(mocks.proposal).toHaveBeenCalledExactlyOnceWith({
+    key: 'stretch:p2',
+    additionalSpendPlan: 'Already-budgeted annual insurance renewal',
+  })
+})
+
+it('requires explicit approval of extra purchases in a higher-spend draft', async () => {
+  const data = view()
+  if (!data.draft?.snapshot.candidate)
+    throw new Error('Missing fixture candidate')
+  data.draft.snapshot.candidate.spendingGap = 400
+  data.draft.snapshot.additionalSpendPlan = 'Annual insurance renewal'
+  mocks.query.mockReturnValue({ data })
+  const user = userEvent.setup()
+  render(<CardStrategyPanel cards={[]} onAddCard={vi.fn()} />)
+  await user.click(
+    screen.getByRole('checkbox', { name: /complete card history/ }),
+  )
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /can pay these ordinary purchases in full/,
+    }),
+  )
+  expect(
+    screen.getByRole('button', { name: 'Approve this strategy' }),
+  ).toBeDisabled()
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /additional purchases are already planned/,
+    }),
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Approve this strategy' }),
+  )
+  expect(mocks.decision).toHaveBeenCalledWith(
+    expect.objectContaining({
+      payload: expect.objectContaining({ additionalSpendConfirmed: true }),
+    }),
+  )
+})
+
+it('blocks a saved draft when current offer evidence is no longer verified', async () => {
+  const data = view()
+  data.candidates = [{ ...data.candidates[0], termsCurrent: false }]
+  mocks.query.mockReturnValue({ data })
+  const user = userEvent.setup()
+  render(<CardStrategyPanel cards={[]} onAddCard={vi.fn()} />)
+  await user.click(
+    screen.getByRole('checkbox', { name: /complete card history/ }),
+  )
+  await user.click(
+    screen.getByRole('checkbox', {
+      name: /can pay these ordinary purchases in full/,
+    }),
+  )
+  expect(
+    screen.getByRole('button', { name: 'Approve this strategy' }),
+  ).toBeDisabled()
+  expect(
+    screen.getByText(/Current offer or spending evidence changed/),
+  ).toBeInTheDocument()
 })

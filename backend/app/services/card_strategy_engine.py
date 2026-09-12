@@ -149,8 +149,10 @@ def rank_candidates(products: list[CreditCardProduct], cards: list[HouseholdCred
         if product.card_kind != "personal" or not product.welcome_min_spend or not product.welcome_window_days:
             continue
         window = product.welcome_window_days
-        if product.welcome_min_spend > baseline.monthly_available * max(0, window - 7) / 30.4375:
+        capacity = baseline.monthly_available * max(0, window - 7) / 30.4375
+        if product.welcome_min_spend > capacity * 1.2:
             continue
+        gap = round(max(0, product.welcome_min_spend - capacity), 2)
         verified, urls = terms_evidence(product, today)
         cents = min(product.est_point_value_cents or 1.0, 1.0)
         bonus = round(product.welcome_bonus_points * cents / 100 + product.welcome_bonus_cash, 2)
@@ -178,15 +180,27 @@ def rank_candidates(products: list[CreditCardProduct], cards: list[HouseholdCred
                 minimum_spend=product.welcome_min_spend, window_days=window, bonus_value=bonus,
                 annual_fee=product.annual_fee, incremental_value=net,
                 monthly_required=round(product.welcome_min_spend / (window / 30.4375), 2),
+                spending_gap=gap, monthly_gap=round(gap * 30.4375 / (window - 7), 2),
                 terms_fingerprint=fingerprint(product.model_dump(mode="json", exclude={"created_at", "updated_at", "last_verified_at", "verified_terms"})), terms_current=verified,
                 source_urls=urls, checks=checks,
                 rationale="About $" + f"{net:,.0f} above a conservative 2%-or-better baseline after the annual fee. "
                           "Points valued at 1 cent or less; conditional credits excluded. "
-                          + ("Start after the existing welcome commitment." if unfinished else "The ordinary-spend allowance covers the offer with a time buffer."),
+                          + ("Additional planned purchases are needed beyond the calculated spending estimate. " if gap else
+                             "The calculated spending covers the offer with a seven-day buffer. ")
+                          + ("Start after the existing welcome commitment." if unfinished else ""),
             ))
-    result.sort(key=lambda c: (not c.terms_current, -c.incremental_value, len(c.checks),
+    # Rank distinct offers, not duplicate applicant rows. A higher-value stretch
+    # offer can outrank the best fit without becoming the automatic recommendation.
+    values = {c.product_id: c.incremental_value for c in result if c.terms_current}
+    catalog_count = sum(p.card_kind == "personal" and bool(p.welcome_min_spend) and bool(p.welcome_window_days) for p in products)
+    for candidate in result:
+        candidate.compared_offers = len(values)
+        candidate.catalog_offers = catalog_count
+        if candidate.terms_current:
+            candidate.value_rank = 1 + sum(value > candidate.incremental_value for value in values.values())
+    result.sort(key=lambda c: (not c.terms_current, c.spending_gap > 0, -c.incremental_value, len(c.checks),
                                sum(x.player == c.player and x.status != "candidate" for x in cards), c.key))
-    return result[:8]
+    return result
 
 
 def track_bonuses(cards: list[HouseholdCreditCard], rows: list[dict[str, Any]],

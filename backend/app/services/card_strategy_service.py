@@ -100,7 +100,8 @@ class CardStrategyService:
             candidate = active.snapshot.candidate
             if candidate and not active.actual_card_id:
                 current = next((c for c in candidates if c.key == candidate.key), None)
-                if current is None or current.terms_fingerprint != candidate.terms_fingerprint or not current.terms_current:
+                if (current is None or current.terms_fingerprint != candidate.terms_fingerprint or not current.terms_current
+                        or current.spending_gap > candidate.spending_gap + 0.01):
                     changes.append("Recheck the approved card's offer or feasibility before applying.")
                 elif current.key != (candidates[0].key if candidates else None):
                     changes.append("Another card or applicant now ranks higher. Compare before changing the approved plan.")
@@ -128,11 +129,15 @@ class CardStrategyService:
         view = self.view()
         candidate = None
         if not request.wait:
-            candidate = next((c for c in view.candidates if c.key == request.candidate_key), None) if request.candidate_key else next(iter(view.candidates), None)
+            candidate = next((c for c in view.candidates if c.key == request.candidate_key), None) if request.candidate_key else next((c for c in view.candidates if not c.spending_gap), None)
             if candidate is None:
                 raise ValueError("This candidate is no longer available. Refresh the recommendation or choose to wait.")
+        extra_plan = (request.additional_spend_plan or "").strip() if candidate and candidate.spending_gap else None
+        if candidate and candidate.spending_gap and len(extra_plan or "") < 10:
+            raise ValueError("Describe the already-planned purchases that would cover this card's additional spending requirement.")
         snapshot = StrategySnapshot(baseline=view.baseline, candidate=candidate, bills=view.bills,
-            settings=view.settings, recommendation=view.recommendation if candidate else "Keep the current cards and review when circumstances change.")
+            settings=view.settings, additional_spend_plan=extra_plan,
+            recommendation=view.recommendation if candidate else "Keep the current cards and review when circumstances change.")
         digest = fingerprint(snapshot.model_dump(mode="json"))
         with self.storage.connection() as conn:
             conn.execute("SELECT pg_advisory_xact_lock(%s)", [_LOCK])
@@ -165,6 +170,7 @@ class CardStrategyService:
                 current = next((c for c in view.candidates if c.key == candidate.key), None)
                 if (current is None or current.terms_fingerprint != candidate.terms_fingerprint
                         or current.application_on > candidate.application_by
+                        or current.spending_gap > candidate.spending_gap + 0.01
                         or view.settings != plan.snapshot.settings
                         or view.baseline.monthly_available < plan.snapshot.baseline.monthly_available * 0.95):
                     raise ValueError("Offer, timing or spending assumptions changed. Create a fresh draft.")
@@ -172,6 +178,8 @@ class CardStrategyService:
                     raise ValueError("Current issuer evidence is required. Review the offer terms, then create a fresh draft.")
                 if not request.eligibility_confirmed:
                     raise ValueError("Confirm the named applicant's card history and offer eligibility.")
+                if candidate.spending_gap and (not request.additional_spend_confirmed or not plan.snapshot.additional_spend_plan):
+                    raise ValueError("Confirm how the additional planned purchases fit your budget and can be paid in full.")
         card = None
         if request.action == "link_card":
             if plan.actual_card_id and plan.actual_card_id != request.card_id:
