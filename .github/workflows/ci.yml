@@ -185,6 +185,9 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm build
+      - name: Seed synthetic browser review evidence
+        working-directory: backend
+        run: uv run python -m tests.runtime_seed
       - name: Exercise running stack in Chromium
         run: |
           set -euo pipefail

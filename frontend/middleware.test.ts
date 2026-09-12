@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { middleware } from './middleware'
+
+afterEach(() => vi.unstubAllGlobals())
 
 describe('Cloudflare Access boundary', () => {
   it('allows loopback development without an Access token', async () => {
@@ -22,6 +24,14 @@ describe('Cloudflare Access boundary', () => {
   })
 
   it('denies a forged JWT-shaped Access assertion', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response('Unverified assertion', { status: 403 }),
+        ),
+    )
     const response = await middleware(
       new NextRequest('https://port.summitflow.dev/', {
         headers: { 'Cf-Access-Jwt-Assertion': 'header.payload.signature' },
@@ -29,5 +39,16 @@ describe('Cloudflare Access boundary', () => {
     )
 
     expect(response.status).toBe(403)
+  })
+
+  it('fails closed when backend identity verification is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
+    const response = await middleware(
+      new NextRequest('https://port.summitflow.dev/', {
+        headers: { 'Cf-Access-Jwt-Assertion': 'header.payload.signature' },
+      }),
+    )
+    expect(response.status).toBe(503)
+    expect(response.headers.get('x-middleware-next')).toBeNull()
   })
 })

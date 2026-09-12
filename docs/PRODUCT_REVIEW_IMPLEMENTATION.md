@@ -30,6 +30,8 @@ An isolated comparison across 4,042 household report rows retained identical sur
 
 The labeled news cases are regression evidence, not a production precision estimate. Timing samples are observations, not latency percentiles. The specialist tax/backtest engines have not received blanket numerical certification.
 
+Remote browser checks seed a clearly marked synthetic two-month household and a degraded macro snapshot in their isolated test database. Sign-in boundary tests mock the verification response and cover both rejection and an unavailable verifier. These tests do not depend on the local household or a running local backend.
+
 Actual family-phone sign-in, native camera behavior and push delivery still require those devices. No live notification was sent by this review. The shopping pilot has no demonstrated realized savings until comparable purchases and outcomes are recorded. Missing basis, original offer terms and unknown purchase ownership are not filled with guesses.
 
 ## Current direction
