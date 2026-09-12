@@ -14,6 +14,7 @@ def test_basis_matches_canonical_alias_and_expires_when_holdings_change(monkeypa
     hid=_insert_account(storage)
     pid=str(uuid.uuid4())
     with storage.connection() as conn:
+        conn.execute("INSERT INTO symbols (symbol,company_name) VALUES ('VTI','Total Stock Market ETF') ON CONFLICT DO NOTHING")
         conn.execute("INSERT INTO portfolio_accounts(id,name,account_type,household_account_id) VALUES (%s,'Basis account','Taxable',%s)",[pid,hid])
         conn.execute("INSERT INTO portfolio_positions(id,account_id,symbol,shares,cost_basis,position_type) VALUES (%s,%s,'VTI',100,60,'long')",[str(uuid.uuid4()),pid])
         conn.commit()
