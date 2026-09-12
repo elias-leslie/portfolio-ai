@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+import pytest
+
 from app.models.household_finance import HouseholdQuestion
 from app.services._jenny_conversation_constants import PLANNING_UPDATE_SCHEMA
 from app.services._jenny_conversation_llm import (
@@ -113,7 +115,7 @@ def test_make_client_uses_persona_with_memory(mock_client_cls: Mock) -> None:
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_reconcile_message_uses_chat_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
+def test_reconcile_message_uses_codex_persona_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"answers":[{"question_id":"question-1","answer_text":"60"}]}'
@@ -126,7 +128,7 @@ def test_reconcile_message_uses_chat_agent_without_memory(mock_make_client: Mock
         context={"generated_at": datetime(2026, 4, 4, 7, 21, tzinfo=UTC)},
     )
 
-    mock_make_client.assert_called_once_with(agent_slug="chat", use_memory=False)
+    mock_make_client.assert_called_once_with(agent_slug="persona", use_memory=False)
 
 
 @patch(_PROMPT_LOADER, return_value="system")
@@ -155,7 +157,7 @@ def test_complete_conversation_uses_scoped_session_without_shared_memory(mock_ma
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_uses_chat_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
+def test_extract_planning_updates_uses_codex_persona_agent_without_memory(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
     client.complete_messages.return_value = SimpleNamespace(
         content='{"profile_updates":{},"planning_items":[]}'
@@ -168,30 +170,21 @@ def test_extract_planning_updates_uses_chat_agent_without_memory(mock_make_clien
         open_questions=[_question("question-1")],
     )
 
-    mock_make_client.assert_called_once_with(agent_slug="chat", use_memory=False)
+    mock_make_client.assert_called_once_with(agent_slug="persona", use_memory=False)
 
 
 @patch(_PROMPT_LOADER, return_value="system")
 @patch("app.services._jenny_conversation_llm.make_client")
-def test_extract_planning_updates_retries_with_relaxed_json_mode(mock_make_client: Mock, _: Mock) -> None:
+def test_extract_planning_updates_does_not_retry_or_relax_schema(mock_make_client: Mock, _: Mock) -> None:
     client = Mock()
-    client.complete_messages.side_effect = [
-        RuntimeError("schema rejected response"),
-        SimpleNamespace(content='{"profile_updates":{},"planning_items":[]}'),
-    ]
+    client.complete_messages.side_effect = RuntimeError("schema rejected response")
     mock_make_client.return_value = client
-
-    updates = extract_planning_updates(
-        message="Set our emergency fund target to thirty thousand.",
-        context={"generated_at": datetime(2026, 4, 4, 7, 21, tzinfo=UTC)},
-        open_questions=[_question("question-1")],
-    )
-
-    first_call = client.complete_messages.call_args_list[0].kwargs
-    second_call = client.complete_messages.call_args_list[1].kwargs
-    assert first_call["response_format"] == {"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA}
-    assert second_call["response_format"] == {"type": "json_object"}
-    assert updates == {"profile_updates": {}, "planning_items": []}
+    with pytest.raises(RuntimeError, match="schema rejected"):
+        extract_planning_updates(message="Set emergency target to 30000.", context={}, open_questions=[])
+    client.complete_messages.assert_called_once()
+    kwargs = client.complete_messages.call_args.kwargs
+    assert kwargs["response_format"] == {"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA}
+    assert kwargs["disable_agent_fallbacks"] is True
 
 
 @patch(_PROMPT_LOADER, return_value="system")

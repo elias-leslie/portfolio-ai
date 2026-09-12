@@ -4,6 +4,7 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useMacro'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
+import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import {
   DecisionBrief,
   formatTimestamp,
@@ -28,6 +29,7 @@ export function DailyBriefPanel() {
   } = useMacroConditions()
   const updateTimestamp = conditions?.computedAt ?? macro?.computedAt ?? null
   const conditionDataUnavailable = !conditions && !macro
+  useUsableContentTiming('today', !conditionDataUnavailable)
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/40 bg-surface/50 surface-highlight backdrop-blur-sm">

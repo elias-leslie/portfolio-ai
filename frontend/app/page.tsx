@@ -3,22 +3,15 @@
 export const dynamic = 'force-dynamic'
 
 import { DailyBriefPanel } from '@/components/home/DailyBriefPanel'
-import { HomeActionQueueContent } from '@/components/home/HomeActionQueueContent'
 import { InvestingMarketTrendPanels } from '@/components/portfolio/InvestingMarketPanel'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { SectionCard } from '@/components/shared/SectionCard'
 
 export default function Dashboard() {
   return (
     <PageContainer className="space-y-6 py-5">
       <PageHeader title="Today" size="md" variant="plain" />
-      <SectionCard
-        title="Needs attention"
-        description="The next household and investing decisions, ordered by impact."
-      >
-        <HomeActionQueueContent limit={3} layout="grid" />
-      </SectionCard>
+      {/* Actions belong exclusively in the top-bar popover, by user preference. */}
       <DailyBriefPanel />
       <InvestingMarketTrendPanels />
     </PageContainer>

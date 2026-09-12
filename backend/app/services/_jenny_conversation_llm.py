@@ -60,6 +60,7 @@ def complete_conversation(
         return client.complete_messages(
             messages=[{"role": "user", "content": prompt}],
             purpose=PURPOSE_CHAT,
+            disable_agent_fallbacks=True,
             session_id=session_id,
             thinking_level="low",
             system_prompt=require_agent_hub_prompt(PROMPT_CHAT_SYSTEM),
@@ -86,12 +87,13 @@ def reconcile_message(
         f"Relevant portfolio-ai context:\n{_json_block(context)}\n\n"
         f"User message:\n{message}"
     )
-    client = make_client(agent_slug="chat", use_memory=False)
+    client = make_client(agent_slug="persona", use_memory=False)
     try:
         response = client.complete_messages(
             messages=[{"role": "user", "content": prompt}],
             purpose=PURPOSE_RECONCILE,
-            thinking_level="minimal",
+            disable_agent_fallbacks=True,
+            thinking_level="low",
             system_prompt=require_agent_hub_prompt(PROMPT_RECONCILE_SYSTEM),
             response_format=RECONCILIATION_RESPONSE_FORMAT,
             use_memory=False,
@@ -140,29 +142,20 @@ def extract_planning_updates(
         f"Open questions:\n{_json_block([question_summary(q) for q in open_questions])}\n\n"
         f"User message:\n{message}"
     )
-    client = make_client(agent_slug="chat", use_memory=False)
+    client = make_client(agent_slug="persona", use_memory=False)
     try:
         request_kwargs = {
             "messages": [{"role": "user", "content": prompt}],
             "purpose": PURPOSE_PLANNING_EXTRACT,
-            "thinking_level": "minimal",
+            "disable_agent_fallbacks": True,
+            "thinking_level": "low",
             "system_prompt": require_agent_hub_prompt(PROMPT_PLANNING_EXTRACT_SYSTEM),
             "use_memory": False,
         }
-        try:
-            response = client.complete_messages(
-                response_format={"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA},
-                **request_kwargs,
-            )
-        except Exception as exc:
-            logger.warning(
-                "jenny_chat_planning_schema_retry",
-                error=str(exc),
-            )
-            response = client.complete_messages(
-                response_format={"type": "json_object"},
-                **request_kwargs,
-            )
+        response = client.complete_messages(
+            response_format={"type": "json_object", "schema": PLANNING_UPDATE_SCHEMA},
+            **request_kwargs,
+        )
     finally:
         client.close()
     return _parse_planning_response(response)

@@ -343,6 +343,9 @@ async def answer_household_question(
     question = await run_in_threadpool(_service().answer_question, question_id, payload)
     if question is None:
         raise HTTPException(status_code=404, detail=f"Household question not found: {question_id}")
+    _invalidate_household_cache()
+    import_module("app.api.home")._home_action_service().invalidate_cache()
+    invalidate_cache_pattern("GET:/api/home/action-queue*")
     return question
 
 

@@ -123,6 +123,8 @@ describe('core product routes', () => {
     expect(screen.getByText('Daily Brief Panel')).toBeInTheDocument()
     expect(screen.getByText('Today Market Pulse Panel')).toBeInTheDocument()
     expect(screen.queryByText('Automation Center')).not.toBeInTheDocument()
+    expect(screen.queryByText('Household actions')).not.toBeInTheDocument()
+    expect(screen.queryByText('Needs attention')).not.toBeInTheDocument()
   })
 
   it('renders the money route shell', async () => {

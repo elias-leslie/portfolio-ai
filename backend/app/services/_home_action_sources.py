@@ -325,7 +325,9 @@ def build_workflow_actions_from_service(workflow_service: object) -> list[dict[s
 def build_household_actions(
     items: Iterable[object],
     accounts: Iterable[object] = (),
+    questions: Iterable[object] = (),
 ) -> list[dict[str, object]]:
+    question_map = {str(_field_value(question, "id")): question for question in questions}
     account_map = {}
     for account in accounts:
         for key in ("id", "household_account_id", "tracked_account_id"):
@@ -377,6 +379,14 @@ def build_household_actions(
             "badge": "Household",
             "_rank_score": score,
         }
+        question_id = _field_value(item, "related_question_id")
+        if question_id:
+            question = question_map.get(str(question_id), item)
+            action["question"] = {
+                "id": str(question_id),
+                "format": _field_value(question, "question_format") or "short_text",
+                "options": _field_value(question, "options") or [],
+            }
         institution = str(_field_value(account, "institution_name", "") or "").strip()
         if is_refresh and institution:
             kind = (
@@ -418,4 +428,6 @@ def build_household_actions_from_service(household_service: object) -> list[dict
         logger.warning("home_action_household_failed", error=str(exc))
         raise
 
-    return build_household_actions(dashboard.inbox, getattr(dashboard, "accounts", []))
+    return build_household_actions(
+        dashboard.inbox, getattr(dashboard, "accounts", []), getattr(dashboard, "questions", [])
+    )

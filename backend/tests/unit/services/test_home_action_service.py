@@ -14,6 +14,27 @@ from app.services._home_action_sources import (
 from app.services.home_action_service import HomeActionService
 
 
+def test_household_question_controls_survive_the_api_contract():
+    from app.api.home import HomeActionItemResponse
+
+    actions = build_household_actions([SimpleNamespace(
+        id="need-question", title="Regular groceries?", detail="Frequency only.",
+        priority="medium", related_question_id="question-1", question_format="boolean",
+        options=None, action_href="/money?tab=intake",
+    )])
+    payload = HomeActionItemResponse.model_validate(actions[0])
+    assert payload.question is not None
+    assert payload.question.model_dump() == {"id": "question-1", "format": "boolean", "options": []}
+
+
+def test_action_uses_canonical_question_format_when_inbox_omits_it():
+    actions = build_household_actions(
+        [SimpleNamespace(id="need-question", related_question_id="q1", priority="medium")],
+        questions=[SimpleNamespace(id="q1", question_format="boolean", options=None)],
+    )
+    assert actions[0]["question"] == {"id": "q1", "format": "boolean", "options": []}
+
+
 def test_invalidate_cache_clears_cached_action_queue() -> None:
     service = object.__new__(HomeActionService)
     service._portfolio_health_actions = lambda: [

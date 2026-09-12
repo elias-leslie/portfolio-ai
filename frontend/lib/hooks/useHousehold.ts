@@ -670,8 +670,11 @@ export function useAnswerHouseholdQuestion() {
       answerText: string
     }) => answerHouseholdQuestion(questionId, { answerText }),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
-      toast.success('Jenny updated the household plan.')
+      await Promise.all([
+        refreshHouseholdQueries(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['home', 'action-queue'] }),
+      ])
+      toast.success('Answer saved.')
     },
     onError: (error) => {
       toast.error(

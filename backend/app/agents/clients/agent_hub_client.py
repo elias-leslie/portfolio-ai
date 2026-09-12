@@ -231,6 +231,7 @@ class AgentHubAPIClient(LLMClient):
         enable_programmatic_tools: bool = False,
         agent_slug: str | None = None,
         task_type: str | None = None,
+        disable_agent_fallbacks: bool = False,
     ) -> Any:
         request_kwargs: dict[str, Any] = {
             "agent_slug": agent_slug or self.agent_slug,
@@ -260,6 +261,8 @@ class AgentHubAPIClient(LLMClient):
             request_kwargs["enable_programmatic_tools"] = True
         if task_type is not None:
             request_kwargs["task_type"] = task_type
+        if disable_agent_fallbacks:
+            request_kwargs["disable_agent_fallbacks"] = True
         return self._client.complete(**request_kwargs)
 
     def _get_async_client(self) -> AsyncSDKClient:
@@ -291,6 +294,7 @@ class AgentHubAPIClient(LLMClient):
         enable_programmatic_tools: bool = False,
         agent_slug: str | None = None,
         task_type: str | None = None,
+        disable_agent_fallbacks: bool = False,
     ) -> Any:
         """Async counterpart to ``complete_messages``.
 
@@ -325,6 +329,8 @@ class AgentHubAPIClient(LLMClient):
             request_kwargs["enable_programmatic_tools"] = True
         if task_type is not None:
             request_kwargs["task_type"] = task_type
+        if disable_agent_fallbacks:
+            request_kwargs["disable_agent_fallbacks"] = True
         return await self._get_async_client().complete(**request_kwargs)
 
     def close(self) -> None:

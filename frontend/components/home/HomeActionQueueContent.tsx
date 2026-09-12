@@ -6,8 +6,8 @@ import { useHomeActionQueueState } from '@/components/providers/HomeActionQueueP
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
-import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import { cn } from '@/lib/utils'
+import { HomeQuestionAnswer } from './HomeQuestionAnswer'
 import { quickActionLabel, quickActionTitle } from './quickActionHelpers'
 
 const categoryIcons = {
@@ -35,7 +35,6 @@ export function HomeActionQueueContent({
   onNavigate?: () => void
 }) {
   const {
-    data,
     visibleActions,
     isLoading,
     isFetching,
@@ -44,7 +43,6 @@ export function HomeActionQueueContent({
     refetchActions,
     executeAction,
   } = useHomeActionQueueState()
-  useUsableContentTiming('today', Boolean(data) && !isLoading && !error)
   const displayedActions = limit
     ? visibleActions.slice(0, limit)
     : visibleActions
@@ -134,6 +132,7 @@ export function HomeActionQueueContent({
           return (
             <article
               key={action.id}
+              data-action-queue-item
               className="overflow-hidden rounded-lg border border-border/40 bg-surface/70 p-3"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -175,17 +174,24 @@ export function HomeActionQueueContent({
                 {action.detail}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  onClick={onNavigate}
-                >
-                  <Link href={action.href}>
-                    {action.actionLabel}
-                    <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </Button>
+                {action.question ? (
+                  <HomeQuestionAnswer
+                    question={action.question}
+                    title={action.title}
+                  />
+                ) : (
+                  <Button
+                    asChild
+                    size="sm"
+                    variant="outline"
+                    onClick={onNavigate}
+                  >
+                    <Link href={action.href}>
+                      {action.actionLabel}
+                      <ArrowRight className="size-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                )}
                 {action.execution && quickLabel ? (
                   <Button
                     size="sm"

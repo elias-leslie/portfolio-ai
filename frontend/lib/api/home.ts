@@ -21,6 +21,11 @@ export interface HomeActionItem {
   badge: string | null
   decision?: SymbolDecisionSection | null
   execution?: HomeActionExecution | null
+  question?: {
+    id: string
+    format: string
+    options: string[]
+  } | null
 }
 
 export interface HomeActionQueue {

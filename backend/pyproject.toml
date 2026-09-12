@@ -27,7 +27,7 @@ dependencies = [
     "feedparser==6.0.12",
     "httpx==0.28.1",
     "python-multipart>=0.0.32",
-    "agent-hub-client==0.4.0",
+    "agent-hub-client==0.4.1",
     "cachetools==5.5.0",
     # Web push (VAPID + aes128gcm) for the household alert channel
     "pywebpush==2.4.0",
@@ -110,7 +110,7 @@ constraint-dependencies = [
 ]
 
 [tool.uv.sources]
-agent-hub-client = { path = "../docker/workspace-packages/agent_hub_client-0.4.0-py3-none-any.whl" }
+agent-hub-client = { path = "../docker/workspace-packages/agent_hub_client-0.4.1-py3-none-any.whl" }
 
 [build-system]
 requires = ["hatchling"]

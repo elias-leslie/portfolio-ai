@@ -35,6 +35,12 @@ class HomeActionExecutionResponse(BaseModel):
     stage: str | None = None
 
 
+class HomeActionQuestionResponse(BaseModel):
+    id: str
+    format: str = "short_text"
+    options: list[str] = Field(default_factory=list)
+
+
 class HomeActionItemResponse(BaseModel):
     id: str
     source: str
@@ -48,6 +54,7 @@ class HomeActionItemResponse(BaseModel):
     badge: str | None = None
     decision: DecisionSection | None = None
     execution: HomeActionExecutionResponse | None = None
+    question: HomeActionQuestionResponse | None = None
 
 
 class HomeActionQueueResponse(BaseModel):
