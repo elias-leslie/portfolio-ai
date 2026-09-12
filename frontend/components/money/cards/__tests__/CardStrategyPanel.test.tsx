@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   decision: vi.fn(),
   bill: vi.fn(),
+  billPreference: vi.fn(),
   error: null as Error | null,
 }))
 vi.mock('@/lib/hooks/useCardStrategy', () => ({
@@ -17,6 +18,7 @@ vi.mock('@/lib/hooks/useCardStrategy', () => ({
     proposal: { mutate: vi.fn(), isPending: false },
     decision: { mutate: mocks.decision, isPending: false, error: mocks.error },
     bill: { mutate: mocks.bill, isPending: false },
+    billPreference: { mutate: mocks.billPreference, isPending: false },
   }),
 }))
 vi.mock('../StrategyPreferences', () => ({ StrategyPreferences: () => null }))
@@ -105,6 +107,10 @@ const bill: BillSuggestion = {
   alreadyCardSpend: false,
   evidence: 'Three monthly charges',
   status: 'suggested',
+  paidFromCma: false,
+  paymentPreference: 'automatic',
+  keepCurrentPayment: false,
+  paymentReason: null,
   feePerCharge: 0,
   lostDiscount: 0,
   observedOn: null,
@@ -114,6 +120,7 @@ const bill: BillSuggestion = {
 beforeEach(() => {
   mocks.decision.mockReset()
   mocks.bill.mockReset()
+  mocks.billPreference.mockReset()
   mocks.error = null
   mocks.query.mockReturnValue({
     data: view(),
@@ -214,4 +221,89 @@ it('distinguishes a recorded payment change from an observed posted charge', () 
     screen.getByText('Changed · awaiting first charge'),
   ).toBeInTheDocument()
   expect(screen.queryByText('First charge verified')).not.toBeInTheDocument()
+})
+
+it('lets a CMA bill be an exception before a plan exists without confirming a payment change', async () => {
+  const user = userEvent.setup()
+  render(
+    <StrategyBillChecklist
+      bills={[
+        {
+          ...bill,
+          currentAccount: 'CMA',
+          paidFromCma: true,
+          keepCurrentPayment: true,
+          status: 'kept_in_place',
+          feePerCharge: null,
+          lostDiscount: null,
+          paymentReason:
+            'Paid from your CMA; kept here under your card-fee preference.',
+        },
+      ]}
+      planId={null}
+      enabled={false}
+    />,
+  )
+  expect(screen.getByText('Keep in place')).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Review payment change' }),
+  ).not.toBeInTheDocument()
+  await user.selectOptions(
+    screen.getByLabelText('Payment preference'),
+    'consider_card',
+  )
+  expect(mocks.billPreference).toHaveBeenCalledExactlyOnceWith({
+    key: 'phone',
+    preference: 'consider_card',
+  })
+  expect(mocks.bill).not.toHaveBeenCalled()
+})
+
+it('keeps a CMA bill out of payment-change actions even with an approved linked card', () => {
+  render(
+    <StrategyBillChecklist
+      bills={[
+        {
+          ...bill,
+          paidFromCma: true,
+          keepCurrentPayment: true,
+          status: 'kept_in_place',
+        },
+      ]}
+      planId="plan"
+      enabled
+    />,
+  )
+  expect(
+    screen.queryByRole('button', { name: 'Review payment change' }),
+  ).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Payment preference')).toBeEnabled()
+})
+
+it('lets an exception return to the automatic CMA rule', async () => {
+  const user = userEvent.setup()
+  render(
+    <StrategyBillChecklist
+      bills={[
+        {
+          ...bill,
+          paidFromCma: true,
+          paymentPreference: 'consider_card',
+        },
+      ]}
+      planId="plan"
+      enabled
+    />,
+  )
+  expect(
+    screen.getByRole('button', { name: 'Review payment change' }),
+  ).toBeEnabled()
+  await user.selectOptions(
+    screen.getByLabelText('Payment preference'),
+    'automatic',
+  )
+  expect(mocks.billPreference).toHaveBeenCalledExactlyOnceWith({
+    key: 'phone',
+    preference: 'automatic',
+  })
 })

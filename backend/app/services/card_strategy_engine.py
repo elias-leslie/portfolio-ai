@@ -235,8 +235,15 @@ def track_bonuses(cards: list[HouseholdCreditCard], rows: list[dict[str, Any]],
     return tracks
 
 
-def suggest_bills(commitments: list[Any], rows: list[dict[str, Any]], cards: list[HouseholdCreditCard]) -> list[BillSuggestion]:
+def suggest_bills(commitments: list[Any], rows: list[dict[str, Any]], cards: list[HouseholdCreditCard],
+                  accounts: list[Any] | None = None) -> list[BillSuggestion]:
     card_accounts = {c.household_account_id for c in cards if c.household_account_id}
+    # Resolve the payment account through the shared account registry, including
+    # its type and linked name, so a display-label change does not lose the rule.
+    cma_pattern = re.compile(r"\b(?:cma|cash[\s_-]+management)\b", re.I)
+    cma_accounts = {a.household_account_id for a in accounts or [] if a.household_account_id
+                    and cma_pattern.search(" ".join(str(getattr(a, field, "") or "")
+                        for field in ("account_type", "label", "linked_portfolio_account_name")))}
     result = []
     for bill in commitments:
         if bill.commitment_type not in {"bill", "subscription"} or bill.due_status == "lapsed":
@@ -244,8 +251,11 @@ def suggest_bills(commitments: list[Any], rows: list[dict[str, Any]], cards: lis
         matches = [r for r in rows if merchant_key(str(r["merchant"])) == merchant_key(bill.merchant)
                    and not r.get("pending") and float(r.get("signed_amount", r["amount"])) > 0]
         latest = max(matches, key=lambda r: r["date"]) if matches else None
+        on_card = bool(latest and latest.get("household_account_id") in card_accounts)
+        from_cma = bool(latest and not on_card and (latest.get("household_account_id") in cma_accounts
+            or (not latest.get("household_account_id") and cma_pattern.search(str(latest.get("account_label") or "")))))
         result.append(BillSuggestion(key=merchant_key(bill.merchant), merchant=bill.merchant, amount=bill.average_amount,
             cadence=bill.cadence, next_expected=bill.next_expected, current_account=latest.get("account_label") if latest else None,
-            already_card_spend=bool(latest and latest.get("household_account_id") in card_accounts),
+            already_card_spend=on_card, paid_from_cma=from_cma,
             evidence=bill.evidence or "Recurring commitment recorded in Money."))
     return result

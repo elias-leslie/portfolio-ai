@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { BillSuggestion } from '@/lib/api/cards/strategy'
+import type {
+  BillPaymentPreference,
+  BillSuggestion,
+} from '@/lib/api/cards/strategy'
 import { formatCurrency } from '@/lib/formatters'
 import { useStrategyActions } from '@/lib/hooks/useCardStrategy'
 
@@ -21,13 +24,14 @@ function BillRow({
   const [benefits, setBenefits] = useState(false)
   const [fee, setFee] = useState('')
   const [discount, setDiscount] = useState('')
-  const move = useStrategyActions().bill
+  const { bill: move, billPreference } = useStrategyActions()
   const labels = {
     suggested: 'Suggested',
     confirmed: 'Changed · awaiting first charge',
     observed: 'First charge verified',
     skipped: 'Keep in place',
     already_on_card: 'Already on this card',
+    kept_in_place: 'Keep in place',
   }
   return (
     <li className="space-y-3 rounded-xl border border-border/40 p-4">
@@ -44,9 +48,33 @@ function BillRow({
       <p className="text-xs text-text-muted">
         Currently: {bill.currentAccount ?? 'Payment account unknown'}.{' '}
         {bill.alreadyCardSpend
-          ? 'Already included in the ordinary-card allowance.'
-          : 'Bank-to-card eligibility is unconfirmed; this adds nothing to the bonus forecast.'}
+          ? 'Already included in the spending estimate.'
+          : 'Excluded from the bonus-spending estimate.'}
       </p>
+      <label className="block text-sm">
+        Payment preference
+        <select
+          className="mt-1 block w-full rounded-md border border-border bg-surface p-2 text-sm"
+          value={bill.paymentPreference}
+          disabled={billPreference.isPending || move.isPending}
+          onChange={(event) => {
+            setOpen(false)
+            billPreference.mutate({
+              key: bill.key,
+              preference: event.target.value as BillPaymentPreference,
+            })
+          }}
+        >
+          <option value="automatic">
+            {bill.paidFromCma ? 'Automatic · keep on CMA' : 'Automatic'}
+          </option>
+          <option value="keep_current">Keep current payment</option>
+          <option value="consider_card">Consider a credit card</option>
+        </select>
+      </label>
+      {bill.paymentReason ? (
+        <p className="text-xs text-text-muted">{bill.paymentReason}</p>
+      ) : null}
       {bill.observedOn ? (
         <p className="text-sm text-gain">
           Posted charge observed {bill.observedOn}.{' '}
@@ -66,9 +94,11 @@ function BillRow({
       </details>
       {enabled &&
       planId &&
-      !['observed', 'already_on_card'].includes(bill.status) ? (
+      !['observed', 'already_on_card', 'kept_in_place'].includes(
+        bill.status,
+      ) ? (
         <div className="flex flex-wrap gap-2">
-          {bill.status === 'suggested' ? (
+          {bill.status === 'suggested' && !bill.keepCurrentPayment ? (
             <Button size="sm" variant="outline" onClick={() => setOpen(!open)}>
               Review payment change
             </Button>
@@ -89,11 +119,13 @@ function BillRow({
           >
             {bill.status === 'suggested'
               ? 'Keep in place'
-              : 'Undo confirmation'}
+              : bill.status === 'skipped'
+                ? 'Reconsider for this plan'
+                : 'Undo confirmation'}
           </Button>
         </div>
       ) : null}
-      {open && enabled && planId ? (
+      {open && enabled && planId && !bill.keepCurrentPayment ? (
         <form
           className="space-y-3 border-t border-border/40 pt-3"
           onSubmit={(event) => {
@@ -171,6 +203,11 @@ function BillRow({
           {move.error.message}
         </p>
       ) : null}
+      {billPreference.error ? (
+        <p role="alert" className="text-sm text-loss">
+          {billPreference.error.message}
+        </p>
+      ) : null}
     </li>
   )
 }
@@ -189,8 +226,8 @@ export function StrategyBillChecklist({
       <div>
         <h3 className="font-semibold">Recurring bills</h3>
         <p className="text-sm text-text-muted">
-          Move suitable bills to the approved card when needed. These purchases
-          are part of the spending allowance, not extra money.
+          CMA bills stay put by default to avoid card fees. Set exceptions per
+          bill; preferences carry forward to future plans.
         </p>
       </div>
       {!enabled ? (

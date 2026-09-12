@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   type BillDecision,
+  type BillPaymentPreference,
   decideBillMove,
   decideStrategy,
   fetchStrategy,
   proposeStrategy,
   type StrategyDecision,
   type StrategySettings,
+  saveBillPaymentPreference,
   saveStrategySettings,
 } from '@/lib/api/cards/strategy'
 
@@ -53,5 +55,15 @@ export function useStrategyActions() {
     }) => decideBillMove(id, key, payload),
     onSuccess: refresh,
   })
-  return { proposal, decision, settings, bill }
+  const billPreference = useMutation({
+    mutationFn: ({
+      key,
+      preference,
+    }: {
+      key: string
+      preference: BillPaymentPreference
+    }) => saveBillPaymentPreference(key, preference),
+    onSuccess: refresh,
+  })
+  return { proposal, decision, settings, bill, billPreference }
 }

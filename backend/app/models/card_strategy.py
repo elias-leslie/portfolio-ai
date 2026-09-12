@@ -54,6 +54,10 @@ class CardCandidate(BaseModel):
     rationale: str
 
 
+class BillPaymentPreference(BaseModel):
+    preference: Literal["automatic", "keep_current", "consider_card"] = "automatic"
+
+
 class BillSuggestion(BaseModel):
     key: str
     merchant: str
@@ -63,9 +67,13 @@ class BillSuggestion(BaseModel):
     current_account: str | None
     already_card_spend: bool
     evidence: str
-    status: Literal["suggested", "confirmed", "observed", "skipped", "already_on_card"] = "suggested"
-    fee_per_charge: float = 0
-    lost_discount: float = 0
+    status: Literal["suggested", "confirmed", "observed", "skipped", "already_on_card", "kept_in_place"] = "suggested"
+    paid_from_cma: bool = False
+    payment_preference: Literal["automatic", "keep_current", "consider_card"] = "automatic"
+    keep_current_payment: bool = False
+    payment_reason: str | None = None
+    fee_per_charge: float | None = None
+    lost_discount: float | None = None
     first_charge_due_on: str | None = None
     observed_on: str | None = None
     observation_id: str | None = None

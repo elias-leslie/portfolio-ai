@@ -40,6 +40,10 @@ export interface CardCandidate {
   checks: string[]
   rationale: string
 }
+export type BillPaymentPreference =
+  | 'automatic'
+  | 'keep_current'
+  | 'consider_card'
 export interface BillSuggestion {
   key: string
   merchant: string
@@ -49,9 +53,19 @@ export interface BillSuggestion {
   currentAccount: string | null
   alreadyCardSpend: boolean
   evidence: string
-  status: 'suggested' | 'confirmed' | 'observed' | 'skipped' | 'already_on_card'
-  feePerCharge: number
-  lostDiscount: number
+  status:
+    | 'suggested'
+    | 'confirmed'
+    | 'observed'
+    | 'skipped'
+    | 'already_on_card'
+    | 'kept_in_place'
+  paidFromCma: boolean
+  paymentPreference: BillPaymentPreference
+  keepCurrentPayment: boolean
+  paymentReason: string | null
+  feePerCharge: number | null
+  lostDiscount: number | null
   firstChargeDueOn: string | null
   observedOn: string | null
   observationId: string | null
@@ -124,6 +138,13 @@ export const decideStrategy = (id: string, decision: StrategyDecision) =>
   post<SavedStrategy>(base + '/plans/' + id, decision)
 export const saveStrategySettings = (settings: StrategySettings) =>
   put<StrategySettings>(base + '/settings', settings)
+export const saveBillPaymentPreference = (
+  key: string,
+  preference: BillPaymentPreference,
+) =>
+  put<void>(base + '/bills/' + encodeURIComponent(key) + '/preference', {
+    preference,
+  })
 export const decideBillMove = (
   id: string,
   key: string,

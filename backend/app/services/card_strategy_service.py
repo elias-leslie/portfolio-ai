@@ -8,6 +8,7 @@ from typing import Any
 
 from app.models.card_strategy import (
     BillDecision,
+    BillPaymentPreference,
     ProposeStrategy,
     SavedStrategy,
     StrategyDecision,
@@ -16,6 +17,7 @@ from app.models.card_strategy import (
     StrategyView,
 )
 from app.services._card_rotation_cashflows import add_months, parse_day
+from app.services.card_bill_preferences import CardBillPreferences
 from app.services.card_management_service import CardManagementService
 from app.services.card_strategy_engine import (
     build_baseline,
@@ -36,6 +38,7 @@ class CardStrategyService:
     def __init__(self, storage: Any = None, household: Any = None):
         self.storage = storage or get_storage()
         self.cards = CardManagementService(self.storage)
+        self.bill_preferences = CardBillPreferences(self.storage)
         self.household = household or HouseholdFinanceService()
 
     def settings(self) -> StrategySettings:
@@ -65,7 +68,7 @@ class CardStrategyService:
         baseline = build_baseline(rows, cards, household, settings, today)
         progress = track_bonuses(cards, rows, baseline, today)
         candidates = rank_candidates(self.cards.get_catalog(), cards, baseline, progress, today)
-        bills = suggest_bills(household.recurring_commitments, rows, cards)
+        bills = suggest_bills(household.recurring_commitments, rows, cards, household.accounts)
         return cards, settings, rows, baseline, progress, candidates, bills
 
     def _plans(self) -> list[SavedStrategy]:
@@ -104,6 +107,7 @@ class CardStrategyService:
                 if today > date.fromisoformat(candidate.application_by):
                     changes.append("The proposed application window passed. Refresh the recommendation before applying.")
             bills = self._bill_status(active, bills, rows, cards)
+        self.bill_preferences.apply(bills)
         recommendation = ("Review the leading card and applicant; verify the listed checks before approval."
                           if candidates else "Wait on a new application. Resolve cash-flow, spending or existing-bonus gaps first.")
         events = []
@@ -223,6 +227,14 @@ class CardStrategyService:
                 bill.observed_on, bill.observation_id = latest["date"].isoformat(), latest["id"]
         return bills
 
+    def save_bill_preference(self, key: str, preference: BillPaymentPreference) -> None:
+        if key not in {bill.key for bill in self.view().bills}:
+            raise ValueError("This recurring bill is no longer current.")
+        with self.storage.connection() as conn:
+            conn.execute("SELECT pg_advisory_xact_lock(%s)", [_LOCK])
+            self.bill_preferences.save(key, preference, conn)
+            conn.commit()
+
     def bill_decision(self, plan_id: str, key: str, request: BillDecision) -> None:
         view = self.view()
         if not view.active or view.active.id != plan_id or view.active.status != "approved":
@@ -250,6 +262,10 @@ class CardStrategyService:
             current = conn.execute("SELECT status FROM card_strategy_plans WHERE id=%s FOR UPDATE", [plan_id]).fetchone()
             if current is None or current[0] != "approved":
                 raise ValueError("The plan changed. Reload the checklist.")
+            if request.status == "confirmed":
+                self.bill_preferences.apply([bill], conn)
+                if bill.keep_current_payment:
+                    raise ValueError("This bill is set to keep its current payment method. Choose Consider a credit card first.")
             if request.status == "reset":
                 conn.execute("DELETE FROM card_strategy_bill_moves WHERE plan_id=%s AND merchant_key=%s", [plan_id,key])
             else:

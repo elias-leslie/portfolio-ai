@@ -9,6 +9,7 @@ from tests.services.test_card_strategy_engine import baseline, card
 
 from app.models.card_strategy import (
     BillDecision,
+    BillPaymentPreference,
     BillSuggestion,
     CardCandidate,
     ProposeStrategy,
@@ -144,6 +145,50 @@ def test_bill_never_observes_a_charge_before_confirmation_or_on_another_account(
     service.bill_decision(plan.id,"phone",BillDecision(status="confirmed",card_accepted=True,benefits_checked=True,fee_per_charge=0,lost_discount=0))
     state.rows=[{"id":"old","merchant":"Phone","household_account_id":account,"date":date.today(),"amount":100,"pending":False}]
     assert service.view().bills[0].status == "confirmed"
+
+
+def test_cma_preferences_persist_without_a_plan_and_do_not_invent_fees_or_spending(strategy):
+    service, state = strategy
+    state.bills[0].paid_from_cma = True
+    initial = service.view()
+    assert initial.bills[0].status == "kept_in_place"
+    assert initial.bills[0].fee_per_charge is None
+    assert initial.bills[0].lost_discount is None
+    service.save_bill_preference("phone", BillPaymentPreference(preference="consider_card"))
+    assert service.view().bills[0].status == "suggested"
+    draft = service.propose(ProposeStrategy())
+    assert draft.snapshot.bills[0].payment_preference == "consider_card"
+    approve(service, draft)
+    assert service.view().bills[0].payment_preference == "consider_card"
+    assert service.view().baseline == initial.baseline
+    service.save_bill_preference("phone", BillPaymentPreference())
+    assert service.view().bills[0].status == "kept_in_place"
+    assert service.view().active.snapshot.bills[0].payment_preference == "consider_card"
+    with pytest.raises(ValueError, match="no longer current"):
+        service.save_bill_preference("not-a-bill", BillPaymentPreference(preference="keep_current"))
+
+
+def test_cma_payment_move_requires_an_exception_as_well_as_cost_checks(strategy):
+    service, state = strategy
+    state.bills[0].paid_from_cma = True
+    plan = approve(service, service.propose(ProposeStrategy()))
+    account = _insert_account(service.storage)
+    owned = service.cards.create_owned_card(CreditCardCreate(product_id=state.candidates[0].product_id,
+        player="p2", status="active", opened_date=date.today().isoformat(), household_account_id=account))
+    state.cards = [owned]
+    service.decide(plan.id, StrategyDecision(action="link_card", fingerprint=plan.fingerprint, card_id=owned.id))
+    decision = BillDecision(status="confirmed", card_accepted=True, benefits_checked=True, fee_per_charge=0, lost_discount=0)
+    with pytest.raises(ValueError, match="Consider a credit card"):
+        service.bill_decision(plan.id, "phone", decision)
+    service.save_bill_preference("phone", BillPaymentPreference(preference="consider_card"))
+    with pytest.raises(ValueError, match="adds costs"):
+        service.bill_decision(plan.id, "phone", decision.model_copy(update={"fee_per_charge":3}))
+    service.bill_decision(plan.id, "phone", decision)
+    assert service.view().bills[0].status == "confirmed"
+    service.save_bill_preference("phone", BillPaymentPreference())
+    assert service.view().bills[0].status == "confirmed"
+    service.bill_decision(plan.id, "phone", BillDecision(status="reset"))
+    assert service.view().bills[0].status == "kept_in_place"
 
 
 def test_automatic_research_is_opt_in_and_failed_attempts_consume_the_cooldown(strategy):

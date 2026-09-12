@@ -8,6 +8,7 @@ from app.models.credit_cards import CreditCardProduct, HouseholdCreditCard
 from app.services.card_strategy_engine import (
     build_baseline,
     rank_candidates,
+    suggest_bills,
     terms_evidence,
     track_bonuses,
 )
@@ -132,3 +133,28 @@ def test_timestamp_refresh_does_not_change_the_material_offer_fingerprint():
     p.updated_at = "2026-09-12T20:00:00Z"
     after = rank_candidates([p], [], baseline(), [], TODAY)[0]
     assert before.terms_fingerprint == after.terms_fingerprint
+
+
+def test_bill_payment_identity_uses_the_latest_posted_payment_and_canonical_cma_type():
+    bill = SimpleNamespace(merchant="Duke Energy", average_amount=200, cadence="monthly",
+        commitment_type="bill", due_status="upcoming", next_expected="2026-10-01", evidence="Monthly payments")
+    accounts = [SimpleNamespace(household_account_id="bank", account_type="cash_management", label="Joint account")]
+    rows = [{**purchase(200), "merchant":"Duke Energy", "household_account_id":"bank", "account_label":"Joint account"},
+            {**purchase(200, TODAY+timedelta(days=1)), "merchant":"Duke Energy", "pending":True},
+            {**purchase(-200, TODAY+timedelta(days=1)), "merchant":"Duke Energy"}]
+    result = suggest_bills([bill], rows, [card()], accounts)[0]
+    assert result.paid_from_cma
+    assert not result.already_card_spend
+    assert result.fee_per_charge is None and result.lost_discount is None
+    rows.append({**purchase(200, TODAY+timedelta(days=2)), "merchant":"Duke Energy"})
+    result = suggest_bills([bill], rows, [card()], accounts)[0]
+    assert not result.paid_from_cma
+    assert result.already_card_spend
+
+
+def test_ordinary_bank_accounts_are_not_assumed_to_be_cma_accounts():
+    bill = SimpleNamespace(merchant="Phone", average_amount=100, cadence="monthly",
+        commitment_type="bill", due_status="upcoming", next_expected=None, evidence=None)
+    accounts = [SimpleNamespace(household_account_id="bank", account_type="checking", label="Other bank")]
+    rows = [{**purchase(100), "merchant":"Phone", "household_account_id":"bank", "account_label":"Other bank"}]
+    assert not suggest_bills([bill], rows, [], accounts)[0].paid_from_cma

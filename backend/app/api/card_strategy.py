@@ -8,6 +8,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from app.models.card_strategy import (
     BillDecision,
+    BillPaymentPreference,
     ProposeStrategy,
     SavedStrategy,
     StrategyDecision,
@@ -58,6 +59,15 @@ async def strategy_decision(plan_id: UUID, body: StrategyDecision):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     _invalidate()
     return result
+
+
+@router.put("/bills/{merchant_key}/preference", status_code=204)
+async def strategy_bill_preference(merchant_key: str, body: BillPaymentPreference):
+    try:
+        await run_in_threadpool(_service().save_bill_preference, merchant_key, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _invalidate()
 
 
 @router.put("/plans/{plan_id}/bills/{merchant_key}", status_code=204)
