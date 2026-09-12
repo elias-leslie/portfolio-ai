@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { HouseholdPlanningPanels } from '@/components/money/HouseholdPlanningPanels'
 import { MoneyAssumptionsDrawer } from '@/components/money/MoneyAssumptionsDrawer'
 import { MoneyDataServicesDrawer } from '@/components/money/MoneyDataServicesDrawer'
@@ -20,7 +21,8 @@ import { isPlanningFocus } from './money-route-state'
 type Props = {
   openUtility: MoneyUtility | null
   focusedReview: MoneyFocus | null
-  dashboard: HouseholdFinanceDashboard
+  dashboard?: HouseholdFinanceDashboard
+  dashboardFallback?: ReactNode
   facts: HouseholdConfirmedFact[]
   onUtilityChange: (next: MoneyUtility | null) => void
 }
@@ -29,6 +31,7 @@ export function MoneyUtilityDrawers({
   openUtility,
   focusedReview,
   dashboard,
+  dashboardFallback,
   facts,
   onUtilityChange,
 }: Props) {
@@ -48,21 +51,25 @@ export function MoneyUtilityDrawers({
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4">
-              <MoneyAssumptionsDrawer
-                profile={dashboard.profile}
-                resolvedValues={dashboard.resolvedValues}
-                facts={facts}
-                planningContent={
-                  isPlanningFocus(focusedReview) &&
-                  focusedReview !== 'income' &&
-                  focusedReview !== 'retirement' ? (
-                    <HouseholdPlanningPanels
-                      dashboard={dashboard}
-                      focusedSection={focusedReview}
-                    />
-                  ) : undefined
-                }
-              />
+              {dashboard ? (
+                <MoneyAssumptionsDrawer
+                  profile={dashboard.profile}
+                  resolvedValues={dashboard.resolvedValues}
+                  facts={facts}
+                  planningContent={
+                    isPlanningFocus(focusedReview) &&
+                    focusedReview !== 'income' &&
+                    focusedReview !== 'retirement' ? (
+                      <HouseholdPlanningPanels
+                        dashboard={dashboard}
+                        focusedSection={focusedReview}
+                      />
+                    ) : undefined
+                  }
+                />
+              ) : (
+                dashboardFallback
+              )}
             </div>
           </div>
         </DialogContent>

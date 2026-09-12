@@ -1,10 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import {
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import {
   CATEGORY_BUDGET_PREFIX,
   serializeCategoryBudgetMeta,
 } from '@/components/money/household-fact-metadata'
+import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import type {
@@ -18,6 +26,7 @@ import {
   useHouseholdFacts,
   useHouseholdSpending,
 } from '@/lib/hooks/useHousehold'
+import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import { AffordabilityCard } from './AffordabilityCard'
 import { BudgetDialog } from './BudgetDialog'
 import { BudgetStatRow } from './BudgetStatRow'
@@ -30,6 +39,7 @@ import { IncomeAnchorCard } from './IncomeAnchorCard'
 import type { InlineComboboxCommitOptions } from './InlineComboboxField'
 import { MoneyInboxCard } from './MoneyInboxCard'
 import { MonthComparatorRow } from './MonthComparatorRow'
+import { MonthlyReviewAgreement } from './MonthlyReviewAgreement'
 import { MonthSelector } from './MonthSelector'
 import { MonthVerdictLine } from './MonthVerdictLine'
 import { NeedsWantsMixedCard } from './NeedsWantsMixedCard'
@@ -38,6 +48,7 @@ import { OwnerSpendInsightsCard } from './OwnerSpendInsightsCard'
 import { normalizeTrustStatus } from './overview-helpers'
 import { PushAlertsCard } from './PushAlertsCard'
 import { RetirementPhaseCard } from './RetirementPhaseCard'
+import { ReviewPurchaseActions } from './ReviewPurchaseActions'
 import { SavingsPlanCard } from './SavingsPlanCard'
 import { SinkingFundsCard } from './SinkingFundsCard'
 import {
@@ -45,19 +56,32 @@ import {
   TREND_TOP_N,
   useBudgetRows,
 } from './useBudgetRows'
+import { reviewLedgerHref, useMoneyQuery } from './useMoneyQuery'
 import { WhatChangedCard } from './WhatChangedCard'
 
 export function MoneyBudgetPanel() {
   // null means "whatever month the household is living in" -- the server
   // decides that, so a stale tab cannot pin the panel to a month that has ended.
-  const [month, setMonth] = useState<string | null>(null)
+  const [month, setMonthQuery] = useMoneyQuery('month', '')
+  const setMonth = (value: string | null) => setMonthQuery(value ?? '')
   const [selectedCategory, setSelectedCategory] =
     useState<HouseholdSpendingCategory | null>(null)
   const [budgetInput, setBudgetInput] = useState('')
   const [noteInput, setNoteInput] = useState('')
   const [ownerInput, setOwnerInput] = useState('')
   const [disabled, setDisabled] = useState(false)
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
+  const [expandedCategoryQuery, setExpandedCategoryQuery] = useMoneyQuery(
+    'reviewCategory',
+    '',
+  )
+  const expandedCategory = expandedCategoryQuery || null
+  const setExpandedCategory = useCallback(
+    (value: SetStateAction<string | null>) =>
+      setExpandedCategoryQuery(
+        (typeof value === 'function' ? value(expandedCategory) : value) ?? '',
+      ),
+    [expandedCategory, setExpandedCategoryQuery],
+  )
   const [isolatedSeries, setIsolatedSeries] = useState<string | null>(null)
   const {
     data: spending,
@@ -66,12 +90,19 @@ export function MoneyBudgetPanel() {
     isFetching,
     isLoading,
   } = useHouseholdSpending(month ? { month } : undefined)
+  useUsableContentTiming(
+    'money-review',
+    Boolean(spending?.summary) && !error,
+    month ?? '',
+  )
   const { data: facts = [] } = useHouseholdFacts()
-  // Already fetched by the Money page for every tab, so this is the cached
-  // payload rather than a second round trip. Affordability is read from it
-  // rather than recomputed here: one server figure, however many screens show it.
-  const { data: dashboard, isLoading: isDashboardLoading } =
-    useHouseholdDashboard()
+  const [setupOpen, setSetupOpen] = useState(false)
+  const {
+    data: dashboard,
+    isLoading: isDashboardLoading,
+    error: dashboardError,
+    refetch: refetchDashboard,
+  } = useHouseholdDashboard({ enabled: setupOpen })
   const confirmFact = useConfirmFact()
   const categorizeTransaction = useCategorizeHouseholdTransaction()
 
@@ -232,12 +263,13 @@ export function MoneyBudgetPanel() {
 
   useEffect(() => {
     if (
+      spending &&
       expandedCategory &&
       !activeRows.some((entry) => entry.row.category === expandedCategory)
     ) {
       setExpandedCategory(null)
     }
-  }, [activeRows, expandedCategory])
+  }, [activeRows, expandedCategory, spending, setExpandedCategory])
 
   function saveCategoryBudget(
     row: HouseholdSpendingCategory,
@@ -330,12 +362,11 @@ export function MoneyBudgetPanel() {
     <div className="space-y-6">
       <SectionCard
         variant="surface"
-        title="Budget"
-        description="Set category caps where they matter. Suggested caps stay separate until you accept them or replace them yourself."
+        title="Monthly review"
         actions={
           <MonthSelector
             availableMonths={spending?.availableMonths ?? []}
-            month={month ?? spending?.summary.month ?? null}
+            month={month || spending?.summary.month || null}
             onChange={setMonth}
             isMonthToDate={spending?.summary.isMonthToDate ?? false}
             basisLabel={spending?.summary.basisLabel}
@@ -343,94 +374,69 @@ export function MoneyBudgetPanel() {
           />
         }
       >
-        <div className="mb-3 grid items-start gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        {spending ? (
+          <p className="mb-3 text-xs text-text-muted">
+            {spending.summary.basisLabel} ·{' '}
+            {spending.summary.coverageStatus === 'current'
+              ? 'Recorded activity; spending feeds current'
+              : 'Recorded activity; spending coverage needs review'}
+          </p>
+        ) : null}
+        {spending ? (
+          <MonthComparatorRow
+            monthLabel={spending?.summary.monthLabel ?? '—'}
+            totalSpend={spending?.summary.totalSpend}
+            totalIncome={spending?.summary.totalIncome}
+            netCashFlow={spending?.summary.netCashFlow}
+            oneTimeSpend={spending?.summary.oneTimeSpend}
+            everydaySpend={spending?.summary.everydaySpend}
+            comparators={spending?.comparators ?? []}
+            coverageMonthKeys={coverageMonthKeys}
+          />
+        ) : null}
+        <div className="mt-3">
           <MonthVerdictLine
             verdict={spending?.budgetVerdict}
             isLoading={isLoading}
           />
-          <AffordabilityCard
-            affordability={dashboard?.budgetSnapshot.affordability}
-            isLoading={isDashboardLoading}
-            caveats={affordabilityCaveats}
-          />
         </div>
-        <MonthComparatorRow
-          monthLabel={spending?.summary.monthLabel ?? '—'}
-          totalSpend={spending?.summary.totalSpend}
-          totalIncome={spending?.summary.totalIncome}
-          netCashFlow={spending?.summary.netCashFlow}
-          oneTimeSpend={spending?.summary.oneTimeSpend}
-          everydaySpend={spending?.summary.everydaySpend}
-          comparators={spending?.comparators ?? []}
-          coverageMonthKeys={coverageMonthKeys}
-        />
-        <div className="mt-3">
-          <BudgetStatRow
-            unknownTransactionCount={unknownTransactions.length}
-            unknownSpend={unknownSpend}
-            foundBudgetTotal={foundBudgetTotal}
-            foundBudgetCategoryCount={foundBudgetCategoryCount}
-            connectedMonthToDateSpend={
-              connectedMonthStats.connectedMonthToDateSpend
-            }
-            monthToDateSpend={spending?.summary.monthToDateSpend}
-            connectedPendingCount={connectedMonthStats.pendingCount}
-            connectedPendingSpend={connectedMonthStats.pendingSpend}
-            evidenceMonthToDateSpend={connectedMonthStats.evidenceSpend}
-            monthToDateAsOfDate={connectedMonthStats.asOfDate}
-          />
-        </div>
+        <p className="mt-3 text-xs text-text-muted">
+          {spending?.summary.coverageDetail}
+        </p>
+        {spending ? (
+          <details className="mt-3">
+            <summary className="mb-2 cursor-pointer text-sm text-text-muted">
+              Evidence and cap setup
+            </summary>
+            <BudgetStatRow
+              unknownTransactionCount={unknownTransactions.length}
+              unknownSpend={unknownSpend}
+              foundBudgetTotal={foundBudgetTotal}
+              foundBudgetCategoryCount={foundBudgetCategoryCount}
+              connectedMonthToDateSpend={
+                connectedMonthStats.connectedMonthToDateSpend
+              }
+              monthToDateSpend={spending?.summary.monthToDateSpend}
+              connectedPendingCount={connectedMonthStats.pendingCount}
+              connectedPendingSpend={connectedMonthStats.pendingSpend}
+              evidenceMonthToDateSpend={connectedMonthStats.evidenceSpend}
+              monthToDateAsOfDate={connectedMonthStats.asOfDate}
+            />
+          </details>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Loading this month’s transactions…
+          </p>
+        )}
+        {spending ? (
+          <Link
+            href={reviewLedgerHref(spending.summary.month)}
+            className="mt-3 inline-block text-sm text-primary underline"
+          >
+            Check {spending.summary.monthLabel} in the ledger
+          </Link>
+        ) : null}
       </SectionCard>
-
-      <div className="grid items-start gap-3 lg:grid-cols-2">
-        {/* What a normal month brings in sits on the review screen because
-            every cap Phase 3 sets is priced off it, and because the saved
-            take-home target it replaces is above what actually arrives. */}
-        <IncomeAnchorCard
-          anchor={dashboard?.incomeAnchor}
-          isLoading={isDashboardLoading}
-        />
-        <SavingsPlanCard
-          plan={dashboard?.savingsPlan}
-          isLoading={isDashboardLoading}
-        />
-      </div>
-
-      {/* The caps are priced off the anchor, not off history: a plan whose
-          caps sum above take-home lets "under budget" and "going broke" be
-          true at once (D6). */}
-      <CapPlanCard plan={spending?.capPlan} isLoading={isLoading} />
-
-      {/* Priced off the same anchor above: what the lumpy costs need each
-          month, before any category cap divides up what is left. */}
-      <SinkingFundsCard
-        funds={dashboard?.sinkingFunds}
-        isLoading={isDashboardLoading}
-      />
-
-      {/* The fees subtracted one card up, itemised — plus the balances and any
-          bonus deadline, which lived only on the Cards tab until now (P0-20). */}
-      <CardCommitmentsCard
-        commitments={dashboard?.cardCommitments}
-        isLoading={isDashboardLoading}
-      />
-
-      <MoneyInboxCard inbox={dashboard?.inbox} isLoading={isDashboardLoading} />
-
-      {/* The same findings the inbox above collects, on the phone — the inbox
-          only reaches someone already looking at this screen (D11). */}
-      <PushAlertsCard />
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <NeedsWantsMixedCard
-          dashboard={dashboard}
-          isLoading={isDashboardLoading}
-        />
-        <RetirementPhaseCard
-          block={dashboard?.retirementContributionTracker}
-          isLoading={isDashboardLoading}
-        />
-      </div>
 
       <WhatChangedCard variance={spending?.spendVariance} />
 
@@ -439,28 +445,21 @@ export function MoneyBudgetPanel() {
         monthLabel={spending?.summary.monthLabel ?? 'this month'}
       />
 
-      <ConnectedSpendTrendChart
-        transactions={spending?.transactions ?? []}
-        isLoading={isLoading}
-      />
+      {spending?.reviewPlan ? (
+        <MonthlyReviewAgreement
+          key={spending.summary.month}
+          plan={spending.reviewPlan}
+        />
+      ) : null}
 
-      <CategoryTrendChart
-        timeframeLabel={spending?.summary.monthLabel}
-        trendData={trendMeta.data}
-        trendCategories={trendMeta.categories}
-        chartCategories={chartCategories}
-        isolatedSeries={isolatedSeries}
-        setIsolatedSeries={setIsolatedSeries}
-        isolatedCap={isolatedCap}
-        trendTopN={TREND_TOP_N}
-      />
-
-      <OwnerSpendInsightsCard
-        timeframeLabel={spending?.summary.monthLabel}
-        ownerSpendRows={ownerSpendRows}
-      />
+      <ReviewPurchaseActions />
 
       <BudgetTable
+        month={spending?.summary.month}
+        isProvisional={
+          spending?.summary.isMonthToDate ||
+          spending?.summary.coverageStatus !== 'current'
+        }
         isLoading={isLoading}
         hasData={spending != null}
         activeRowCount={activeRows.length}
@@ -479,6 +478,121 @@ export function MoneyBudgetPanel() {
         onSaveBudget={saveCategoryBudget}
         transactionEditorProps={transactionEditorProps}
       />
+
+      <details
+        open={setupOpen}
+        onToggle={(event) => setSetupOpen(event.currentTarget.open)}
+        className="rounded-2xl border border-border/35 p-4"
+      >
+        <summary className="cursor-pointer font-medium">
+          Funding, caps, and household setup
+        </summary>
+        {setupOpen && (
+          <div className="mt-4 space-y-4">
+            {dashboardError && !dashboard ? (
+              <LoadErrorState
+                title="Current household setup could not be loaded."
+                onRetry={() => void refetchDashboard()}
+              />
+            ) : (
+              <>
+                <div>
+                  <p className="mb-2 text-xs text-text-muted">
+                    Current cash position · updated{' '}
+                    {dashboard
+                      ? new Date(dashboard.generatedAt).toLocaleDateString()
+                      : 'loading…'}
+                  </p>
+                  <AffordabilityCard
+                    affordability={dashboard?.budgetSnapshot.affordability}
+                    isLoading={isDashboardLoading}
+                    caveats={affordabilityCaveats}
+                  />
+                </div>
+                <div className="grid items-start gap-3 lg:grid-cols-2">
+                  {/* What a normal month brings in sits on the review screen because
+            every cap Phase 3 sets is priced off it, and because the saved
+            take-home target it replaces is above what actually arrives. */}
+                  <IncomeAnchorCard
+                    anchor={dashboard?.incomeAnchor}
+                    isLoading={isDashboardLoading}
+                  />
+                  <SavingsPlanCard
+                    plan={dashboard?.savingsPlan}
+                    isLoading={isDashboardLoading}
+                  />
+                </div>
+
+                {/* The caps are priced off the anchor, not off history: a plan whose
+          caps sum above take-home lets "under budget" and "going broke" be
+          true at once (D6). */}
+                <CapPlanCard plan={spending?.capPlan} isLoading={isLoading} />
+
+                {/* Priced off the same anchor above: what the lumpy costs need each
+          month, before any category cap divides up what is left. */}
+                <SinkingFundsCard
+                  funds={dashboard?.sinkingFunds}
+                  isLoading={isDashboardLoading}
+                />
+
+                {/* The fees subtracted one card up, itemised — plus the balances and any
+          bonus deadline, which lived only on the Cards tab until now (P0-20). */}
+                <CardCommitmentsCard
+                  commitments={dashboard?.cardCommitments}
+                  isLoading={isDashboardLoading}
+                />
+
+                <MoneyInboxCard
+                  inbox={dashboard?.inbox}
+                  isLoading={isDashboardLoading}
+                />
+
+                {/* The same findings the inbox above collects, on the phone — the inbox
+          only reaches someone already looking at this screen (D11). */}
+                <PushAlertsCard />
+
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <NeedsWantsMixedCard
+                    dashboard={dashboard}
+                    isLoading={isDashboardLoading}
+                  />
+                  <RetirementPhaseCard
+                    block={dashboard?.retirementContributionTracker}
+                    isLoading={isDashboardLoading}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </details>
+      <details className="rounded-2xl border border-border/35 p-4">
+        <summary className="cursor-pointer font-medium">
+          Spending trends and owners
+        </summary>
+        <div className="mt-4 space-y-4">
+          <ConnectedSpendTrendChart
+            transactions={spending?.transactions ?? []}
+            isLoading={isLoading}
+          />
+
+          <CategoryTrendChart
+            timeframeLabel={spending?.summary.monthLabel}
+            trendData={trendMeta.data}
+            trendCategories={trendMeta.categories}
+            chartCategories={chartCategories}
+            isolatedSeries={isolatedSeries}
+            setIsolatedSeries={setIsolatedSeries}
+            isolatedCap={isolatedCap}
+            trendTopN={TREND_TOP_N}
+          />
+
+          <OwnerSpendInsightsCard
+            timeframeLabel={spending?.summary.monthLabel}
+            ownerSpendRows={ownerSpendRows}
+          />
+        </div>
+      </details>
 
       {hiddenRows.length > 0 ? (
         // SectionCard does not forward an id, so the anchor target wraps it.

@@ -163,20 +163,24 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
+    expect(screen.getByText('Money Budget Panel')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: 'Net worth' }))
+
     expect(
       screen.getByText('Dashboard data is unavailable.'),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Budget, Levers, and Ledger remain available. Retry to restore the overview, retirement, account, intake, and review data.',
+        'Review and Ledger remain available. Retry to restore net worth, retirement, and account data.',
       ),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'Budget' }))
+    await user.click(screen.getByRole('tab', { name: 'Review' }))
     expect(screen.getByText('Money Budget Panel')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'Levers' }))
-    expect(screen.getByText('Money Levers Panel')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('tab', { name: 'Levers' }),
+    ).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'Ledger' }))
     expect(screen.getByText('Money Ledger Panel')).toBeInTheDocument()
@@ -190,7 +194,7 @@ describe('MoneyPage', () => {
     expect(refetch).toHaveBeenCalled()
   })
 
-  it('renders the simplified summary and overview-first tabs', async () => {
+  it('renders the simplified summary and review-first tabs', async () => {
     const { default: MoneyPage } = await import('../money/page')
 
     render(<MoneyPage />)
@@ -202,19 +206,19 @@ describe('MoneyPage', () => {
     expect(
       screen.getByRole('link', { name: /add anything/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Dashboard/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Budget/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Levers/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Net worth/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Review$/i })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('tab', { name: /Levers/i }),
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Retirement/i })).toBeInTheDocument()
     // Allocation folded into the Dashboard tab — no standalone tab anymore.
     expect(
       screen.queryByRole('tab', { name: /Allocation/i }),
     ).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Accounts/i })).toBeInTheDocument()
-    expect(
-      screen.getByRole('tab', { name: /Intake & Review/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Intake$/i })).toBeInTheDocument()
+    expect(screen.getByText('Money Budget Panel')).toBeInTheDocument()
     expect(screen.queryByText('Net Worth')).not.toBeInTheDocument()
     expect(screen.queryByText('Fix Money Data')).not.toBeInTheDocument()
   })
@@ -261,7 +265,7 @@ describe('MoneyPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows retry for the intake tab when document loading fails', async () => {
+  it('keeps the independent intake queue usable when the account document query fails', async () => {
     const user = userEvent.setup()
     const refetchDocuments = vi.fn()
     useHouseholdDocumentsMock.mockReturnValue({
@@ -275,10 +279,9 @@ describe('MoneyPage', () => {
 
     render(<MoneyPage />)
 
-    await user.click(screen.getByRole('tab', { name: 'Intake & Review' }))
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
-
-    expect(refetchDocuments).toHaveBeenCalled()
+    await user.click(screen.getByRole('tab', { name: 'Intake' }))
+    expect(screen.getByText('Document Center')).toBeInTheDocument()
+    expect(refetchDocuments).not.toHaveBeenCalled()
   })
 
   it('opens intake from the intake tab query param', async () => {

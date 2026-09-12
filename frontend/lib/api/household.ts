@@ -186,6 +186,8 @@ export type {
   JennyProgression,
   ManualHoldingEntryInput,
   ManualHoldingsReplaceInput,
+  MonthlyReviewPlan,
+  MonthlyReviewRecord,
   PortfolioHouseholdContext,
   RetirementAcaConfig,
   RetirementAcaPerson,
@@ -216,6 +218,7 @@ export type {
   RetirementWithdrawalConfig,
   RetirementWithdrawalHealthcarePoint,
   RetirementWithdrawalPhaseConfig,
+  ReviewDecision,
 } from './household/types'
 // File validation constant and function
 // Upload functions

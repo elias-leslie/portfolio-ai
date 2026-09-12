@@ -19,9 +19,11 @@ from app.models.household_finance import (
 )
 from app.services._household_finance_utils import iso_or_none, to_float
 from app.services._household_item_linkage import build_linkage_coverage
+from app.services._household_report_builder import _coerce_metadata, _extract_package_measure
 from app.services.household_product_normalization_service import (
     HouseholdProductNormalizationService,
 )
+from app.services.household_unit_prices import unit_price_basis
 from app.storage import get_storage
 
 # Sparkline payload cap per product; detail view fetches a longer history.
@@ -30,7 +32,6 @@ _DETAIL_OBSERVATION_CAP = 200
 _DETAIL_ITEM_CAP = 50
 _REVIEW_QUEUE_CAP = 100
 _ACTIVE_PRODUCT_WINDOW_MONTHS = 18
-_MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
 _UNIT_LABELS = {
     "weight_oz": "oz",
     "volume_fl_oz": "fl oz",
@@ -52,30 +53,41 @@ _PRODUCT_SORT_COLUMNS = {
     "frequency": "COALESCE(items.purchase_count, 0)",
     "name": "LOWER(p.canonical_name)",
     "price": "latest_obs.total_price",
-    "unit_price": "latest_obs.unit_price",
     "owner": "LOWER(COALESCE(owner_rule.owner_name, latest_item.owner_name, ''))",
     "review": "COALESCE(items.needs_review_count, 0)",
 }
 
 
 def _reliable_observation_sql(alias: str = "o") -> str:
-    confidence_value = f"{alias}.metadata -> 'confidence'"
-    confidence_text = f"{alias}.metadata ->> 'confidence'"
     return (
         f"({alias}.source <> 'vendor_quote' OR "
-        f"(jsonb_typeof({confidence_value}) = 'number' "
-        f"AND ({confidence_text})::double precision >= {_MIN_VENDOR_QUOTE_CONFIDENCE}))"
+        f"({alias}.metadata -> 'equivalence_confirmed' = 'true'::jsonb "
+        f"AND {alias}.metadata ->> 'withdrawn_at' IS NULL))"
     )
 
 
 def _price_point(row: Any) -> HouseholdProductPricePoint:
     """Shared row shape: observed_date, merchant, total, quantity, unit, source."""
+    basis = unit_price_basis(
+        description=str(_row_value(row, 6, "") or ""),
+        metadata=_coerce_metadata(_row_value(row, 7, {})),
+        line_total=row[2],
+        packages=row[3],
+        source=str(row[5]),
+        quote_package_label=str(_row_value(row, 8, "") or ""),
+    )
     return HouseholdProductPricePoint(
         observed_date=iso_or_none(row[0]) or "",
         merchant=str(row[1]) if row[1] else None,
         total_price=float(row[2] or 0.0),
         quantity=to_float(row[3]),
-        unit_price=to_float(row[4]),
+        unit_price=round(basis.unit_price, 4) if basis else None,
+        unit_label=basis.unit_label if basis else None,
+        package_label=basis.package_label if basis else None,
+        package_quantity=basis.package_quantity if basis else None,
+        basis_evidence=basis.evidence_text if basis else None,
+        package_price=round(basis.package_price, 2) if basis else None,
+        description=str(_row_value(row, 6, "") or "") or None,
         source=str(row[5] or ""),
     )
 
@@ -147,9 +159,7 @@ class HouseholdProductCatalogService:
     ) -> HouseholdProductList:
         normalized_search = (search or "").strip()
         sort_key = (sort or "recent").strip().lower()
-        sort_column = _PRODUCT_SORT_COLUMNS.get(
-            sort_key, _PRODUCT_SORT_COLUMNS["recent"]
-        )
+        sort_column = _PRODUCT_SORT_COLUMNS.get(sort_key, _PRODUCT_SORT_COLUMNS["recent"])
         direction = "ASC" if (sort_dir or "desc").strip().lower() == "asc" else "DESC"
         nulls = "NULLS FIRST" if direction == "ASC" else "NULLS LAST"
         order_by = f"{sort_column} {direction} {nulls}"
@@ -222,7 +232,7 @@ class HouseholdProductCatalogService:
             latest_obs AS (
                 SELECT DISTINCT ON (product_id)
                        product_id,
-                       total_price,
+                       total_price / CASE WHEN source='vendor_quote' THEN 1 ELSE NULLIF(quantity,0) END AS total_price,
                        unit_price
                 FROM household_product_price_observations
                 WHERE {_reliable_observation_sql("household_product_price_observations")}
@@ -296,35 +306,29 @@ class HouseholdProductCatalogService:
         best_price: dict[str, Any] | None = None,
     ) -> HouseholdProductSummary:
         latest = points[-1] if points else None
+        title_measure = _extract_package_measure(str(row[1] or ""), {})
         return HouseholdProductSummary(
             id=str(row[0]),
             canonical_name=str(row[1] or ""),
             brand=str(row[2]) if row[2] else None,
-            package_display_label=str(row[3]) if row[3] else None,
+            package_display_label=(latest.package_label if latest else None)
+            or (title_measure.display_label if title_measure else None),
             image_url=str(row[4]) if row[4] else None,
             purchase_count=int(row[5] or 0),
             observation_count=int(row[6] or 0),
             needs_review_count=int(row[7] or 0),
             first_observed_date=iso_or_none(row[8]),
             last_observed_date=iso_or_none(row[9]),
-            latest_price=latest.total_price if latest else None,
+            latest_price=latest.package_price if latest else None,
             latest_unit_price=latest.unit_price if latest else None,
+            latest_unit_label=latest.unit_label if latest else None,
+            latest_description=latest.description if latest else None,
             latest_merchant=latest.merchant if latest else None,
-            best_researched_vendor_key=(
-                str(best_price["vendor_key"]) if best_price else None
-            ),
-            best_researched_vendor=(
-                str(best_price["vendor_name"]) if best_price else None
-            ),
-            best_researched_total_price=(
-                float(best_price["total_price"]) if best_price else None
-            ),
-            best_researched_unit_price=(
-                float(best_price["unit_price"]) if best_price else None
-            ),
-            best_researched_unit_label=(
-                str(best_price["unit_label"]) if best_price else None
-            ),
+            best_researched_vendor_key=(str(best_price["vendor_key"]) if best_price else None),
+            best_researched_vendor=(str(best_price["vendor_name"]) if best_price else None),
+            best_researched_total_price=(float(best_price["total_price"]) if best_price else None),
+            best_researched_unit_price=(float(best_price["unit_price"]) if best_price else None),
+            best_researched_unit_label=(str(best_price["unit_label"]) if best_price else None),
             best_researched_package_label=(
                 str(best_price["package_label"])
                 if best_price and best_price.get("package_label")
@@ -361,7 +365,7 @@ class HouseholdProductCatalogService:
         rows = conn.execute(
             f"""
             SELECT product_id, observed_date, merchant, total_price, quantity,
-                   unit_price, source
+                   unit_price, source, description, row_metadata, package_display_label
             FROM (
                 SELECT o.product_id::text AS product_id,
                        o.observed_date,
@@ -370,23 +374,28 @@ class HouseholdProductCatalogService:
                        o.quantity,
                        o.unit_price,
                        o.source,
+                       COALESCE(i.description, p.canonical_name) AS description,
+                       COALESCE(ir.row_metadata,'{{}}'::jsonb) || o.metadata AS row_metadata, o.package_display_label,
                        ROW_NUMBER() OVER (
                            PARTITION BY o.product_id
                            ORDER BY o.observed_date DESC, o.created_at DESC
                        ) AS recency_rank
                 FROM household_product_price_observations o
                 LEFT JOIN household_merchants m ON m.id = o.merchant_id
+                JOIN household_products p ON p.id = o.product_id
+                LEFT JOIN household_purchase_items i ON i.id = o.purchase_item_id
+                LEFT JOIN household_import_rows ir ON ir.id = i.import_row_id
                 WHERE o.product_id = ANY(%s::uuid[])
                   AND {_reliable_observation_sql("o")}
             ) recent
             WHERE recency_rank <= %s
-            ORDER BY product_id, observed_date ASC
+            ORDER BY product_id, observed_date ASC, recency_rank DESC
             """,
             [product_ids, per_product_cap],
         ).fetchall()
         by_product: dict[str, list[HouseholdProductPricePoint]] = {}
         for row in rows:
-            by_product.setdefault(str(row[0]), []).append(_price_point(row[1:7]))
+            by_product.setdefault(str(row[0]), []).append(_price_point(row[1:]))
         return by_product
 
     @staticmethod
@@ -395,121 +404,78 @@ class HouseholdProductCatalogService:
         *,
         product_ids: list[str],
     ) -> dict[str, dict[str, Any]]:
-        """Cheapest researched vendor quote per product on a normalized unit basis."""
+        """Lowest latest-per-store observation, never an availability claim.
+
+        Normalize raw line amounts before ranking. Stored legacy package fields
+        can contain parser mistakes and cannot select a winner safely in SQL.
+        """
         if not product_ids:
             return {}
         rows = conn.execute(
-            f"""
-            WITH latest_actual_unit AS (
-                SELECT DISTINCT ON (product_id)
-                       product_id,
-                       package_normalized_unit
-                FROM household_product_price_observations
-                WHERE product_id = ANY(%s::uuid[])
-                  AND source <> 'vendor_quote'
-                  AND package_normalized_unit IS NOT NULL
-                  AND package_normalized_quantity IS NOT NULL
-                  AND package_normalized_quantity > 0
-                ORDER BY product_id, observed_date DESC, created_at DESC
-            ),
-            comparable_observations AS (
-                SELECT o.product_id::text AS product_id,
-                       COALESCE(
-                           o.metadata ->> 'vendor_key',
-                           LOWER(
-                               REPLACE(
-                                   COALESCE(m.canonical_name, m.display_name, o.source),
-                                   ' ',
-                                   '_'
-                               )
-                           )
-                       ) AS vendor_key,
-                       COALESCE(
-                           m.canonical_name,
-                           m.display_name,
-                           o.metadata ->> 'vendor_key',
-                           o.source
-                       )
-                           AS vendor_name,
-                       CAST(o.total_price AS DOUBLE PRECISION) AS total_price,
-                       CAST(
-                           o.total_price / NULLIF(o.package_normalized_quantity, 0)
-                           AS DOUBLE PRECISION
-                       ) AS unit_price,
-                       o.package_display_label,
-                       o.package_normalized_unit,
-                       o.observed_date,
-                       o.metadata ->> 'url' AS url,
-                       CAST(NULLIF(o.metadata ->> 'confidence', '') AS DOUBLE PRECISION)
-                           AS confidence,
-                       o.source,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY o.product_id,
-                               COALESCE(
-                                   o.metadata ->> 'vendor_key',
-                                   LOWER(
-                                       REPLACE(
-                                           COALESCE(m.canonical_name, m.display_name, o.source),
-                                           ' ',
-                                           '_'
-                                       )
-                                   )
-                               )
-                           ORDER BY
-                               o.observed_date DESC,
-                               o.total_price / NULLIF(o.package_normalized_quantity, 0) ASC,
-                               o.created_at DESC
-                       ) AS latest_vendor_rank
-                FROM household_product_price_observations o
-                LEFT JOIN household_merchants m ON m.id = o.merchant_id
-                LEFT JOIN latest_actual_unit lau ON lau.product_id = o.product_id
-                WHERE o.product_id = ANY(%s::uuid[])
-                  AND o.total_price > 0
-                  AND o.package_normalized_quantity IS NOT NULL
-                  AND o.package_normalized_quantity > 0
-                  AND o.package_normalized_unit IS NOT NULL
-                  AND (
-                      lau.package_normalized_unit IS NULL
-                      OR lau.package_normalized_unit = o.package_normalized_unit
-                  )
-                  AND {_reliable_observation_sql("o")}
-            ),
-            latest_vendor_observations AS (
-                SELECT *
-                FROM comparable_observations
-                WHERE latest_vendor_rank = 1
-            ),
-            best_observations AS (
-                SELECT *,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY product_id
-                           ORDER BY unit_price ASC, observed_date DESC
-                       ) AS best_quote_rank
-                FROM latest_vendor_observations
-            )
-            SELECT product_id, vendor_key, vendor_name, total_price, unit_price,
-                   package_display_label, package_normalized_unit, observed_date,
-                   confidence, url, source
-            FROM best_observations
-            WHERE best_quote_rank = 1
+            """
+            SELECT o.product_id::text,
+                   COALESCE(o.metadata ->> 'vendor_key', LOWER(m.canonical_name), o.source) AS vendor_key,
+                   COALESCE(m.canonical_name, o.metadata ->> 'vendor_key', o.source),
+                   o.total_price, o.quantity, o.package_display_label,
+                   COALESCE(i.description, p.canonical_name), COALESCE(ir.row_metadata,'{}'::jsonb) || o.metadata,
+                   o.observed_date, o.metadata, o.source
+            FROM household_product_price_observations o
+            JOIN household_products p ON p.id = o.product_id
+            LEFT JOIN household_purchase_items i ON i.id = o.purchase_item_id
+            LEFT JOIN household_import_rows ir ON ir.id = i.import_row_id
+            LEFT JOIN household_merchants m ON m.id = o.merchant_id
+            WHERE o.product_id = ANY(%s::uuid[]) AND o.total_price > 0
+              AND o.observed_date <= CURRENT_DATE
+              AND (i.id IS NULL OR i.removed IS NOT TRUE)
+            ORDER BY o.observed_date DESC, o.created_at DESC
             """,
-            [product_ids, product_ids],
+            [product_ids],
         ).fetchall()
-        return {
-            str(row[0]): {
-                "vendor_key": str(row[1]),
-                "vendor_name": str(row[2] or row[1]),
-                "total_price": float(row[3] or 0.0),
-                "unit_price": float(row[4] or 0.0),
-                "package_label": str(row[5]) if row[5] else None,
-                "unit_label": _unit_label(str(row[6]) if row[6] else None),
-                "observed_date": iso_or_none(row[7]),
-                "confidence": to_float(row[8]),
-                "url": str(row[9]) if row[9] else None,
-                "source": str(row[10]) if row[10] else None,
-            }
-            for row in rows
-        }
+        latest: dict[tuple[str, str], dict[str, Any]] = {}
+        actual_units: dict[str, str] = {}
+        for row in rows:
+            product_id, vendor_key = str(row[0]), str(row[1])
+            metadata = _coerce_metadata(row[9])
+            basis = unit_price_basis(
+                description=str(row[6] or ""),
+                metadata=_coerce_metadata(row[7]),
+                line_total=row[3],
+                packages=row[4],
+                source=str(row[10]),
+                quote_package_label=str(row[5] or ""),
+            )
+            if basis is None:
+                continue
+            if row[10] in {"receipt", "order_history"}:
+                actual_units.setdefault(product_id, basis.unit_label)
+            # Research can return substitutes; a confidence percentage is not
+            # household confirmation of equivalence or a purchase observation.
+            if row[10] == "vendor_quote" and (
+                metadata.get("equivalence_confirmed") is not True or metadata.get("withdrawn_at")
+            ):
+                continue
+            latest.setdefault(
+                (product_id, vendor_key),
+                {
+                    "vendor_key": vendor_key,
+                    "vendor_name": str(row[2] or vendor_key),
+                    "total_price": round(basis.package_price, 2),
+                    "unit_price": round(basis.unit_price, 4),
+                    "package_label": basis.package_label,
+                    "unit_label": basis.unit_label,
+                    "observed_date": iso_or_none(row[8]),
+                    "confidence": None,
+                    "url": metadata.get("url"),
+                    "source": str(row[10]),
+                },
+            )
+        best: dict[str, dict[str, Any]] = {}
+        for (product_id, _vendor), point in latest.items():
+            if actual_units.get(product_id, point["unit_label"]) != point["unit_label"]:
+                continue
+            if product_id not in best or point["unit_price"] < best[product_id]["unit_price"]:
+                best[product_id] = point
+        return best
 
     def get_product_detail(self, product_id: str) -> HouseholdProductDetail | None:
         with self.storage.connection() as conn:
@@ -556,17 +522,22 @@ class HouseholdProductCatalogService:
                 for observation_row in conn.execute(
                     f"""
                     SELECT o.observed_date, m.canonical_name, o.total_price,
-                           o.quantity, o.unit_price, o.source
+                           o.quantity, o.unit_price, o.source,
+                           COALESCE(i.description, p.canonical_name), COALESCE(ir.row_metadata,'{{}}'::jsonb) || o.metadata AS row_metadata, o.package_display_label
                     FROM household_product_price_observations o
                     LEFT JOIN household_merchants m ON m.id = o.merchant_id
+                    JOIN household_products p ON p.id = o.product_id
+                    LEFT JOIN household_purchase_items i ON i.id = o.purchase_item_id
+                    LEFT JOIN household_import_rows ir ON ir.id = i.import_row_id
                     WHERE o.product_id = %s
                       AND {_reliable_observation_sql("o")}
-                    ORDER BY o.observed_date ASC, o.created_at ASC
+                    ORDER BY o.observed_date DESC, o.created_at DESC
                     LIMIT %s
                     """,
                     [product_id, _DETAIL_OBSERVATION_CAP],
                 ).fetchall()
             ]
+            observations.reverse()
             identifier_rows = conn.execute(
                 """
                 SELECT kind, value FROM household_product_identifiers
@@ -598,8 +569,7 @@ class HouseholdProductCatalogService:
             generated_at=datetime.now(UTC).isoformat(),
             product=summary,
             identifiers=[
-                HouseholdProductIdentifier(kind=str(r[0]), value=str(r[1]))
-                for r in identifier_rows
+                HouseholdProductIdentifier(kind=str(r[0]), value=str(r[1])) for r in identifier_rows
             ],
             observations=observations,
             recent_items=[_purchase_item(r) for r in item_rows],

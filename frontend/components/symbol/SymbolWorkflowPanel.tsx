@@ -5,12 +5,13 @@ import { useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   useRecordSymbolWorkflowOutcome,
   useSymbolWorkflow,
   useTransitionSymbolWorkflow,
 } from '@/lib/hooks/useSymbolIntelligence'
+import { WorkflowEvidenceSnapshot } from './WorkflowEvidenceSnapshot'
 
 function formatStage(stage: string) {
   return stage.replaceAll('_', ' ')
@@ -30,7 +31,6 @@ function formatTimestamp(value: string | null | undefined) {
 
 export function SymbolWorkflowPanel({
   symbol,
-  latestReview,
 }: {
   symbol: string
   latestReview?: {
@@ -43,12 +43,15 @@ export function SymbolWorkflowPanel({
   const transitionWorkflow = useTransitionSymbolWorkflow(symbol)
   const recordOutcome = useRecordSymbolWorkflowOutcome(symbol)
   const [outcomeNote, setOutcomeNote] = useState('')
+  const rationaleReady =
+    outcomeNote.trim().length >= 10 && outcomeNote.trim().length <= 2000
+  const saving = transitionWorkflow.isPending || recordOutcome.isPending
 
   return (
     <SectionCard
       variant="surface"
-      title="Workflow Loop"
-      description="Persist the real state of this symbol instead of rediscovering it every time."
+      title="Decision history"
+      description="Record the rationale and evidence for the next review."
     >
       {isLoading ? (
         <div className="grid gap-3 md:grid-cols-2">
@@ -74,6 +77,26 @@ export function SymbolWorkflowPanel({
 
       {!isLoading && !error && data ? (
         <div className="space-y-5">
+          <div className="space-y-2">
+            <label
+              htmlFor="symbol-decision-rationale"
+              className="text-sm font-semibold"
+            >
+              Decision rationale (required)
+            </label>
+            <Textarea
+              id="symbol-decision-rationale"
+              value={outcomeNote}
+              onChange={(event) => setOutcomeNote(event.target.value)}
+              maxLength={2000}
+              placeholder="What evidence led to this decision, and what would change it?"
+              aria-describedby="decision-save-context"
+            />
+            <p id="decision-save-context" className="text-xs text-text-muted">
+              Use 10–2,000 characters. Saves the current source evidence with
+              your note. Recording a decision does not place a trade.
+            </p>
+          </div>
           <div className="grid gap-4 lg:grid-cols-[0.7fr_1.3fr]">
             <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
@@ -134,8 +157,13 @@ export function SymbolWorkflowPanel({
                       variant={
                         stage === 'invalidated' ? 'destructive' : 'outline'
                       }
-                      onClick={() => transitionWorkflow.mutate({ stage })}
-                      disabled={transitionWorkflow.isPending}
+                      onClick={() =>
+                        transitionWorkflow.mutate(
+                          { stage, note: outcomeNote.trim() },
+                          { onSuccess: () => setOutcomeNote('') },
+                        )
+                      }
+                      disabled={saving || !rationaleReady}
                       aria-busy={transitionWorkflow.isPending}
                     >
                       {stage === 'discover' ? (
@@ -143,7 +171,9 @@ export function SymbolWorkflowPanel({
                       ) : (
                         <ArrowRight className="mr-2 h-4 w-4" />
                       )}
-                      Move to {formatStage(stage)}
+                      {stage === 'thesis_ready'
+                        ? 'Prepare thesis'
+                        : `Move to ${formatStage(stage)}`}
                     </Button>
                   ))}
                 </div>
@@ -152,49 +182,30 @@ export function SymbolWorkflowPanel({
           </div>
 
           <div className="rounded-2xl border border-border/40 bg-surface/70 p-4">
-            <p className="text-sm font-semibold text-text">Outcome capture</p>
+            <p className="text-sm font-semibold text-text">Record a decision</p>
             <p className="mt-2 text-sm text-text-muted">
-              Record the real decision on the live position so future reviews
-              remember the context.
+              {data.position
+                ? 'Position decisions use the currently reported holdings. A recorded sale may precede the next broker sync.'
+                : 'This symbol is not held. Track a potential entry, pass for now, or prepare a thesis above.'}
             </p>
-            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
-              <Input
-                value={outcomeNote}
-                onChange={(event) => setOutcomeNote(event.target.value)}
-                placeholder="Optional note: why did you hold, trim, exit, or invalidate?"
-              />
-              <div className="flex flex-wrap gap-2">
-                {['hold', 'trim', 'exit', 'invalidate'].map((action) => (
-                  <Button
-                    key={action}
-                    size="sm"
-                    variant={
-                      action === 'invalidate' ? 'destructive' : 'outline'
-                    }
-                    onClick={() =>
-                      recordOutcome.mutate({
-                        action,
-                        note:
-                          outcomeNote ||
-                          `Recorded ${action} decision from symbol workspace.`,
-                        jennyVerdict: latestReview?.finalVerdict ?? null,
-                        managementAction:
-                          latestReview?.managementAction ?? null,
-                      })
-                    }
-                    disabled={recordOutcome.isPending}
-                    aria-busy={recordOutcome.isPending}
-                  >
-                    {action === 'exit'
-                      ? 'Record exit'
-                      : action === 'hold'
-                        ? 'Record hold'
-                        : action === 'trim'
-                          ? 'Record trim'
-                          : 'Invalidate'}
-                  </Button>
-                ))}
-              </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(data.availableActions ?? []).map((action) => (
+                <Button
+                  key={action}
+                  size="sm"
+                  variant={action === 'invalidate' ? 'destructive' : 'outline'}
+                  onClick={() =>
+                    recordOutcome.mutate(
+                      { action, note: outcomeNote.trim() },
+                      { onSuccess: () => setOutcomeNote('') },
+                    )
+                  }
+                  disabled={saving || !rationaleReady}
+                  aria-busy={recordOutcome.isPending}
+                >
+                  Record {action}
+                </Button>
+              ))}
             </div>
             {data.latestOutcome ? (
               <div className="mt-4 rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
@@ -227,7 +238,7 @@ export function SymbolWorkflowPanel({
                   key={event.id}
                   className="rounded-2xl border border-border/40 bg-surface-muted/10 p-4"
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm font-semibold text-text">
                       <GitBranch className="h-4 w-4 text-primary" />
                       <span>
@@ -242,6 +253,7 @@ export function SymbolWorkflowPanel({
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-text-muted">{event.note}</p>
+                  <WorkflowEvidenceSnapshot event={event} />
                 </div>
               ))
             )}

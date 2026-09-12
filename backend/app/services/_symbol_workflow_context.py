@@ -41,7 +41,9 @@ class _PositionContextBuilder:
             weight_pct=round(position.weight_pct, 2) if position.weight_pct is not None else None,
         )
 
-    def latest_outcome(self, history: list[SymbolWorkflowEvent]) -> SymbolWorkflowOutcomeSnapshot | None:
+    def latest_outcome(
+        self, history: list[SymbolWorkflowEvent]
+    ) -> SymbolWorkflowOutcomeSnapshot | None:
         for event in history:
             if event.metadata.get("kind") != "outcome_capture":
                 continue
@@ -67,6 +69,9 @@ class _PositionContextBuilder:
                     if isinstance(jenny_payload, dict) and jenny_payload.get("management_action")
                     else None
                 ),
+                evidence_snapshot=event.metadata.get("evidence_snapshot")
+                if isinstance(event.metadata.get("evidence_snapshot"), dict)
+                else None,
                 position=position,
             )
         return None

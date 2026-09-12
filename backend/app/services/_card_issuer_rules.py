@@ -12,8 +12,10 @@ Quarter math: 1 quarter = 3 months, so 24 months = 8 quarters, 48 months = 16.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
 from app.models.credit_cards import CreditCardProduct
+from app.services._card_rotation_cashflows import add_months, parse_day
 
 QUARTERS_PER_24_MONTHS = 8
 QUARTERS_PER_48_MONTHS = 16
@@ -33,7 +35,11 @@ class IssuerRuleState:
     product slugs ever opened (welcome bonus is once per lifetime per product).
     """
 
+    as_of: date = field(default_factory=date.today)
+    open_dates: dict[str, str | None] = field(default_factory=dict)
     opens: list[tuple[int, CreditCardProduct]] = field(default_factory=list)
+    bonus_dates: dict[str, str | None] = field(default_factory=dict)
+    held_products: set[str] = field(default_factory=set)
     amex_products_opened: set[str] = field(default_factory=set)
 
     def record_open(self, quarter_index: int, product: CreditCardProduct) -> None:
@@ -51,6 +57,19 @@ def _opens_in_window(state: IssuerRuleState, *, quarter_index: int, lookback_qua
 def welcome_eligible(product: CreditCardProduct, state: IssuerRuleState) -> bool:
     """Whether the welcome bonus is still earnable (lifetime rules only)."""
     rules = product.issuer_rules or {}
+    if product.slug in _SAPPHIRE_SLUGS and any(opened.slug == product.slug for _, opened in state.opens):
+        return False
+    repeat_months = rules.get("repeat_product_months")
+    if isinstance(repeat_months, int) and repeat_months > 0:
+        if product.slug in state.held_products:
+            return False
+        history = state.open_dates if rules.get("repeat_product_basis") == "opened" else state.bonus_dates
+        if product.slug in history:
+            previous = parse_day(history[product.slug])
+            if previous is None or add_months(previous, repeat_months) > state.as_of:
+                return False
+    elif product.slug in state.bonus_dates:
+        return False
     return not (rules.get("amex_once_per_lifetime") and product.slug in state.amex_products_opened)
 
 
@@ -71,17 +90,11 @@ def evaluate_open(
                 "trailing 24 months (general public rule, not guaranteed)."
             )
 
-    if rules.get("family") == "sapphire":
-        for q, opened in state.opens:
-            if (
-                opened.slug in _SAPPHIRE_SLUGS
-                and quarter_index - q < QUARTERS_PER_48_MONTHS
-            ):
-                warnings.append(
-                    "Sapphire welcome bonus is once per 48 months across the family, "
-                    "and Preferred + Reserve cannot be held at the same time."
-                )
-                break
+    if product.slug in _SAPPHIRE_SLUGS and not welcome_eligible(product, state):
+        warnings.append(
+            "Sapphire bonus excluded: prior ownership or a prior bonus for this product is recorded. "
+            "Current Chase terms make repeat-product eligibility conditional; verify the specific offer."
+        )
 
     if rules.get("amex_once_per_lifetime") and product.slug in state.amex_products_opened:
         warnings.append(
@@ -99,4 +112,10 @@ def evaluate_open(
                 )
                 break
 
+    if product.issuer == "Wells Fargo":
+        for _, opened in state.opens:
+            previous = parse_day(state.open_dates.get(opened.slug))
+            if opened.issuer == product.issuer and (previous is None or add_months(previous, 4) > state.as_of):
+                warnings.append("Wells Fargo: another consumer card opened within four months may prevent approval.")
+                break
     return warnings

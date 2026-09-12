@@ -113,9 +113,11 @@ describe('JennyChatConversation', () => {
     expect(
       screen.getByText(/Try: "What does Jenny think about AMD\?"/i),
     ).toBeInTheDocument()
-    expect(window.localStorage.getItem('portfolio-ai:jenny-chat:history')).toBe(
-      '[]',
-    )
+    expect(
+      window.localStorage.getItem(
+        'portfolio-ai:member:local:jenny-chat:history',
+      ),
+    ).toBe('[]')
   })
 
   it('clears the error message once the user edits the draft', async () => {

@@ -18,6 +18,7 @@ import { DeleteAccountDialog } from './DeleteAccountDialog'
 import { DiscoveredAccountsSection } from './DiscoveredAccountsSection'
 import { TrackedAccountDialog } from './TrackedAccountDialog'
 import type { MoneyAccountsFocus, MoneyAccountsIntent } from './types'
+import { useMoneyQuery } from './useMoneyQuery'
 
 export function MoneyAccountsPanel({
   accounts,
@@ -36,6 +37,10 @@ export function MoneyAccountsPanel({
   selectedAccountId?: string | null
   intent?: MoneyAccountsIntent
 }) {
+  const [institution, setInstitution] = useMoneyQuery('institution', '')
+  const visibleAccounts = institution
+    ? accounts.filter((account) => account.institutionName === institution)
+    : accounts
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] =
     useState<HouseholdAccountSummary | null>(null)
@@ -47,7 +52,7 @@ export function MoneyAccountsPanel({
   const focusedAccountId =
     selectedAccountId ??
     (focus === 'coverage'
-      ? accounts.find(
+      ? visibleAccounts.find(
           (a) => a.gapFlags.length > 0 || a.freshnessStatus !== 'fresh',
         )?.id
       : undefined)
@@ -107,6 +112,20 @@ export function MoneyAccountsPanel({
 
   return (
     <div className="space-y-4">
+      {institution ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/35 p-3">
+          <p className="text-sm">
+            {institution} · {visibleAccounts.length} accounts
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setInstitution('')}
+          >
+            Show all accounts
+          </Button>
+        </div>
+      ) : null}
       {blockingAccountControlIssues.length > 0 ? (
         <div
           id="account-coverage"
@@ -148,7 +167,7 @@ export function MoneyAccountsPanel({
         </Button>
       </div>
 
-      {accounts.length === 0 ? (
+      {visibleAccounts.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/20 px-6 py-10 text-sm text-text-muted">
           No accounts yet. Add one manually or upload evidence and let Jenny
           create the first account candidates for you.
@@ -162,7 +181,7 @@ export function MoneyAccountsPanel({
             value={openAccountId}
             onValueChange={setOpenAccountId}
           >
-            {accounts.map((account) => (
+            {visibleAccounts.map((account) => (
               <AccountAccordionItem
                 key={account.id}
                 account={account}

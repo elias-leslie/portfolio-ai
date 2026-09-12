@@ -45,6 +45,7 @@ class TradingSection(BaseModel):
     """Trading style and position guidance."""
 
     style: str | None
+    basis: str | None = None
     confidence: int | None
     holding_period: str | None
     risk_level: str | None
@@ -61,6 +62,7 @@ class QuoteSection(BaseModel):
     price: float | None = None
     source: str | None = None
     cached_at: datetime | None = None
+    quote_time: datetime | None = None
     session: str | None = None
     freshness_status: str
     freshness_label: str
@@ -85,6 +87,9 @@ class TrendSection(BaseModel):
 
 class NewsArticle(BaseModel):
     """Recent news article."""
+
+    relationship: str | None = None
+    relationship_reason: str | None = None
 
     headline: str
     url: str | None = None
@@ -211,6 +216,10 @@ class DecisionSection(BaseModel):
     headline: str
     summary: str
     reasoning: list[str] = Field(default_factory=list)
+    drivers: list[str] = Field(default_factory=list)
+    missing_evidence: list[str] = Field(default_factory=list)
+    review_triggers: list[str] = Field(default_factory=list)
+    portfolio_relevance: str | None = None
     source_kind: str
     source_label: str
     source_timestamp: str | None = None

@@ -11,10 +11,10 @@ import { JennyQuestionInbox } from '@/components/money/JennyQuestionInbox'
 import { MoneyAccountsPanel } from '@/components/money/MoneyAccountsPanel'
 import { MoneyBudgetPanel } from '@/components/money/MoneyBudgetPanel'
 import { MoneyLedgerPanel } from '@/components/money/MoneyLedgerPanel'
-import { MoneyLeversPanel } from '@/components/money/MoneyLeversPanel'
 import { MoneyOverviewPanel } from '@/components/money/MoneyOverviewPanel'
 import { MoneyPurchasesPanel } from '@/components/money/MoneyPurchasesPanel'
 import { MoneyRetirementPanel } from '@/components/money/MoneyRetirementPanel'
+import { useMoneyQuery } from '@/components/money/useMoneyQuery'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { PageContainer } from '@/components/shared/PageContainer'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -55,22 +55,35 @@ function MoneyPageContent() {
     selectedIntent,
   } = routeState
 
+  const [activeTab] = useMoneyQuery('tab', 'spending')
+  const needsDashboard =
+    ['dashboard', 'retirement', 'accounts', 'intake'].includes(activeTab) ||
+    openUtility === 'planning'
   const {
     data: dashboard,
     isLoading,
     error,
     refetch: refetchDashboard,
     isFetching: isFetchingDashboard,
-  } = useHouseholdDashboard()
-  const { data: analytics } = usePortfolioAnalytics()
-  const { data: netWorthTrend } = useHouseholdNetWorthTrend({ days: 180 })
+  } = useHouseholdDashboard({ enabled: needsDashboard })
+  const { data: analytics } = usePortfolioAnalytics({
+    enabled: activeTab === 'dashboard',
+  })
+  const { data: netWorthTrend } = useHouseholdNetWorthTrend(
+    { days: 180 },
+    { enabled: activeTab === 'dashboard' },
+  )
   const {
     data: documents,
     error: documentsError,
+    isLoading: documentsLoading,
     refetch: refetchDocuments,
-    isFetching: isFetchingDocuments,
-  } = useHouseholdDocuments()
-  const { data: facts = [] } = useHouseholdFacts()
+  } = useHouseholdDocuments({
+    enabled: activeTab === 'accounts',
+  })
+  const { data: facts = [] } = useHouseholdFacts({
+    enabled: activeTab === 'retirement' || openUtility === 'planning',
+  })
 
   useEffect(() => {
     const syncFromLocation = () => {
@@ -125,13 +138,13 @@ function MoneyPageContent() {
     syncUtilityToLocation(nextUtility, nextFocus)
   }
 
-  // Only the dashboard-dependent tabs need the dashboard payload. Budget, Levers,
+  // Only the dashboard-dependent tabs need the dashboard payload. Review
   // and Ledger fetch their own data, so a dashboard failure must not blank them.
   const dashboardFallback =
     error && !dashboard ? (
       <LoadErrorState
         title="Dashboard data is unavailable."
-        detail="Budget, Levers, and Ledger remain available. Retry to restore the overview, retirement, account, intake, and review data."
+        detail="Review and Ledger remain available. Retry to restore net worth, retirement, and account data."
         onRetry={() => {
           void refetchDashboard()
         }}
@@ -147,24 +160,10 @@ function MoneyPageContent() {
   const documentItems = documents?.items ?? []
   const openQuestions = dashboard?.questions.filter((q) => !q.answeredAt) ?? []
 
-  const intakeContent = documentsError ? (
-    <LoadErrorState
-      title="Failed to load intake documents."
-      detail="Retry to refresh the intake queue and uploaded household files."
-      onRetry={() => {
-        void refetchDocuments()
-      }}
-      isRetrying={isFetchingDocuments}
-    />
-  ) : !dashboard ? (
-    dashboardFallback
-  ) : !documents && isFetchingDocuments ? (
-    <LoadingState />
-  ) : (
+  const intakeContent = (
     <HouseholdDocumentCenter
-      documents={documentItems}
-      importCenter={dashboard.importCenter}
-      dateQualityIssues={dashboard.transactionDateIssues}
+      importCenter={dashboard?.importCenter}
+      dateQualityIssues={dashboard?.transactionDateIssues}
       focusedReview={focusedReview === 'date-quality'}
     />
   )
@@ -172,7 +171,7 @@ function MoneyPageContent() {
   const tabs: WorkspaceTab[] = [
     {
       value: 'dashboard',
-      label: 'Dashboard',
+      label: 'Net worth',
       content: dashboard ? (
         <div className="space-y-6">
           {/* The Decision Board's four cards and the allocation donut are gone
@@ -194,26 +193,13 @@ function MoneyPageContent() {
     },
     {
       value: 'spending',
-      label: 'Budget',
+      label: 'Review',
       content: <MoneyBudgetPanel />,
     },
     {
       value: 'purchases',
       label: 'Purchases',
-      content: (
-        <MoneyPurchasesPanel
-          priceInsights={dashboard?.reports.priceInsights ?? []}
-        />
-      ),
-    },
-    {
-      value: 'levers',
-      label: 'Levers',
-      content: (
-        <MoneyLeversPanel
-          priceInsights={dashboard?.reports.priceInsights ?? []}
-        />
-      ),
+      content: <MoneyPurchasesPanel />,
     },
     {
       value: 'cards',
@@ -226,6 +212,7 @@ function MoneyPageContent() {
       content: dashboard ? (
         <MoneyRetirementPanel
           dashboard={dashboard}
+          facts={facts}
           onEditTargets={() => {
             setRouteState((current) => ({
               ...current,
@@ -248,6 +235,17 @@ function MoneyPageContent() {
           : undefined,
       content: dashboard ? (
         <div className="space-y-6">
+          {documentsLoading && (
+            <p role="status" className="text-sm text-text-muted">
+              Loading account evidence…
+            </p>
+          )}
+          {documentsError && (
+            <LoadErrorState
+              title="Account evidence could not be loaded."
+              onRetry={() => void refetchDocuments()}
+            />
+          )}
           <MoneyAccountsPanel
             accounts={dashboard.accounts}
             accountControl={dashboard.accountControl}
@@ -275,12 +273,15 @@ function MoneyPageContent() {
     },
     {
       value: 'intake',
-      label: 'Intake & Review',
+      label: 'Intake',
       content: (
         <div className="space-y-6">
           {intakeContent}
           {dashboard ? (
-            <div id="money-clarifications" className="space-y-6">
+            <div
+              id="money-clarifications"
+              className="scroll-mt-64 space-y-6 md:scroll-mt-48"
+            >
               <SectionCard
                 variant="surface"
                 title="Clarifications & Review"
@@ -310,9 +311,9 @@ function MoneyPageContent() {
   ]
 
   return (
-    <PageContainer className="space-y-6 py-8">
+    <PageContainer className="space-y-4 py-4 sm:space-y-6 sm:py-8">
       <PageHeader
-        eyebrow="Household Finance"
+        size="sm"
         title="Money"
         actions={
           <div className="flex flex-wrap gap-2">
@@ -335,7 +336,7 @@ function MoneyPageContent() {
               Data services
             </Button>
             <Button asChild type="button" variant="outline" size="sm">
-              <Link href="/money?tab=intake">
+              <Link href="/money?tab=intake#add-evidence-upload">
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add anything
               </Link>
@@ -345,20 +346,19 @@ function MoneyPageContent() {
       />
 
       <WorkspaceTabs
-        defaultValue="dashboard"
+        defaultValue="spending"
         ariaLabel="Money workspace sections"
         tabs={tabs}
       />
 
-      {dashboard ? (
-        <MoneyUtilityDrawers
-          openUtility={openUtility}
-          focusedReview={focusedReview}
-          dashboard={dashboard}
-          facts={facts}
-          onUtilityChange={setOpenUtility}
-        />
-      ) : null}
+      <MoneyUtilityDrawers
+        openUtility={openUtility}
+        focusedReview={focusedReview}
+        dashboard={dashboard}
+        dashboardFallback={dashboardFallback}
+        facts={facts}
+        onUtilityChange={setOpenUtility}
+      />
     </PageContainer>
   )
 }

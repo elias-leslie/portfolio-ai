@@ -67,7 +67,8 @@ describe('CapPlanCard', () => {
   it('prints the subtraction the caps come out of', () => {
     render(<CapPlanCard plan={plan()} />)
 
-    expect(screen.getByText('Income anchor')).toBeInTheDocument()
+    expect(screen.getByText('Income for this plan')).toBeInTheDocument()
+    expect(screen.getByText('Planned asset draw')).toBeInTheDocument()
     expect(screen.getByText('less Sinking fund accruals')).toBeInTheDocument()
     expect(screen.getByText('less Essentials at cost')).toBeInTheDocument()
     expect(screen.getByText('$1,578')).toBeInTheDocument()

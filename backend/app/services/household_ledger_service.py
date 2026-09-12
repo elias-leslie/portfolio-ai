@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -17,6 +17,7 @@ from app.services._household_spend_filters import (
     matched_cash_movement_rule,
     rule_label,
 )
+from app.services._household_spend_periods import build_spend_period, is_month_key
 from app.services._household_time_windows import resolve_household_time_window
 from app.services.household_transaction_service import (
     _effective_transaction_classification,
@@ -194,9 +195,7 @@ def _entry_is_duplicate(entry: HouseholdLedgerEntry) -> bool:
 
 def _entry_matches_search(entry: HouseholdLedgerEntry, search: str) -> bool:
     haystack = " ".join(
-        str(getattr(entry, field))
-        for field in _LEDGER_SEARCH_FIELDS
-        if getattr(entry, field, None)
+        str(getattr(entry, field)) for field in _LEDGER_SEARCH_FIELDS if getattr(entry, field, None)
     ).lower()
     if search in haystack:
         return True
@@ -261,7 +260,19 @@ def _entry_matches_filters(
     status: str,
     account: str,
     search: str,
+    category: str = "all",
+    source: str = "all",
+    inclusion: str = "all",
 ) -> bool:
+    if any(
+        (
+            category != "all" and category not in (entry.review_categories or [entry.category]),
+            source not in ("all", entry.source_system or entry.source_type or "unknown"),
+            inclusion == "included" and not entry.included_in_spend,
+            inclusion == "excluded" and entry.included_in_spend,
+        )
+    ):
+        return False
     duplicate = _entry_is_duplicate(entry)
     if status == "canonical" and duplicate:
         return False
@@ -274,9 +285,7 @@ def _entry_matches_filters(
     return not search or _entry_matches_search(entry, search)
 
 
-def _entry_sort_value(
-    entry: HouseholdLedgerEntry, sort_dt: datetime, sort_key: str
-) -> Any:
+def _entry_sort_value(entry: HouseholdLedgerEntry, sort_dt: datetime, sort_key: str) -> Any:
     if sort_key == "account":
         return (entry.account_label or "").lower()
     if sort_key == "detail":
@@ -316,12 +325,18 @@ def _purchase_items_by_transaction(conn: Any) -> dict[str, tuple[int, list[str]]
     }
 
 
-def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list[Any]]:
+def _transaction_sql(
+    window_start: str | None, *, limit: int, window_end: str | None = None
+) -> tuple[str, list[Any]]:
     where_clauses: list[str] = ["TRUE"]
     params: list[Any] = []
     if window_start is not None:
-        where_clauses.append("COALESCE(t.posted_date, t.transaction_date) >= %s")
+        where_clauses.append("COALESCE(t.transaction_date, t.posted_date) >= %s")
         params.append(window_start)
+
+    if window_end is not None:
+        where_clauses.append("COALESCE(t.transaction_date, t.posted_date) < %s")
+        params.append(window_end)
 
     sql = f"""
         SELECT
@@ -375,19 +390,25 @@ def _transaction_sql(window_start: str | None, *, limit: int) -> tuple[str, list
           ON d.id = t.document_id
         WHERE {" AND ".join(where_clauses)}
           AND t.removed IS NOT TRUE
-        ORDER BY COALESCE(t.posted_date, t.transaction_date) DESC, t.created_at DESC
+        ORDER BY COALESCE(t.transaction_date, t.posted_date) DESC, t.created_at DESC
         LIMIT %s
     """
     params.append(max(limit, 1))
     return sql, params
 
 
-def _import_sql(window_start: str | None, *, limit: int) -> tuple[str, list[Any]]:
+def _import_sql(
+    window_start: str | None, *, limit: int, window_end: str | None = None
+) -> tuple[str, list[Any]]:
     where_clauses: list[str] = ["TRUE"]
     params: list[Any] = []
     if window_start is not None:
         where_clauses.append("COALESCE(r.row_date, d.uploaded_at) >= %s")
         params.append(window_start)
+
+    if window_end is not None:
+        where_clauses.append("COALESCE(r.row_date, d.uploaded_at) < %s")
+        params.append(window_end)
 
     sql = f"""
         SELECT
@@ -425,6 +446,10 @@ class HouseholdLedgerService:
         service: Any,
         *,
         window: str = "all",
+        month: str | None = None,
+        category: str = "all",
+        source: str = "all",
+        inclusion: str = "all",
         kind: str = "all",
         status: str = "all",
         account: str = "all",
@@ -434,7 +459,13 @@ class HouseholdLedgerService:
         limit: int = 100,
         offset: int = 0,
     ) -> HouseholdLedger:
-        timeframe = resolve_household_time_window(window)
+        timeframe = (
+            build_spend_period(month, today=date.today())
+            if month and is_month_key(month)
+            else resolve_household_time_window(window)
+        )
+        review_month = month is not None and is_month_key(month)
+        end_exclusive = (timeframe.end_date + timedelta(days=1)).isoformat()
         start_date = (
             datetime.combine(timeframe.start_date, datetime.min.time(), tzinfo=UTC).isoformat()
             if timeframe.start_date is not None
@@ -462,15 +493,110 @@ class HouseholdLedgerService:
 
         with service.storage.connection() as conn:
             if normalized_kind in {"all", "transactions"}:
-                tx_sql, tx_params = _transaction_sql(start_date, limit=LEDGER_SCAN_CAP)
+                tx_sql, tx_params = _transaction_sql(
+                    start_date, limit=LEDGER_SCAN_CAP + 1, window_end=end_exclusive
+                )
                 transaction_rows = conn.execute(tx_sql, tx_params).fetchall()
                 items_by_transaction = _purchase_items_by_transaction(conn)
             if normalized_kind in {"all", "imports"}:
-                import_sql, import_params = _import_sql(start_date, limit=LEDGER_SCAN_CAP)
+                import_sql, import_params = _import_sql(
+                    start_date, limit=LEDGER_SCAN_CAP + 1, window_end=end_exclusive
+                )
                 import_rows = conn.execute(import_sql, import_params).fetchall()
 
         entries: list[tuple[datetime, HouseholdLedgerEntry]] = []
         report_candidates: list[dict[str, Any]] = []
+
+        for row in transaction_rows:
+            metadata = _coerce_metadata(row[13])
+            amount = float(row[8]) if row[8] is not None else None
+            effective_flow = _effective_transaction_flow(
+                flow_type=str(row[1] or ""),
+                raw_merchant=str(row[6] or row[7] or ""),
+                description=str(row[7] or row[6] or ""),
+                source_type=str(row[16] or ""),
+            )
+            effective_category, effective_essentiality = _effective_transaction_classification(
+                flow_type=effective_flow,
+                raw_merchant=str(row[6] or row[7] or ""),
+                description=str(row[7] or row[6] or ""),
+                amount=amount,
+                stored_category=str(row[10] or ""),
+                stored_essentiality=str(row[11] or ""),
+                merchant_metadata=row[19] if isinstance(row[19], dict) else None,
+                categorization_source=(
+                    str(_row_value(row, 21)) if _row_value(row, 21) is not None else None
+                ),
+            )
+            if amount is not None and amount > 0:
+                report_candidates.append(
+                    {
+                        "id": str(row[0]),
+                        "row_hash": str(row[12]),
+                        "household_account_id": str(row[2]) if row[2] is not None else None,
+                        "date": (
+                            row[4].date()
+                            if isinstance(row[4], datetime)
+                            else row[5].date()
+                            if isinstance(row[5], datetime)
+                            else None
+                        ),
+                        "merchant": str(row[6] or row[7] or ""),
+                        "description": str(row[7] or ""),
+                        "amount": amount,
+                        "signed_amount": -amount if effective_flow == "refund" else amount,
+                        "category": effective_category,
+                        "essentiality": effective_essentiality,
+                        "document_id": str(row[14]) if row[14] is not None else None,
+                        "document_type": str(row[17] or ""),
+                        "source_type": str(row[16] or ""),
+                        "source_document_filename": str(row[15] or ""),
+                        "source_kind": "transaction",
+                        # _effective_document_type needs this to class
+                        # receipt-sourced rows as receipts, matching Reports.
+                        "source_system": (
+                            str(_row_value(row, 25)) if _row_value(row, 25) is not None else None
+                        ),
+                    }
+                )
+
+        for row in import_rows:
+            metadata = _coerce_metadata(row[9])
+            amount = float(row[6]) if row[6] is not None else None
+            if amount is not None and amount > 0:
+                report_candidates.append(
+                    {
+                        "id": str(row[0]),
+                        "row_hash": str(row[8]),
+                        "household_account_id": None,
+                        "date": row[3].date() if isinstance(row[3], datetime) else None,
+                        "merchant": str(row[4] or ""),
+                        "description": str(row[5] or row[4] or ""),
+                        "amount": amount,
+                        "category": "Household shopping",
+                        "essentiality": "mixed",
+                        "document_id": str(row[10]) if row[10] is not None else None,
+                        "document_type": "import",
+                        "source_type": str(row[1] or "import"),
+                        "source_document_filename": str(row[11] or ""),
+                        "source_kind": "import",
+                    }
+                )
+
+        dated_candidates = [row for row in report_candidates if row.get("date") is not None]
+        # Spend inclusion is decided over transaction rows alone, exactly as
+        # `_spend_rows_between` does it. Collapsing transactions against import
+        # rows would let an import row -- which never counts toward spend
+        # itself -- suppress a transaction that does, so $71.03 of real July
+        # spending sat in every total while the Ledger showed it as excluded.
+        # Two dedup passes that disagree is the P0-1 defect one surface down.
+        _, excluded_row_hashes = collapse_report_rows_with_exclusions(
+            [row for row in dated_candidates if row.get("source_kind") != "import"]
+        )
+        # The combined pass is still worth running: it is how a row learns that
+        # an imported receipt line describes the same purchase. That is a note
+        # about provenance, not a reason to drop the row from spend.
+        _, import_duplicate_hashes = collapse_report_rows_with_exclusions(dated_candidates)
 
         for row in transaction_rows:
             metadata = _coerce_metadata(row[13])
@@ -504,104 +630,7 @@ class HouseholdLedgerService:
                     str(_row_value(row, 21)) if _row_value(row, 21) is not None else None
                 ),
             )
-            if amount is not None and amount > 0:
-                report_candidates.append(
-                    {
-                        "id": str(row[0]),
-                        "row_hash": str(row[12]),
-                        "household_account_id": str(row[2]) if row[2] is not None else None,
-                        "date": (
-                            row[5].date() if isinstance(row[5], datetime)
-                            else row[4].date() if isinstance(row[4], datetime)
-                            else None
-                        ),
-                        "merchant": str(row[6] or row[7] or ""),
-                        "description": str(row[7] or ""),
-                        "amount": amount,
-                        "signed_amount": -amount if effective_flow == "refund" else amount,
-                        "category": effective_category,
-                        "essentiality": effective_essentiality,
-                        "document_id": str(row[14]) if row[14] is not None else None,
-                        "document_type": str(row[17] or ""),
-                        "source_type": str(row[16] or ""),
-                        "source_document_filename": str(row[15] or ""),
-                        "source_kind": "transaction",
-                        # _effective_document_type needs this to class
-                        # receipt-sourced rows as receipts, matching Reports.
-                        "source_system": (
-                            str(_row_value(row, 25))
-                            if _row_value(row, 25) is not None
-                            else None
-                        ),
-                    }
-                )
-
-        for row in import_rows:
-            metadata = _coerce_metadata(row[9])
-            amount = float(row[6]) if row[6] is not None else None
-            if amount is not None and amount > 0:
-                report_candidates.append(
-                    {
-                        "id": str(row[0]),
-                        "row_hash": str(row[8]),
-                        "household_account_id": None,
-                        "date": row[3].date() if isinstance(row[3], datetime) else None,
-                        "merchant": str(row[4] or ""),
-                        "description": str(row[5] or row[4] or ""),
-                        "amount": amount,
-                        "category": "Household shopping",
-                        "essentiality": "mixed",
-                        "document_id": str(row[10]) if row[10] is not None else None,
-                        "document_type": "import",
-                        "source_type": str(row[1] or "import"),
-                        "source_document_filename": str(row[11] or ""),
-                        "source_kind": "import",
-                    }
-                )
-
-        dated_candidates = [
-            row for row in report_candidates if row.get("date") is not None
-        ]
-        # Spend inclusion is decided over transaction rows alone, exactly as
-        # `_spend_rows_between` does it. Collapsing transactions against import
-        # rows would let an import row -- which never counts toward spend
-        # itself -- suppress a transaction that does, so $71.03 of real July
-        # spending sat in every total while the Ledger showed it as excluded.
-        # Two dedup passes that disagree is the P0-1 defect one surface down.
-        _, excluded_row_hashes = collapse_report_rows_with_exclusions(
-            [row for row in dated_candidates if row.get("source_kind") != "import"]
-        )
-        # The combined pass is still worth running: it is how a row learns that
-        # an imported receipt line describes the same purchase. That is a note
-        # about provenance, not a reason to drop the row from spend.
-        _, import_duplicate_hashes = collapse_report_rows_with_exclusions(
-            dated_candidates
-        )
-
-        for row in transaction_rows:
-            metadata = _coerce_metadata(row[13])
-            amount = float(row[8]) if row[8] is not None else None
-            effective_flow = _effective_transaction_flow(
-                flow_type=str(row[1] or ""),
-                raw_merchant=str(row[6] or row[7] or ""),
-                description=str(row[7] or row[6] or ""),
-                source_type=str(row[16] or ""),
-            )
-            effective_category, effective_essentiality = _effective_transaction_classification(
-                flow_type=effective_flow,
-                raw_merchant=str(row[6] or row[7] or ""),
-                description=str(row[7] or row[6] or ""),
-                amount=amount,
-                stored_category=str(row[10] or ""),
-                stored_essentiality=str(row[11] or ""),
-                merchant_metadata=row[19] if isinstance(row[19], dict) else None,
-                categorization_source=(
-                    str(_row_value(row, 21)) if _row_value(row, 21) is not None else None
-                ),
-            )
-            spend_override = (
-                str(_row_value(row, 31)) if _row_value(row, 31) is not None else None
-            )
+            spend_override = str(_row_value(row, 31)) if _row_value(row, 31) is not None else None
             spend_override_reason = (
                 str(_row_value(row, 32)) if _row_value(row, 32) is not None else None
             )
@@ -661,11 +690,19 @@ class HouseholdLedgerService:
                 essentiality=effective_essentiality,
                 owner_name=owner_name,
                 owner_source=owner_source,
-                original_category=str(_row_value(row, 20)) if _row_value(row, 20) is not None else None,
-                categorization_source=str(_row_value(row, 21)) if _row_value(row, 21) is not None else None,
-                categorization_version=str(_row_value(row, 22)) if _row_value(row, 22) is not None else None,
+                original_category=str(_row_value(row, 20))
+                if _row_value(row, 20) is not None
+                else None,
+                categorization_source=str(_row_value(row, 21))
+                if _row_value(row, 21) is not None
+                else None,
+                categorization_version=str(_row_value(row, 22))
+                if _row_value(row, 22) is not None
+                else None,
                 category_updated_at=iso_or_none(_row_value(row, 23)),
-                category_updated_by=str(_row_value(row, 24)) if _row_value(row, 24) is not None else None,
+                category_updated_by=str(_row_value(row, 24))
+                if _row_value(row, 24) is not None
+                else None,
                 source_system=str(_row_value(row, 25)) if _row_value(row, 25) is not None else None,
                 external_transaction_id=(
                     str(_row_value(row, 26)) if _row_value(row, 26) is not None else None
@@ -693,7 +730,7 @@ class HouseholdLedgerService:
             )
             entries.append(
                 (
-                    _effective_date(entry.posted_date, entry.date, entry.uploaded_at),
+                    _effective_date(entry.date, entry.posted_date, entry.uploaded_at),
                     entry,
                 )
             )
@@ -737,6 +774,35 @@ class HouseholdLedgerService:
                 )
             )
 
+        # Named-month drill-downs use the Review's inclusion and item-allocation
+        # seam, including reversal netting, manual overrides and duplicate collapse.
+        if review_month and timeframe.start_date is not None:
+            contributions = service.transaction_service.spending_contributions(
+                start_date=timeframe.start_date,
+                end_date=timeframe.end_date,
+            )
+            amounts: dict[str, float] = {}
+            categories: dict[str, set[str]] = {}
+            for contribution in contributions:
+                parent_id = str(contribution.get("split_parent_id") or contribution["id"])
+                contribution_category = str(contribution.get("category") or "Unknown")
+                categories.setdefault(parent_id, set()).add(contribution_category)
+                if category in ("all", contribution_category):
+                    amounts[parent_id] = amounts.get(parent_id, 0.0) + float(
+                        contribution.get("signed_amount", contribution["amount"])
+                    )
+            for _, entry in entries:
+                if entry.kind != "transaction":
+                    entry.review_amount = 0.0
+                    continue
+                entry.review_categories = sorted(categories.get(entry.id, set()))
+                entry.review_amount = round(amounts.get(entry.id, 0.0), 2)
+                entry.included_in_spend = entry.id in categories
+                if entry.included_in_spend:
+                    entry.exclusion_reason = None
+                elif entry.exclusion_reason is None:
+                    entry.exclusion_reason = "excluded_by_review_rules"
+
         _collapse_unresolved_account_labels(entries)
 
         account_options = sorted(
@@ -765,6 +831,9 @@ class HouseholdLedgerService:
                 status=normalized_status,
                 account=normalized_account,
                 search=normalized_search,
+                category=category,
+                source=source,
+                inclusion=inclusion,
             )
         ]
 
@@ -796,6 +865,15 @@ class HouseholdLedgerService:
         page = filtered[page_offset : page_offset + page_limit]
 
         return HouseholdLedger(
+            review_spend_total=round(sum(entry.review_amount or 0.0 for _, entry in filtered), 2)
+            if review_month
+            else None,
+            review_category=category if review_month and category != "all" else None,
+            scan_truncated=len(transaction_rows) > LEDGER_SCAN_CAP
+            or len(import_rows) > LEDGER_SCAN_CAP,
+            source_options=sorted(
+                {entry.source_system or entry.source_type or "unknown" for _, entry in entries}
+            ),
             generated_at=datetime.now(UTC).isoformat(),
             timeframe_key=timeframe.key,
             timeframe_label=timeframe.label,

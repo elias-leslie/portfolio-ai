@@ -1,6 +1,7 @@
 'use client'
 
 import { useDeferredValue, useEffect, useState } from 'react'
+import { ShoppingPilot } from '@/components/capture/ShoppingPilot'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { SectionCard } from '@/components/shared/SectionCard'
 import {
@@ -9,7 +10,6 @@ import {
 } from '@/components/shared/SortableTableHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { HouseholdPriceInsight } from '@/lib/api/household'
 import {
   useHouseholdProducts,
   usePriceCheckStatus,
@@ -19,7 +19,6 @@ import {
 import { BuyGuideCard } from './BuyGuideCard'
 import { ItemLinkageCard } from './ItemLinkageCard'
 import { PriceCheckStatusCard } from './PriceCheckStatusCard'
-import { PriceSignalsTable } from './PriceSignalsTable'
 import {
   type ProductCatalogScope,
   type ProductCatalogSort,
@@ -29,6 +28,7 @@ import { ProductDetailSheet } from './ProductDetailSheet'
 import { ProductMatchReviewCard } from './ProductMatchReviewCard'
 import { PurchaseFindingsList } from './PurchaseFindingsList'
 import { ShoppingListsCard } from './ShoppingListsCard'
+import { useMoneyQuery } from './useMoneyQuery'
 
 const PRODUCT_PAGE_SIZE = 50
 
@@ -38,19 +38,15 @@ const productScopes: Array<{ value: ProductCatalogScope; label: string }> = [
   { value: 'all', label: 'All' },
 ]
 
-interface MoneyPurchasesPanelProps {
-  priceInsights: HouseholdPriceInsight[]
-}
-
-export function MoneyPurchasesPanel({
-  priceInsights,
-}: MoneyPurchasesPanelProps) {
+export function MoneyPurchasesPanel() {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<ProductCatalogSort>('recent')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [scope, setScope] = useState<ProductCatalogScope>('active')
   const [currentPage, setCurrentPage] = useState(1)
-  const [openProductId, setOpenProductId] = useState<string | null>(null)
+  const [openProductQuery, setOpenProductQuery] = useMoneyQuery('product', '')
+  const openProductId = openProductQuery || null
+  const setOpenProductId = (id: string | null) => setOpenProductQuery(id ?? '')
   const deferredSearch = useDeferredValue(search.trim())
   const offset = (currentPage - 1) * PRODUCT_PAGE_SIZE
 
@@ -121,6 +117,7 @@ export function MoneyPurchasesPanel({
         title="Buy Guide"
         description="Recurring products ranked by actual unit cost: find when a larger package or another vendor beats the size you usually buy."
       >
+        <ShoppingPilot />
         <BuyGuideCard onOpenProduct={setOpenProductId} />
       </SectionCard>
 
@@ -234,30 +231,9 @@ export function MoneyPurchasesPanel({
       <SectionCard
         variant="surface"
         title="Shopping Lists"
-        description="Paste a list, match it to your product catalog, and optimize against fresh vendor quotes with your fee settings."
+        description="Match your list to recorded products and compare current confirmed offers for the same package size. Other sizes can be compared in Capture."
       >
         <ShoppingListsCard />
-      </SectionCard>
-
-      <SectionCard
-        variant="surface"
-        title="Price Signals"
-        description="Order-history evidence only. Ticket or unit drift belongs here, not in ledger totals."
-      >
-        {priceInsights.length > 0 ? (
-          <PriceSignalsTable rows={priceInsights} />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-6">
-            <p className="text-sm font-semibold text-text">
-              No price-drift evidence yet.
-            </p>
-            <p className="mt-2 text-sm text-text-muted">
-              Add receipt or order-history evidence and this section will flag
-              ticket creep, unit-price jumps, and shrinkflation before they
-              silently harden.
-            </p>
-          </div>
-        )}
       </SectionCard>
 
       <ProductDetailSheet

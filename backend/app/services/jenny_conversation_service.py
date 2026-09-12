@@ -34,6 +34,7 @@ from ._jenny_conversation_llm import (
     reconcile_message,
 )
 from ._jenny_response_cleanup import strip_agent_output_tags
+from ._jenny_view_context import build_view_context, current_symbol
 
 logger = get_logger(__name__)
 
@@ -61,7 +62,10 @@ class JennyConversationService:
             if q.status == STATUS_OPEN
             and (q.direction is None or q.direction == DIRECTION_JENNY_TO_USER)
         ]
-        context = self._build_context(cleaned, open_questions)
+        viewed_symbol = current_symbol(page_context)
+        context_message = f"{viewed_symbol}\n{cleaned}" if viewed_symbol else cleaned
+        context = self._build_context(context_message, open_questions)
+        context["current_view"] = build_view_context(page_context, self.household_service)
 
         chat_message = cleaned
         if page_context and page_context.get("pathname"):

@@ -24,6 +24,7 @@ import type {
   RetirementPreview,
 } from '@/lib/api/household'
 import { formatCurrency, formatCurrencyWhole } from '@/lib/formatters'
+import { RetirementBasisCoverage } from './RetirementBasisCoverage'
 import {
   bucketColors,
   bucketLabel,
@@ -197,6 +198,14 @@ export function RetirementResults({
           Math.max(0, (row.acaNet ?? 0) - (row.acaPlanningNet ?? 0)) *
           factor *
           scale,
+        ownerDraws: Object.entries(row.withdrawalsByOwner ?? {}).map(
+          ([owner, values]) => ({
+            owner,
+            amount:
+              Object.values(values).reduce((sum, value) => sum + value, 0) *
+              scale,
+          }),
+        ),
         displayBuckets: Object.fromEntries(
           Object.entries(row.withdrawalsByBucket).map(([key, value]) => [
             key,
@@ -234,6 +243,20 @@ export function RetirementResults({
     'taxableWithdrawalGainRatioDetail',
   )
   const accountRules: RetirementAccountRule[] = preview?.accountRules ?? []
+  if (!preview)
+    return previewError ? (
+      <LoadErrorState
+        title="Could not calculate the retirement forecast."
+        detail={previewError.message}
+        onRetry={onRetry}
+        isRetrying={isFetching}
+      />
+    ) : (
+      <p role="status" className="text-sm text-text-muted">
+        Calculating the forecast from account balances, ownership, and saved
+        assumptions…
+      </p>
+    )
 
   return (
     <>
@@ -655,6 +678,25 @@ export function RetirementResults({
                     <tr key={`${row.calendarYear}-${row.primaryAge}`}>
                       <td className="border-b border-border/20 px-4 py-3 text-left font-medium text-text">
                         {row.primaryAge}
+                        {row.ownerDraws.length ? (
+                          <details className="mt-1 text-xs font-normal text-text-muted">
+                            <summary className="cursor-pointer">
+                              By owner
+                            </summary>
+                            {row.ownerDraws.map(({ owner, amount }) => (
+                              <p key={owner}>
+                                {owner === 'primary'
+                                  ? 'Primary'
+                                  : owner === 'spouse'
+                                    ? 'Spouse'
+                                    : owner === 'shared'
+                                      ? 'Cash / taxable'
+                                      : 'Unknown owner'}
+                                : {formatCurrency(amount, { decimals: 0 })}
+                              </p>
+                            ))}
+                          </details>
+                        ) : null}
                         {row.partialRetirementYear ? (
                           <Badge
                             variant="secondary"
@@ -815,12 +857,12 @@ export function RetirementResults({
           <p className="mt-3 text-xs text-text-muted">
             <span
               className={`mr-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                gainRatioSource === 'tax_lots'
+                ['tax_lots', 'account_basis'].includes(gainRatioSource ?? '')
                   ? freshnessToneClass('fresh')
                   : freshnessToneClass('needs_evidence')
               }`}
             >
-              {gainRatioSource === 'tax_lots'
+              {['tax_lots', 'account_basis'].includes(gainRatioSource ?? '')
                 ? 'From your cost basis'
                 : 'Planning assumption'}
             </span>
@@ -828,6 +870,8 @@ export function RetirementResults({
           </p>
         ) : null}
       </SectionCard>
+
+      <RetirementBasisCoverage value={preview?.taxAssumptions?.basisCoverage} />
 
       {accountRules.length > 0 ? (
         <SectionCard

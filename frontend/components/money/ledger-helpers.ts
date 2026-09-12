@@ -79,7 +79,7 @@ export function entryDate(entry: {
   date?: string | null
   uploadedAt?: string | null
 }) {
-  return entry.postedDate ?? entry.date ?? entry.uploadedAt ?? null
+  return entry.date ?? entry.postedDate ?? entry.uploadedAt ?? null
 }
 
 export function ledgerRowKey(entry: { kind: string; id: string }) {

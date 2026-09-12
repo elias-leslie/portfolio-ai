@@ -75,9 +75,26 @@ def test_welcome_counts_when_reachable() -> None:
     # 6500 * 3 = 19500 >= 4000 -> reachable; welcome = 60000 * 0.02 = 1200
     assert est.welcome_reachable is True
     assert est.welcome_value == 1200.0
-    # first-year adds the full welcome; steady-state adds welcome amortized over 3y
+    # A one-time bonus belongs to first-year and multi-year averages, never ongoing value.
     assert round(est.first_year_value - est.annual_value, 2) == 1200.0
-    assert round(est.steady_state_value - est.annual_value, 2) == 400.0
+    assert est.steady_state_value == est.annual_value
+    assert round(est.multi_year_average_value - est.annual_value, 2) == 400.0
+
+
+def test_override_uses_one_spend_total_for_bonuses_and_earnings():
+    service = CardRewardsService()
+    initial = SpendProfile(monthly_total=1000, by_bucket={"other": 1000})
+    override = service.apply_overrides(initial, monthly_total=3000, by_bucket={"dining": 1000})
+    assert override.monthly_total == sum(override.by_bucket.values()) == 3000
+    zero = service.apply_overrides(initial, monthly_total=0)
+    assert zero.monthly_total == sum(zero.by_bucket.values()) == 0
+
+
+def test_capped_reward_rate_falls_back_to_base_rate():
+    service = CardRewardsService()
+    card = _product(reward_multipliers={"groceries": 4, "other": 1}, issuer_rules={"reward_caps": {"groceries": 25000}})
+    estimate = service.evaluate_card(card, SpendProfile(monthly_total=3000, by_bucket={"groceries": 3000}), point_value_cents=1)
+    assert estimate.earn_value == 1110  # 25,000 at 4x + 11,000 at 1x, one cent each
 
 
 def test_credit_realization_haircut() -> None:
@@ -267,3 +284,29 @@ def test_keeper_routing_excludes_covered_bucket() -> None:
     # no keepers -> profile unchanged
     same, no_notes = svc.route_keeper_buckets(profile, [], [rotating])
     assert same == profile and no_notes == []
+
+
+def test_credit_requires_planned_channel_and_credited_purchases_do_not_earn():
+    from app.models.credit_cards import CardCredit, CreditCardProduct, SpendProfile
+    from app.services.card_rewards_service import CardRewardsService
+    card = CreditCardProduct(id='reserve', slug='reserve', issuer='Chase', product_name='Reserve',
+        reward_multipliers={'flights':4,'other':1}, credits=[CardCredit(name='Travel', annual_value=300,
+        type='easy',eligible_buckets=['flights'],excludes_rewards=True)])
+    service = CardRewardsService()
+    unused = service.evaluate_card(card,SpendProfile(monthly_total=100,by_bucket={'other':100}),point_value_cents=1)
+    assert unused.credits_value == 0
+    used = service.evaluate_card(card,SpendProfile(monthly_total=100,by_bucket={'flights':100}),point_value_cents=1)
+    assert used.credits_value == 300
+    assert used.earn_value == 36  # (1200-300)*4%
+
+
+def test_repeat_bonus_exclusion_keeps_anniversary_reward_out_of_first_year():
+    from app.models.credit_cards import CreditCardProduct, SpendProfile
+    from app.services.card_rewards_service import CardRewardsService
+    product = CreditCardProduct(id='vx',slug='vx',issuer='Capital One',product_name='Example',
+        annual_fee=395, issuer_rules={'anniversary_points':10000}, welcome_bonus_cash=500,
+        welcome_min_spend=0, reward_multipliers={'other':0}, est_point_value_cents=1)
+    result = CardRewardsService().rank([product],SpendProfile(monthly_total=0,by_bucket={}),ineligible_bonus_slugs={'vx'})
+    estimate = result.by_first_year[0]
+    assert estimate.first_year_value == -395
+    assert estimate.steady_state_value == -295

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from starlette.concurrency import run_in_threadpool
 
+from app.analytics.portfolio_performance import performance_report
 from app.logging_config import get_logger
 from app.middleware.cache import cache_response
 from app.portfolio.account_valuation import (
@@ -261,14 +262,16 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
     quotes_updated_at, quote_freshness_status, quote_freshness_label = summarize_quote_freshness(
         account_valuations
     )
+    performance = performance_report(_storage(), list(account_ids))
     analytics = _analytics_calculator().calculate_full_analytics(
         positions,
         price_data,
         storage=_storage(),
         account_ids=list(account_ids),
+        historical_performance=performance,
     )
 
-    return _build_full_analytics_response(
+    response = _build_full_analytics_response(
         analytics,
         cash_balance_total,
         effective_total_value=effective_totals.effective_total_value,
@@ -284,6 +287,9 @@ def get_analytics_payload(include_paper: bool) -> AnalyticsResponse:
         quote_freshness_status=quote_freshness_status,
         quote_freshness_label=quote_freshness_label,
     )
+
+    performance.pop("daily_returns", None)
+    return response.model_copy(update={"performance": performance, "sharpe_ratio": performance["sharpe_ratio"]})
 
 
 @router.get("/analytics", response_model=AnalyticsResponse)

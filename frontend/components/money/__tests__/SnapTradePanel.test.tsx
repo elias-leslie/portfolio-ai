@@ -69,6 +69,38 @@ describe('SnapTradePanel', () => {
     syncSnapTradeMutateAsync.mockResolvedValue({})
   })
 
+  it('keeps loading and failed reads distinct from an unconfigured connection', async () => {
+    const retry = vi.fn()
+    useSnapTradeStatusMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      refetch: retry,
+    })
+    const view = render(<SnapTradePanel />)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Loading SnapTrade connection status',
+    )
+    expect(screen.queryByText('Not configured')).not.toBeInTheDocument()
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Configure' }),
+    ).not.toBeInTheDocument()
+    useSnapTradeStatusMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Offline'),
+      refetch: retry,
+    })
+    view.rerender(<SnapTradePanel />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'connection status is unavailable',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Retry SnapTrade status' }),
+    )
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
   it('shows saved SnapTrade credentials separately from pending brokerage connection', () => {
     render(<SnapTradePanel />)
 
@@ -143,6 +175,7 @@ describe('SnapTradePanel', () => {
             institutionName: 'Fidelity',
             accountMask: '1234',
             brokerageOrderId: 'order-1',
+            sourceCopyCount: 2,
             status: 'EXECUTED',
             action: 'BUY',
             symbol: 'VGT',
@@ -163,14 +196,39 @@ describe('SnapTradePanel', () => {
       error: null,
     })
 
-    render(<SnapTradePanel />)
+    const { rerender } = render(<SnapTradePanel />)
 
     expect(screen.getByText('Trade history')).toBeInTheDocument()
-    expect(screen.getByText('1 recent order')).toBeInTheDocument()
+    expect(
+      screen.getByText(/same broker order in 2 linked sources/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Net trade value (shown)')).toBeInTheDocument()
+    expect(screen.getByText('1 recent order shown')).toBeInTheDocument()
     expect(screen.getByText('VGT')).toBeInTheDocument()
     expect(screen.getByText('EXECUTED')).toBeInTheDocument()
     expect(screen.getByText('BUY · Market')).toBeInTheDocument()
     expect(screen.getByText('395 @ $125.09')).toBeInTheDocument()
     expect(screen.getByText('$49,410.55')).toBeInTheDocument()
+    useSnapTradeOrdersMock.mockReturnValue({
+      data: {
+        orders: [
+          {
+            status: 'EXECUTED',
+            action: 'BUY',
+            currency: 'USD',
+            filledQuantity: null,
+            executionPrice: 12,
+            brokerageOrderId: 'missing-fill',
+            accountId: 'acct-roth',
+            timeExecuted: null,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    })
+    rerender(<SnapTradePanel />)
+    expect(screen.getByText('Unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/Trade total withheld/)).toBeInTheDocument()
   })
 })

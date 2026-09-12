@@ -21,12 +21,17 @@ export function budgetStatus(
   currentBudget: number | null,
   foundBudget: number | null,
   actual: number,
+  isProvisional = false,
 ) {
   if (currentBudget != null) {
     return {
       label: actual > currentBudget ? 'Over confirmed cap' : 'Confirmed cap',
       variant:
-        actual > currentBudget ? ('warning' as const) : ('success' as const),
+        actual > currentBudget
+          ? ('warning' as const)
+          : isProvisional
+            ? ('outline' as const)
+            : ('success' as const),
     }
   }
   if (foundBudget != null) {

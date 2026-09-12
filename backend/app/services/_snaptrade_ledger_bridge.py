@@ -279,7 +279,7 @@ def bridge_cash_activities(
                     )
                     (
                         merchant_id,
-                        canonical_name,
+                        _canonical_name,
                         category,
                         essentiality,
                         has_manual_rule,
@@ -323,7 +323,7 @@ def bridge_cash_activities(
                         day_start,
                         settlement,
                         description,
-                        canonical_name,
+                        description,
                         group["account_name"],
                         abs_amount,
                         group["currency"],

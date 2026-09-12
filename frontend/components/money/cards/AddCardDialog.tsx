@@ -96,17 +96,11 @@ function ExtractedTerms({ result }: { result: CardIntakeResult }) {
       </p>
     )
   }
-  const lowConfidence = (result.confidence ?? 1) < 0.7
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-text">{product.productName}</span>
         <Badge variant="outline">{product.issuer}</Badge>
-        {result.confidence != null ? (
-          <Badge variant={lowConfidence ? 'warning' : 'success'}>
-            {Math.round(result.confidence * 100)}% confidence
-          </Badge>
-        ) : null}
         {result.status === 'needs_review' ? (
           <Badge variant="warning">Needs review</Badge>
         ) : null}
@@ -234,13 +228,22 @@ export function AddCardDialog({
     )
   }
 
-  const canSubmit = Boolean(resolvedProduct) && !createCard.isPending
+  const canSubmit =
+    Boolean(resolvedProduct) &&
+    !createCard.isPending &&
+    (mode !== 'screenshot' ||
+      (Boolean(intakeResult?.offerFingerprint) &&
+        !intakeResult?.unreadableFields.length))
 
   const handleSubmit = () => {
     if (!resolvedProduct) return
     createCard.mutate(
       {
         productId: resolvedProduct.id,
+        sourceDocumentId:
+          mode === 'screenshot' ? intakeResult?.documentId : undefined,
+        offerFingerprint:
+          mode === 'screenshot' ? intakeResult?.offerFingerprint : undefined,
         status: 'active',
         player,
         role,
@@ -395,7 +398,11 @@ export function AddCardDialog({
             Cancel
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-            {createCard.isPending ? 'Adding…' : 'Add card'}
+            {createCard.isPending
+              ? 'Adding…'
+              : mode === 'screenshot'
+                ? 'Confirm these terms and add card'
+                : 'Add card'}
           </Button>
         </DialogFooter>
       </DialogContent>

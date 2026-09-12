@@ -72,15 +72,15 @@ def _question_receipt_merchant(merchant: str) -> list[_QuestionDict]:
     return [
         {
             "field_name": None,
-            "question": f"Should Jenny treat {merchant} orders like this as part of regular household spending?",
+            "question": f"Is {merchant} a recurring household shopping channel?",
             "priority": "medium",
             "question_format": "boolean",
             "options": ["Yes", "No"],
             "recommendation": (
                 f"Answer 'yes' if {merchant} is a recurring household shopping channel"
-                " for groceries, consumables, or home goods."
+                " you expect to use again. Each purchase keeps its own category and essential/discretionary treatment."
             ),
-            "rationale": "This helps Jenny separate recurring household shopping from one-off discretionary purchases.",
+            "rationale": "This records merchant frequency only. It does not classify all purchases at this store as essential.",
         }
     ]
 

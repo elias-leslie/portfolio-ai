@@ -37,6 +37,9 @@ def _hard_identifiers(enrichment: dict[str, Any]) -> list[tuple[str, str]]:
     raw = enrichment.get("identifiers")
     identifiers = raw if isinstance(raw, dict) else {}
     pairs: list[tuple[str, str]] = []
+    costco_code = str(identifiers.get("costco_item_number") or "").strip()
+    if costco_code.isdigit() and 3 <= len(costco_code) <= 8:
+        pairs.append(("costco_item_number", costco_code))
     asin = str(identifiers.get("asin") or "").strip()
     if asin:
         pairs.append(("asin", asin))
@@ -177,6 +180,7 @@ class HouseholdProductNormalizationService:
                 str(open_food_facts.get("image_url") or "").strip() or None,
                 json.dumps(
                     {
+                        "package_measure": measure,
                         "open_food_facts_categories": open_food_facts.get("categories_tags")
                         or []
                     }

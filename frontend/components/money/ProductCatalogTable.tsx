@@ -76,7 +76,7 @@ export function ProductCatalogTable({
               <th className="border-b border-border/40 px-3 py-2 text-right align-middle">
                 <SortableTableHeader
                   field="price"
-                  label="Latest price"
+                  label="Latest package price"
                   activeField={sortKey}
                   direction={sortDirection}
                   onSort={onSort}
@@ -84,7 +84,7 @@ export function ProductCatalogTable({
                 />
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-right text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
-                Best observed
+                Lowest observed package
               </th>
               <th className="border-b border-border/40 px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.16em] text-text-muted/80">
                 Price trend
@@ -140,7 +140,7 @@ export function ProductCatalogTable({
                   <td className="border-b border-border/20 px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-text">
-                        {product.canonicalName}
+                        {product.latestDescription ?? product.canonicalName}
                       </span>
                       {product.needsReviewCount > 0 ? (
                         <Badge variant="warning">Review</Badge>
@@ -165,8 +165,8 @@ export function ProductCatalogTable({
                     })}
                     <div className="text-xs text-text-muted">
                       {product.latestUnitPrice != null
-                        ? `${formatCurrency(product.latestUnitPrice, { decimals: 2 })}/unit`
-                        : (product.latestMerchant ?? '')}
+                        ? `${formatCurrency(product.latestUnitPrice, { decimals: 3 })}/${product.latestUnitLabel ?? 'unit needs review'}`
+                        : 'Package size needs confirmation'}
                     </div>
                   </td>
                   <td className="border-b border-border/20 px-3 py-2.5 text-right font-mono tabular-nums text-text">
@@ -196,6 +196,12 @@ export function ProductCatalogTable({
                               : ''
                           }`
                         : 'No comparable price'}
+                      {product.bestResearchedObservedDate && (
+                        <span className="block">
+                          {product.bestResearchedObservedDate.slice(0, 10)} ·
+                          historical observation
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="border-b border-border/20 px-3 py-2.5">
@@ -211,7 +217,9 @@ export function ProductCatalogTable({
                     {product.ownerItemId ? (
                       <PurchaseItemOwnerSelect
                         itemId={product.ownerItemId}
-                        itemLabel={product.canonicalName}
+                        itemLabel={
+                          product.latestDescription ?? product.canonicalName
+                        }
                         ownerName={product.ownerName}
                         ownerSource={product.ownerSource}
                         forceProductRule

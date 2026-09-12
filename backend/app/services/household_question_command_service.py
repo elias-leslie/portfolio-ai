@@ -53,15 +53,9 @@ class HouseholdQuestionCommandService:
                 """,
                 [cleaned_answer, now, question_id],
             )
-            if row_question.field_name:
-                conn.execute(
-                    """
-                    UPDATE household_inferred_values
-                    SET status = 'confirmed', updated_at = %s
-                    WHERE field_name = %s
-                    """,
-                    [now, row_question.field_name],
-                )
+            # Profile confirmation belongs to apply_answer_to_profile, after an
+            # actual typed value is accepted. A contextual yes/no is not an
+            # approval of a numeric budget inference with the same legacy field.
             service.question_reconciler.resolve_related_open_questions(
                 service,
                 conn=conn,

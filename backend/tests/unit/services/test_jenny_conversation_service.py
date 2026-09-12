@@ -349,8 +349,8 @@ def test_build_context_includes_recent_documents_and_runtime_status(
             )
         ]
     )
-    service.portfolio_mgr.get_accounts.return_value = []
-    service.portfolio_mgr.get_positions.return_value = []
+    service.portfolio_mgr.get_accounts.return_value = [SimpleNamespace(id="paper", account_type="paper")]
+    service.portfolio_mgr.get_positions.return_value = [SimpleNamespace(account_id="paper", symbol="PAPERONLY")]
     service.health_service.perform_health_check.return_value = {
         "status": "healthy",
         "services": {"backend": {"status": "healthy"}},
@@ -377,6 +377,9 @@ def test_build_context_includes_recent_documents_and_runtime_status(
     get_analytics_payload.return_value = SimpleNamespace(model_dump=lambda: {"status": "ok"})
 
     context = service._build_context("Did you get my 529 upload?", [])
+    get_analytics_payload.assert_called_once_with(include_paper=False)
+    assert context["portfolio"]["accounts"] == []
+    assert context["portfolio"]["positions"] == []
 
     assert context["household"]["documents"][0]["filename"] == "image.png"
     assert context["household"]["documents"][0]["review_summary"].startswith("529 college savings")

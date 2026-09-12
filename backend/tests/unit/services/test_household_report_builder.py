@@ -700,6 +700,7 @@ def test_build_household_reports_uses_cached_product_enrichment_measure_when_tit
                     "Product Name": "Honey reorder",
                     "product_enrichment": {
                         "package_measure": {
+                            "parser_version": 2, "evidence_text": "32 oz",
                             "display_label": "32 oz",
                             "normalized_quantity": 32,
                             "normalized_unit": "weight_oz",
@@ -727,6 +728,7 @@ def test_build_household_reports_uses_cached_product_enrichment_measure_when_tit
                     "Product Name": "Honey reorder",
                     "product_enrichment": {
                         "package_measure": {
+                            "parser_version": 2, "evidence_text": "32 oz",
                             "display_label": "32 oz",
                             "normalized_quantity": 32,
                             "normalized_unit": "weight_oz",

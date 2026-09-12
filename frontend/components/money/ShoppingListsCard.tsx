@@ -318,7 +318,7 @@ export function ShoppingListsCard() {
           <p className="text-sm font-semibold text-text">Create a list</p>
           <p className="text-xs text-text-muted">
             Paste groceries or household supplies, then optimize from stored
-            vendor quotes.
+            confirmed offers.
           </p>
           <p className="text-xs text-text-muted">
             Research can be run per finalized list; it checks enabled vendors

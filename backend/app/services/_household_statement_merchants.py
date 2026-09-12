@@ -29,6 +29,8 @@ _MOVEMENT_PREFIXES = (
     "online transfer",
     "electronic payment",
     "purchase authorized on",
+    "debit card purchase",
+    "cash advance",
     "check card purchase",
     "pos purchase",
     "pos debit",
@@ -181,6 +183,11 @@ def normalize_statement_merchant(raw_merchant: str) -> str | None:
     """
     if not looks_like_statement_line(raw_merchant):
         return None
+    counterparty = _strip_movement_prefix(raw_merchant.strip())
+    if any(counterparty.lower().startswith(provider) for provider in _PEER_PAYMENT_PROVIDERS):
+        # Reference numbers may precede the recipient. Preserve the whole
+        # counterparty rather than inventing a shared provider-only merchant.
+        return _ACCOUNT_TYPE_BRACKET.sub("", counterparty).strip()
     tokens = _tokens(raw_merchant)
     if not tokens:
         return None
@@ -202,6 +209,8 @@ def normalize_statement_merchant(raw_merchant: str) -> str | None:
     text = _strip_service_suffix(_strip_movement_prefix(split).strip())
     if not text:
         return None
+    if re.match(r"^publix(?:\s|$)", text, re.IGNORECASE):
+        text = "Publix"
     return " ".join(word.capitalize() for word in text.split())
 
 
@@ -214,20 +223,21 @@ def statement_merchant_key(raw_merchant: str) -> str | None:
     return key or None
 
 
-# Statements truncate ("Frontier Communi" one month, "Frontier Commubill" the
-# next), so two keys are the same biller when one leads the other by this many
-# characters. Short keys must match exactly: "walmart" and "walgreens" share
-# three characters and are not the same shop.
-MIN_SHARED_BILLER_PREFIX = 9
+# Only observed, unambiguous statement abbreviations are aliases. A shared
+# prefix is not evidence of identity (even nine characters of bank boilerplate).
+_BILLER_KEY_ALIASES = {
+    "frontiercomm": "frontiercommunications",
+    "frontiercommu": "frontiercommunications",
+    "frontiercommuni": "frontiercommunications",
+}
+
+
+def statement_biller_group_key(key: str) -> str:
+    return _BILLER_KEY_ALIASES.get(key, key)
 
 
 def same_statement_biller(left: str | None, right: str | None) -> bool:
     """True when two statement lines name the same business."""
     if not left or not right:
         return False
-    if left == right:
-        return True
-    shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
-    if len(shorter) < MIN_SHARED_BILLER_PREFIX:
-        return False
-    return shorter[:MIN_SHARED_BILLER_PREFIX] == longer[:MIN_SHARED_BILLER_PREFIX]
+    return statement_biller_group_key(left) == statement_biller_group_key(right)

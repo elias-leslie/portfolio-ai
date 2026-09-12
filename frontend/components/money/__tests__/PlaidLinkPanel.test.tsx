@@ -75,6 +75,38 @@ describe('PlaidLinkPanel', () => {
     removeItemMutateAsync.mockResolvedValue({})
   })
 
+  it('keeps loading and failed reads distinct from an unconfigured connection', async () => {
+    const retry = vi.fn()
+    usePlaidStatusMock.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      refetch: retry,
+    })
+    const view = render(<PlaidLinkPanel />)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Loading Plaid connection status',
+    )
+    expect(screen.queryByText('Not configured')).not.toBeInTheDocument()
+    expect(screen.queryByText('0')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Configure' }),
+    ).not.toBeInTheDocument()
+    usePlaidStatusMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Offline'),
+      refetch: retry,
+    })
+    view.rerender(<PlaidLinkPanel />)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'connection status is unavailable',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Retry Plaid status' }),
+    )
+    expect(retry).toHaveBeenCalledOnce()
+  })
+
   it('shows saved Plaid credentials separately from pending institution connection', () => {
     render(<PlaidLinkPanel />)
 

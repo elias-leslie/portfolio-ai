@@ -25,6 +25,7 @@ from .builders import (
     build_trends_section,
 )
 from .data_fetchers import fetch_all_data
+from .decision_evidence import attach_decision_evidence
 from .decisions import build_symbol_decision
 from .models import (
     RecommendationSection,
@@ -134,9 +135,7 @@ def build_symbol_intelligence(
     response = SymbolIntelligenceResponse(
         symbol=symbol,
         generated_at=datetime.now(UTC),
-        section_issues=[
-            SymbolSectionIssue(**issue) for issue in data.get("section_issues", [])
-        ],
+        section_issues=[SymbolSectionIssue(**issue) for issue in data.get("section_issues", [])],
     )
     source_failures = {issue.section for issue in response.section_issues}
     response.quote = _build_section(
@@ -280,10 +279,11 @@ def build_symbol_intelligence(
                 response,
                 section="decision",
                 message=(
-                    "The current decision is unavailable because its live inputs did "
-                    "not load."
+                    "The current decision is unavailable because its live inputs did not load."
                 ),
             )
+
+    attach_decision_evidence(response)
 
     if response.section_issues and not any(
         (

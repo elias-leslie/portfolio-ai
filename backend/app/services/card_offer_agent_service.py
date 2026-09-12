@@ -3,10 +3,9 @@
 A document uploaded with ``source_type='credit_card_offer'`` bypasses the
 generic financial-document review loop: the ``credit-card-offer-reviewer``
 Agent Hub agent extracts the card's publicly stated terms (vision + text) into
-a structured payload, which is upserted into ``credit_card_products``
-(``source='intake'``) keyed by slug. Low-confidence or partially unreadable
-extractions are surfaced on the document row (``review_status='needs_review'``)
-so the Cards tab can ask the user to confirm.
+a structured payload, which remains on its source document until the user confirms the extracted
+terms while adding a card. Existing catalog terms are never replaced by a
+personalized offer.
 
 Agent configuration lives in Agent Hub ([M:9a51cbd8]); portfolio-ai routes by
 slug only ([M:7ce57b1e]).
@@ -26,14 +25,14 @@ from agent_hub.models.content import MessageInput, TextContent
 
 from app.agents.clients.agent_hub_client import AgentHubAPIClient
 from app.logging_config import get_logger
-from app.models.credit_cards import CardIntakeResult
+from app.models.credit_cards import CardIntakeResult, CreditCardProduct
 from app.services._household_document_llm import _build_review_image_content
 from app.services._household_document_text import _extract_text
+from app.services.card_terms_review_service import fingerprint
 from app.services.household_document_storage import (
     household_upload_root,
     resolve_document_upload,
 )
-from app.storage import get_storage
 
 if TYPE_CHECKING:
     from app.models.household_finance_types import HouseholdDocument
@@ -44,10 +43,6 @@ logger = get_logger(__name__)
 CARD_OFFER_AGENT_SLUG = "credit-card-offer-reviewer"
 CARD_OFFER_SOURCE_TYPE = "credit_card_offer"
 
-# Below this the extraction needs a human look before it is trusted.
-_CONFIDENCE_FLOOR = 0.65
-
-
 
 def _slugify(issuer: str, product_name: str) -> str:
     raw = f"{issuer} {product_name}".lower()
@@ -56,7 +51,7 @@ def _slugify(issuer: str, product_name: str) -> str:
 
 
 class CardOfferAgentService:
-    """Extract card terms from an offer document and upsert the catalog row."""
+    """Extract card terms for explicit review before they enter the plan."""
 
     def __init__(self) -> None:
         self._client_cls = AgentHubAPIClient
@@ -73,15 +68,15 @@ class CardOfferAgentService:
         confidence = float(extracted.get("confidence") or 0.0)
         unreadable = [str(f) for f in (extracted.get("unreadable_fields") or [])]
         notes = str(extracted.get("extraction_notes") or "")
-        product_row = self._upsert_product(extracted, document_id=document.id)
-        needs_review = confidence < _CONFIDENCE_FLOOR or bool(unreadable)
+        product = self._stage_product(extracted, document_id=document.id, service=service)
+        needs_review = True
         self._mark_document(
             service,
             document_id=document.id,
             confidence=confidence,
             needs_review=needs_review,
             summary=(
-                f"Card offer extracted: {product_row['product_name']} ({product_row['issuer']}); "
+                f"Card offer extracted: {product.product_name} ({product.issuer}); "
                 + (f"unreadable: {', '.join(unreadable)}; " if unreadable else "")
                 + (notes or "no extraction notes")
             ),
@@ -89,22 +84,13 @@ class CardOfferAgentService:
         logger.info(
             "credit_card_offer_extracted",
             document_id=document.id,
-            slug=product_row["slug"],
+            slug=product.slug,
             confidence=confidence,
             needs_review=needs_review,
         )
-        # Lazy: card_management_service pulls the transaction-service stack;
-        # importing it at module load would slow every pipeline import.
-        from app.services.card_management_service import CardManagementService  # noqa: PLC0415
-
-        product = next(
-            (p for p in CardManagementService().get_catalog() if p.slug == product_row["slug"]),
-            None,
-        )
-        if product is None:  # row was just upserted; absence means a bug
-            raise RuntimeError(f"Card product {product_row['slug']} missing after upsert.")
         return CardIntakeResult(
             document_id=document.id,
+            offer_fingerprint=fingerprint(product.model_dump(mode="json")),
             status="needs_review" if needs_review else "extracted",
             product=product,
             confidence=confidence,
@@ -143,76 +129,37 @@ class CardOfferAgentService:
             raise ValueError("Card offer extraction returned no product_name.")
         return payload
 
-    def _upsert_product(self, extracted: dict[str, Any], *, document_id: str) -> dict[str, Any]:
+    def _stage_product(self, extracted: dict[str, Any], *, document_id: str,
+                       service: Any) -> CreditCardProduct:
+        """Keep the extraction on its source document until the user confirms it."""
+        from app.services.card_management_service import CardManagementService  # noqa: PLC0415
+
         issuer = str(extracted.get("issuer") or "Unknown")
-        product_name = str(extracted["product_name"])
-        slug = _slugify(issuer, product_name)
+        name = str(extracted["product_name"])
+        slug = _slugify(issuer, name)
+        existing = next((p for p in CardManagementService(service.storage).get_catalog()
+                         if p.slug == slug or (p.issuer.casefold() == issuer.casefold()
+                                              and p.product_name.casefold() == name.casefold())), None)
         welcome = extracted.get("welcome") if isinstance(extracted.get("welcome"), dict) else {}
-        row = {
-            "slug": slug,
-            "issuer": issuer,
-            "network": extracted.get("network"),
-            "product_name": product_name,
-            "card_kind": str(extracted.get("card_kind") or "personal"),
-            "annual_fee": float(extracted.get("annual_fee") or 0.0),
-            "reward_multipliers": json.dumps(extracted.get("reward_multipliers") or {"other": 1.0}),
-            "point_program": extracted.get("point_program"),
-            "est_point_value_cents": float(extracted.get("est_point_value_cents") or 1.0),
-            "welcome_bonus_points": int(welcome.get("bonus_points") or 0),
-            "welcome_bonus_cash": float(welcome.get("bonus_cash") or 0.0),
-            "welcome_min_spend": float(welcome.get("min_spend") or 0.0),
-            "welcome_window_days": int(welcome.get("window_days") or 0),
-            "transfer_partners": json.dumps(extracted.get("transfer_partners") or []),
-            "credits": json.dumps(extracted.get("credits") or []),
-            "issuer_rules": json.dumps(extracted.get("issuer_rules") or {}),
-            "source_document_id": document_id,
-        }
-        storage = get_storage()
-        with storage.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO credit_card_products (
-                    id, slug, issuer, network, product_name, card_kind, annual_fee,
-                    reward_multipliers, point_program, est_point_value_cents,
-                    welcome_bonus_points, welcome_bonus_cash, welcome_min_spend,
-                    welcome_window_days, transfer_partners, credits, issuer_rules,
-                    source, source_document_id, last_verified_at
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s,
-                    %s::jsonb, %s::jsonb, %s::jsonb, 'intake', %s, CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (slug) DO UPDATE SET
-                    issuer = EXCLUDED.issuer,
-                    network = EXCLUDED.network,
-                    product_name = EXCLUDED.product_name,
-                    card_kind = EXCLUDED.card_kind,
-                    annual_fee = EXCLUDED.annual_fee,
-                    reward_multipliers = EXCLUDED.reward_multipliers,
-                    point_program = EXCLUDED.point_program,
-                    est_point_value_cents = EXCLUDED.est_point_value_cents,
-                    welcome_bonus_points = EXCLUDED.welcome_bonus_points,
-                    welcome_bonus_cash = EXCLUDED.welcome_bonus_cash,
-                    welcome_min_spend = EXCLUDED.welcome_min_spend,
-                    welcome_window_days = EXCLUDED.welcome_window_days,
-                    transfer_partners = EXCLUDED.transfer_partners,
-                    credits = EXCLUDED.credits,
-                    issuer_rules = EXCLUDED.issuer_rules,
-                    source = 'intake',
-                    source_document_id = EXCLUDED.source_document_id,
-                    last_verified_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                """,
-                [
-                    str(uuid.uuid4()), row["slug"], row["issuer"], row["network"],
-                    row["product_name"], row["card_kind"], row["annual_fee"],
-                    row["reward_multipliers"], row["point_program"], row["est_point_value_cents"],
-                    row["welcome_bonus_points"], row["welcome_bonus_cash"], row["welcome_min_spend"],
-                    row["welcome_window_days"], row["transfer_partners"], row["credits"],
-                    row["issuer_rules"], row["source_document_id"],
-                ],
-            )
+        product = CreditCardProduct(
+            id=existing.id if existing else str(uuid.uuid5(uuid.NAMESPACE_URL, f"card-offer:{document_id}")),
+            slug=existing.slug if existing else slug, issuer=issuer, product_name=name,
+            annual_fee=extracted.get("annual_fee") or 0,
+            reward_multipliers=extracted.get("reward_multipliers") or {},
+            point_program=extracted.get("point_program"),
+            est_point_value_cents=extracted.get("est_point_value_cents"),
+            welcome_bonus_points=welcome.get("bonus_points") or 0,
+            welcome_bonus_cash=welcome.get("bonus_cash") or 0,
+            welcome_min_spend=welcome.get("min_spend"),
+            welcome_window_days=welcome.get("window_days"),
+            source="intake", source_document_id=document_id,
+        )
+        staged = product.model_dump(mode="json")
+        with service.storage.connection() as conn:
+            conn.execute("UPDATE household_documents SET metadata=COALESCE(metadata,'{}'::jsonb) || %s::jsonb WHERE id=%s",
+                         [json.dumps({"card_offer": staged, "card_offer_fingerprint": fingerprint(staged)}), document_id])
             conn.commit()
-        return row
+        return product
 
     def _mark_document(
         self,

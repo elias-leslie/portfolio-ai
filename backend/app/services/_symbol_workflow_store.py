@@ -90,7 +90,7 @@ class _WorkflowStore:
                     SELECT 1
                     FROM portfolio_positions p
                     JOIN portfolio_accounts a ON a.id = p.account_id
-                    WHERE p.symbol = %s AND a.account_type != 'paper'
+                    WHERE p.symbol = %s AND p.shares > 0 AND a.account_type != 'paper'
                     LIMIT 1
                     """,
                     [symbol],

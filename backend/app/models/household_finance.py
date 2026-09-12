@@ -314,31 +314,31 @@ class HouseholdProfile(BaseModel):
 
 class HouseholdProfileUpdate(BaseModel):
     household_name: str | None = None
-    adult_count: int | None = None
-    dependent_count: int | None = None
-    monthly_net_income_target: float | None = None
-    monthly_essential_target: float | None = None
-    monthly_discretionary_target: float | None = None
-    monthly_savings_target: float | None = None
-    target_retirement_age: int | None = None
-    target_spouse_retirement_age: int | None = None
-    target_retirement_spend: float | None = None
-    retirement_inflation_rate: float | None = None
-    retirement_horizon_years: int | None = None
-    primary_social_security_monthly: float | None = None
-    spouse_social_security_monthly: float | None = None
-    primary_social_security_annual_earnings: float | None = None
-    spouse_social_security_annual_earnings: float | None = None
-    primary_social_security_start_age: int | None = None
-    spouse_social_security_start_age: int | None = None
-    social_security_payable_ratio: float | None = None
+    adult_count: int | None = Field(default=None, ge=0, le=30)
+    dependent_count: int | None = Field(default=None, ge=0, le=30)
+    monthly_net_income_target: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    monthly_essential_target: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    monthly_discretionary_target: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    monthly_savings_target: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    target_retirement_age: int | None = Field(default=None, ge=18, le=100)
+    target_spouse_retirement_age: int | None = Field(default=None, ge=18, le=100)
+    target_retirement_spend: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    retirement_inflation_rate: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    retirement_horizon_years: int | None = Field(default=None, ge=1, le=100)
+    primary_social_security_monthly: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    spouse_social_security_monthly: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    primary_social_security_annual_earnings: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    spouse_social_security_annual_earnings: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    primary_social_security_start_age: int | None = Field(default=None, ge=62, le=70)
+    spouse_social_security_start_age: int | None = Field(default=None, ge=62, le=70)
+    social_security_payable_ratio: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
     filing_status: str | None = None
     state_of_residence: str | None = None
-    effective_tax_rate: float | None = None
-    marginal_federal_tax_rate: float | None = None
-    marginal_state_tax_rate: float | None = None
-    emergency_fund_target_months: float | None = None
-    emergency_fund_target_amount: float | None = None
+    effective_tax_rate: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    marginal_federal_tax_rate: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    marginal_state_tax_rate: float | None = Field(default=None, ge=0, le=100, allow_inf_nan=False)
+    emergency_fund_target_months: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    emergency_fund_target_amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     withdrawal_strategy: str | None = None
     withdrawal_initial_rate: float | None = None
     withdrawal_decline_mode: str | None = None

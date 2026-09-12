@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
 
-Portfolio AI is a full-stack investment intelligence workspace for portfolio tracking, watchlists, market-data health, strategy research, and AI-assisted investment review. It combines a FastAPI backend, a Next.js frontend, PostgreSQL, Redis, Hatchet workflows, and optional external data/AI integrations.
+Portfolio AI brings household money review, investment decisions, retirement planning, and financial evidence into one self-hosted workspace. It combines a FastAPI backend, a Next.js frontend, PostgreSQL, Redis, Hatchet workflows, and optional external data/AI integrations.
 
 > Portfolio AI is software for analysis and research. It is not financial advice, and it should not be used as the sole basis for investment decisions.
 
@@ -17,43 +17,27 @@ Portfolio AI is a full-stack investment intelligence workspace for portfolio tra
 - Tracks portfolios, accounts, positions, tax lots, transactions, snapshots, and allocation drift, with lot-level cost basis and P&L, tax-loss-harvesting scans (with wash-sale checks), and IPS targets / drift / rebalance plans.
 - Scores watchlist symbols across price, technical, fundamental, catalyst, and options pillars into a per-symbol composite with a plain-language narrative, and discovers/trims candidates from an S&P 500 research universe.
 - Computes a macro "deployment gate" (FULL_DEPLOY / REDUCED / DEFENSIVE) from VIX term structure, credit spreads, put/call, breadth, and factor crowding, with walk-forward and Monte Carlo backtests.
-- Runs ~63 Hatchet workflows on cron for OHLCV / intraday / fundamentals / macro ingestion, scoring, catalysts, strategy research, data-freshness monitoring, and maintenance.
+- Runs scheduled Hatchet workflows for OHLCV / intraday / fundamentals / macro ingestion, scoring, catalysts, strategy research, data-freshness monitoring, and maintenance.
 - Applies a lightweight ML layer (scikit-learn article-quality classifier, TF-IDF news story clustering) and technical analysis (RSI, MACD, Bollinger Bands, ATR, VWAP, and more) on top of the ingested data.
-- Provides optional household money, document-intake, budgeting, and retirement-planning (Monte Carlo) surfaces, plus encrypted Plaid and SnapTrade account linking.
-- Manages household credit cards: a catalog-driven rewards ranking (valuation/credit stances), a two-player 90-day rotation planner that respects issuer rules (Chase 5/24, Amex lifetime, Capital One velocity), keeper-card routing, welcome-bonus spend tracking with soft/provisional charges, AI offer-screenshot intake and monthly catalog research via Agent Hub, and Telegram alerts for spend pace, bonus deadlines, rotation actions, and annual-fee renewals.
-- Offers an optional Agent Hub companion path for AI chat, thesis validation/invalidation, cross-validation, and document review — all routed through Agent Hub with no hardcoded model IDs. Agents read, extract, and explain; they never produce a score or a buy/sell verdict of their own.
+- Opens Money at a named-month Review with coverage, money in/out, category netting, planned asset funding, and up to three agreed changes. Each category links to its exact included ledger slice. Net worth and setup remain secondary.
+- Models retirement using account owners, birth cohorts, shared withdrawal rules, explicit basis coverage, and Monte Carlo scenarios. Pending calculations preserve the last completed result and its inputs.
+- Manages household cards using sourced terms, actual opening/bonus history, ordinary planned spend, dated fees, and overlapping commitments. The active wallet comes first; rotation is an inspectable scenario. Reaching a spending target is distinct from the issuer awarding a bonus. Alerts use household web push.
+- Supports family receipt/shelf-tag capture with member-scoped local drafts and upload retry. Children have capture-only access enforced by the backend. A bounded shopping pilot requires confirmed equivalent packages and current offers before suggesting savings; actual purchases and outcomes stay separate from captures.
+- Offers an optional Agent Hub companion for chat, thesis review, and document extraction. Deterministic signals and agent judgments are attributed separately. Jenny receives canonical figures, scope, and evidence links; saved assumption changes retain their previous values.
 - Ships a read-only MCP server that exposes the signal stack to MCP clients over stdio.
-
-## How it compares
-
-Self-hosted finance tools split into three camps — trackers, budgeters, and
-research terminals. Portfolio AI is the only one that spans all three *and* layers
-AI-assisted research on top: it scores each watchlist symbol from market data, news,
-technicals, and fundamentals into a **plain-language narrative**, and (with the
-optional Agent Hub companion) runs **thesis validation** and **document intake** over
-that same deterministic data.
-
-| | Portfolio AI | Ghostfolio · Wealthfolio | Maybe · Investbrain | OpenBB |
-|---|:---:|:---:|:---:|:---:|
-| Portfolio + tax-lot + drift tracking | ✅ | ✅ | ✅ | partial |
-| AI-scored watchlist with narratives | ✅ | — | — | bring-your-own copilot |
-| Household budgeting + retirement | ✅ | — | Maybe only | — |
-| AI thesis validation + document intake | ✅ | — | chatbot only | — |
-| Self-hosted, no SaaS required | ✅ | ✅ | ✅ | ✅ |
-
-Trackers like Ghostfolio stop at performance math; Maybe and Investbrain bolt on a
-chatbot; OpenBB has the research depth but no budgeting or household surfaces.
-Portfolio AI brings scoring, narratives, budgeting, and household document intake together.
 
 ### Design principle: deterministic core, agents at the edges
 
-Every number the app acts on — pillar scores, the macro deployment gate,
-covariance and volatility, drift, retirement projections, card rotation rules — is
-computed in Python from stored data and is back-testable and reproducible. Agents
-are used where judgment over unstructured input is the actual problem: reading a
-receipt or statement, validating a thesis against the evidence, answering questions
-about your own portfolio. An agent may call deterministic code as a tool; it is
-never the thing that decides what a position is worth or whether to buy it.
+Valuation, pillar scores, the macro gate, volatility, drift, retirement rules, and
+card economics are calculated in Python from explicit inputs. Scenario results
+depend on their saved inputs, rule version, and simulation seed. Missing account,
+flow, quote, package, or basis evidence limits the conclusions shown.
+
+Agents read receipts and statements, evaluate thesis evidence, and explain the
+canonical calculations. An agent review is labeled as such; it does not replace
+the deterministic signal. Proposed document changes require review, while direct
+user changes to saved assumptions retain an audit history. Recording an investment
+decision does not place a trade.
 
 > ⭐ If this is the finance workspace you've wanted, a star helps others find it.
 

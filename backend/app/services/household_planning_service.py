@@ -152,7 +152,6 @@ class HouseholdPlanningService:
     def get_snapshot(self, service: Any) -> HouseholdPlanningSnapshot:
         profile = service.get_profile()
         sections = self._load_sections(service)
-        sync_document_requirements(service, profile=profile, sections=sections)
         requirements = list_document_requirements(service)
         summary = _build_summary(profile=profile, sections=sections, requirements=requirements)
         return HouseholdPlanningSnapshot(summary=summary, document_requirements=requirements, **sections)
@@ -172,6 +171,7 @@ class HouseholdPlanningService:
             if requirements is not None:
                 update_document_requirement_statuses(conn=conn, updates=requirements)
             conn.commit()
+        self.refresh_document_requirements(service)
         return self.get_snapshot(service)
 
     def merge_planning_items(
@@ -218,7 +218,10 @@ class HouseholdPlanningService:
                     rows=raw_items,
                 )
             conn.commit()
-        self.get_snapshot(service)
+        self.refresh_document_requirements(service)
+
+    def refresh_document_requirements(self, service: Any) -> None:
+        sync_document_requirements(service, profile=service.get_profile(), sections=self._load_sections(service))
 
     def sync_document_requirements(self, service: Any, *, profile: Any, sections: dict[str, list[Any]]) -> None:
         sync_document_requirements(service, profile=profile, sections=sections)

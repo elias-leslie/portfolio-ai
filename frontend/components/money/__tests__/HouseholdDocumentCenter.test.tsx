@@ -1,9 +1,43 @@
 'use client'
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { type ComponentProps, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { HouseholdDocumentCenter } from '../HouseholdDocumentCenter'
+import type { HouseholdDocument } from '@/lib/api/household'
+import { HouseholdDocumentCenter as DocumentCenter } from '../HouseholdDocumentCenter'
+
+function HouseholdDocumentCenter({
+  documents = [],
+  ...props
+}: ComponentProps<typeof DocumentCenter> & {
+  documents?: HouseholdDocument[]
+}) {
+  const [client] = useState(() => {
+    const value = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const page = {
+      items: documents,
+      totalCount: documents.length,
+      pendingCount: documents.length,
+      offset: 0,
+      limit: 8,
+    }
+    for (const view of ['history', 'pending'])
+      value.setQueryData(['household', 'documents', 'queue', view], {
+        pages: [page],
+        pageParams: [0],
+      })
+    return value
+  })
+  return (
+    <QueryClientProvider client={client}>
+      <DocumentCenter {...props} />
+    </QueryClientProvider>
+  )
+}
 
 const mutate = vi.fn()
 const mutateAsync = vi.fn()
@@ -46,6 +80,11 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 
 describe('HouseholdDocumentCenter', () => {
   beforeEach(() => {
+    window.history.replaceState(
+      null,
+      '',
+      '/money?tab=intake&intakeView=history#add-evidence-upload',
+    )
     mutate.mockReset()
     mutateAsync.mockReset()
     batchMutate.mockReset()
@@ -106,7 +145,7 @@ describe('HouseholdDocumentCenter', () => {
         expect.objectContaining({
           rawText:
             'CHASE AMAZON CARD\nStatement ending 04/10/2026\nPayment due 05/05/2026',
-          filename: 'add-anything.txt',
+          filename: 'add-evidence.txt',
           accountLabel: undefined,
         }),
       )
@@ -614,7 +653,7 @@ describe('HouseholdDocumentCenter', () => {
 
     expect(screen.queryByText('0 B')).not.toBeInTheDocument()
     expect(screen.queryByText('application/json')).not.toBeInTheDocument()
-    expect(screen.getByText(/jenny: complete/i)).toBeInTheDocument()
+    expect(screen.getByText(/review: complete/i)).toBeInTheDocument()
   })
 
   it('marks upload controls busy while household documents are uploading', () => {

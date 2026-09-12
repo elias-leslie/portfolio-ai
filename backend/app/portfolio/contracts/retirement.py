@@ -14,7 +14,7 @@ opt-in via ``GET /api/retirement/scenarios/{id}?detail=true``.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
@@ -188,6 +188,8 @@ class RetirementInputs(BaseModel):
     schema_version: int = 1
     household_id: str
     primary_age: int = Field(..., ge=0, le=120)
+    primary_birth_year: int | None = None
+    spouse_birth_year: int | None = None
     spouse_age: int | None = Field(None, ge=0, le=120)
     retirement_age: int = Field(..., ge=18, le=120)
     spouse_retirement_age: int | None = Field(None, ge=18, le=120)
@@ -198,6 +200,7 @@ class RetirementInputs(BaseModel):
     asset_allocation: dict[str, float] = Field(default_factory=dict)
     cash_yield: float | None = Field(None, ge=0.0, le=0.2)
     taxable_gain_ratio: float | None = Field(None, ge=0.0, le=1.0)
+    account_buckets: tuple[RetirementAccountBucket, ...] = ()
     income_sources: tuple[RetirementIncomeSource, ...] = ()
     inflation_rate: float = Field(0.025, ge=0.0, le=0.2)
     social_security_payable_ratio: float = Field(1.0, ge=0.0, le=1.0)
@@ -265,6 +268,9 @@ class RetirementAccountBucket(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     bucket_type: str
+    owner: str = "primary"
+    owner_name: str | None = None
+    household_account_id: str | None = None
     label: str
     account_type: str
     tax_treatment: str
@@ -429,6 +435,8 @@ class RetirementDrawdownYear(BaseModel):
     ending_balance: float = Field(0.0, ge=0.0)
     rmd_amount: float = Field(0.0, ge=0.0)
     rmd_applied: bool = False
+    withdrawals_by_owner: dict[str, dict[str, float]] = Field(default_factory=dict)
+    balances_by_owner: dict[str, dict[str, float]] = Field(default_factory=dict)
     withdrawals_by_bucket: dict[str, float] = Field(default_factory=dict)
     balances_by_bucket: dict[str, float] = Field(default_factory=dict)
     spending_target: float = Field(0.0, ge=0.0)
@@ -525,6 +533,7 @@ class RetirementPreview(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     schema_version: int = 1
+    computed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     trusted_totals: bool
     account_control_status: str
     account_control_summary: str

@@ -7,7 +7,7 @@ import re
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -346,6 +346,8 @@ def _brokerage_fields(connection: dict[str, object]) -> tuple[str | None, str | 
 
 def _account_kind(*values: object) -> SnapTradeAccountKind:
     normalized = " ".join(value.lower() for raw in values if (value := _string(raw)))
+    if re.search(r"\b529\b", normalized):
+        return SnapTradeAccountKind("Taxable", "education", "brokerage", "529")
     if "roth" in normalized:
         return SnapTradeAccountKind("Roth", "retirement", "retirement", "roth_ira")
     if "401" in normalized:
@@ -657,7 +659,7 @@ class SnapTradeService:
         with self.storage.connection() as conn:
             rows = conn.execute(
                 f"""
-                SELECT
+                WITH source_rows AS (SELECT
                     o.account_id,
                     a.name,
                     a.institution_name,
@@ -675,12 +677,26 @@ class SnapTradeService:
                     o.time_updated,
                     o.time_executed,
                     o.currency,
-                    o.last_synced_at
+                    o.last_synced_at,
+                    COALESCE(a.household_account_id::text, o.account_id) AS source_account
                 FROM snaptrade_orders o
                 JOIN snaptrade_accounts a ON a.account_id = o.account_id
                 {where_clause}
-                ORDER BY COALESCE(o.time_executed, o.time_updated, o.time_placed) DESC NULLS LAST,
-                         o.last_synced_at DESC
+                ), identified AS (
+                    SELECT *, COUNT(*) OVER source_order AS source_copy_count,
+                        ROW_NUMBER() OVER (source_order ORDER BY last_synced_at DESC, account_id) AS copy_rank
+                    FROM source_rows
+                    WINDOW source_order AS (PARTITION BY source_account, brokerage_order_id,
+                        status, action, symbol, raw_symbol, filled_quantity, execution_price,
+                        time_executed, currency, order_type, time_in_force)
+                )
+                SELECT account_id, name, institution_name, account_mask, brokerage_order_id,
+                    status, action, symbol, raw_symbol, filled_quantity, execution_price,
+                    order_type, time_in_force, time_placed, time_updated, time_executed,
+                    currency, last_synced_at, source_copy_count
+                FROM identified WHERE copy_rank = 1
+                ORDER BY COALESCE(time_executed, time_updated, time_placed) DESC NULLS LAST,
+                         last_synced_at DESC, account_id, brokerage_order_id
                 LIMIT %s
                 """,
                 params,
@@ -694,6 +710,7 @@ class SnapTradeService:
                     "institution_name": str(row[2]) if row[2] else None,
                     "account_mask": str(row[3]) if row[3] else None,
                     "brokerage_order_id": str(row[4]),
+                    "source_copy_count": int(row[18]),
                     "status": str(row[5]) if row[5] else None,
                     "action": str(row[6]) if row[6] else None,
                     "symbol": str(row[7]) if row[7] else None,
@@ -1765,17 +1782,26 @@ class SnapTradeService:
         user: SnapTradeUser,
         account_id: str,
     ) -> int:
-        response = _dict(
-            _body(
-                client.account_information.get_account_activities(
-                    account_id=account_id,
-                    user_id=user.user_id,
-                    user_secret=user.user_secret,
-                    limit=_SYNC_ACTIVITY_LIMIT,
-                )
-            )
-        )
-        activities = [_dict(item) for item in _list(response.get("data"))]
+        coverage_end = date.today()-timedelta(days=1)
+        coverage_start = coverage_end-timedelta(days=366)
+        activities = []
+        seen_ids: set[str] = set()
+        for page_index in range(50):
+            response = _dict(_body(client.account_information.get_account_activities(
+                account_id=account_id, user_id=user.user_id, user_secret=user.user_secret,
+                start_date=coverage_start.isoformat(), end_date=date.today().isoformat(),
+                limit=_SYNC_ACTIVITY_LIMIT, offset=page_index*_SYNC_ACTIVITY_LIMIT)))
+            page = [_dict(item) for item in _list(response.get("data"))]
+            for item in page:
+                identity = _string(item.get("id")) or _string(item.get("external_reference_id"))
+                if identity is None or identity in seen_ids:
+                    raise SnapTradeIntegrationError("Activity pagination returned missing or duplicate identity; coverage is unverified")
+                seen_ids.add(identity)
+            activities.extend(page)
+            if len(page)<_SYNC_ACTIVITY_LIMIT:
+                break
+        else:
+            raise SnapTradeIntegrationError("Activity history exceeded bounded pagination; coverage is unverified")
         synced_at = _now()
         count = 0
         with self.storage.connection() as conn:
@@ -1833,6 +1859,10 @@ class SnapTradeService:
                     ],
                 )
                 count += 1
+            conn.execute("""UPDATE snaptrade_accounts SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),
+                '{activity_coverage}',%s::jsonb) WHERE account_id=%s""",
+                [_json({"from":coverage_start.isoformat(),"through":coverage_end.isoformat(),
+                        "complete":bool(count),"checked_at":synced_at.isoformat(),"source":"paginated_provider_history"}),account_id])
             conn.commit()
         return count
 

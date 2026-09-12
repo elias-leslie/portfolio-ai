@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import {
+  identityStorageKey,
+  useHouseholdIdentity,
+} from '@/components/providers/HouseholdIdentityProvider'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useJennyChat } from '@/lib/hooks/usePortfolio'
@@ -12,17 +16,15 @@ type ChatMessage = {
   timestamp: number
 }
 
-const SESSION_KEY = 'portfolio-ai:jenny-chat:session'
-const HISTORY_KEY = 'portfolio-ai:jenny-chat:history'
 const MAX_STORED_MESSAGES = 100
 const MAX_MESSAGE_LENGTH = 5000
 
-function loadStoredMessages(): ChatMessage[] {
+function loadStoredMessages(historyKey: string): ChatMessage[] {
   if (typeof window === 'undefined') {
     return []
   }
   try {
-    const raw = window.localStorage.getItem(HISTORY_KEY)
+    const raw = window.localStorage.getItem(historyKey)
     if (!raw) {
       return []
     }
@@ -49,6 +51,9 @@ function loadStoredMessages(): ChatMessage[] {
 }
 
 export function JennyChatConversation() {
+  const identity = useHouseholdIdentity()
+  const sessionKey = identityStorageKey(identity, 'jenny-chat:session')
+  const historyKey = identityStorageKey(identity, 'jenny-chat:history')
   const chatMutation = useJennyChat()
   const [message, setMessage] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -60,18 +65,18 @@ export function JennyChatConversation() {
     if (typeof window === 'undefined') {
       return
     }
-    setSessionId(window.localStorage.getItem(SESSION_KEY))
-    setMessages(loadStoredMessages())
-  }, [])
+    setSessionId(window.localStorage.getItem(sessionKey))
+    setMessages(loadStoredMessages(historyKey))
+  }, [sessionKey, historyKey])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
     if (sessionId) {
-      window.localStorage.setItem(SESSION_KEY, sessionId)
+      window.localStorage.setItem(sessionKey, sessionId)
     }
-  }, [sessionId])
+  }, [sessionId, sessionKey])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -79,16 +84,16 @@ export function JennyChatConversation() {
     }
     try {
       const capped = messages.slice(-MAX_STORED_MESSAGES)
-      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(capped))
+      window.localStorage.setItem(historyKey, JSON.stringify(capped))
     } catch {
       // localStorage full — clear old history and retry
       try {
-        window.localStorage.removeItem(HISTORY_KEY)
+        window.localStorage.removeItem(historyKey)
       } catch {
         // ignore
       }
     }
-  }, [messages])
+  }, [messages, historyKey])
 
   const handleSend = async () => {
     const trimmed = message.trim().slice(0, MAX_MESSAGE_LENGTH)

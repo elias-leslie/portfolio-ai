@@ -1,9 +1,13 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
 import { PlusCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { LoadErrorState } from '@/components/shared/LoadErrorState'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import type { CreditStance, ValuationStance } from '@/lib/api/cards'
+import { get } from '@/lib/api/client'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
 import {
   useCardCatalog,
@@ -17,6 +21,7 @@ import { AddCardDialog, type LinkableAccount } from './AddCardDialog'
 import { AddSoftChargeDialog, SoftChargesSection } from './AddSoftChargeDialog'
 import { CardAlertSettings } from './CardAlertSettings'
 import { CardRankingTable } from './CardRankingTable'
+import { CardTermsReview } from './CardTermsReview'
 import { PLAYER_PRESETS, RotationTimeline } from './RotationTimeline'
 import { RotationValueChart } from './RotationValueChart'
 import { WelcomeProgressChart } from './WelcomeProgressChart'
@@ -35,16 +40,37 @@ export function MoneyCardsPanel({
   dashboard?: HouseholdFinanceDashboard
 }) {
   const [addCardOpen, setAddCardOpen] = useState(false)
+  const [comparisonOpen, setComparisonOpen] = useState(false)
   const [addSoftChargeOpen, setAddSoftChargeOpen] = useState(false)
   const [horizonQuarters, setHorizonQuarters] = useState(8)
   const [playerPreset, setPlayerPreset] = useState('both')
+  const [ordinarySpend, setOrdinarySpend] = useState('')
+  const [closeAfterYear, setCloseAfterYear] = useState(false)
 
   const ownedCardsQuery = useOwnedCards()
   const ownedCards = ownedCardsQuery.data ?? []
   const { data: catalog = [] } = useCardCatalog()
-  const { data: softCharges = [] } = useSoftCharges()
+  const { data: allSoftCharges = [] } = useSoftCharges()
+  const softCharges = allSoftCharges.filter(
+    (charge) => charge.status !== 'voided',
+  )
   const factsQuery = useHouseholdFacts()
   const facts = factsQuery.data ?? []
+  const [valuationStance, setValuationStance] =
+    useState<ValuationStance>('balanced')
+  const [creditStance, setCreditStance] = useState<CreditStance>('easy_only')
+  const monthlyTotal =
+    ordinarySpend.trim() && Number.isFinite(Number(ordinarySpend))
+      ? Math.max(0, Number(ordinarySpend))
+      : null
+  const cardSpend = useQuery({
+    queryKey: ['cards', 'spend-summary'],
+    queryFn: ({ signal }) =>
+      get<{ total: number; provisional: number; posted: number }>(
+        '/api/household/cards/spend-summary',
+        { signal },
+      ),
+  })
 
   const players = useMemo(
     () =>
@@ -52,7 +78,17 @@ export function MoneyCardsPanel({
         ?.players ?? ['p1', 'p2'],
     [playerPreset],
   )
-  const rotationQuery = useRotationPlan({ horizonQuarters, players })
+  const rotationQuery = useRotationPlan(
+    {
+      horizonQuarters,
+      players,
+      monthlyTotal,
+      valuationStance,
+      creditStance,
+      closeAfterMonths: closeAfterYear ? 13 : null,
+    },
+    comparisonOpen,
+  )
 
   const accounts = useMemo<LinkableAccount[]>(
     () =>
@@ -71,10 +107,6 @@ export function MoneyCardsPanel({
 
   return (
     <div className="space-y-6">
-      <p className="rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 text-xs text-text-muted">
-        {disclaimer}
-      </p>
-
       {ownedCardsQuery.isError ? (
         <LoadErrorState
           title="Failed to load the household wallet."
@@ -88,7 +120,8 @@ export function MoneyCardsPanel({
           cards={ownedCards}
           softCharges={softCharges}
           facts={facts}
-          monthToDateSpend={dashboard?.budgetSnapshot.monthToDateSpend}
+          monthToDateSpend={cardSpend.data?.total}
+          provisionalSpend={cardSpend.data?.provisional}
           actions={
             <Button
               type="button"
@@ -110,24 +143,66 @@ export function MoneyCardsPanel({
         onAdd={() => setAddSoftChargeOpen(true)}
       />
 
-      <CardRankingTable />
+      <CardTermsReview />
 
-      <RotationTimeline
-        plan={rotationQuery.data}
-        isLoading={rotationQuery.isLoading}
-        isFetching={rotationQuery.isFetching}
-        error={rotationQuery.error}
-        onRetry={() => {
-          void rotationQuery.refetch()
-        }}
-        horizonQuarters={horizonQuarters}
-        onHorizonChange={setHorizonQuarters}
-        playerPreset={playerPreset}
-        onPlayerPresetChange={setPlayerPreset}
-        catalog={catalog}
-      />
+      <details
+        className="rounded-2xl border border-border/40 p-4"
+        onToggle={(event) => setComparisonOpen(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer font-medium">
+          Compare cards and plan future rotations
+        </summary>
+        {comparisonOpen ? (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <label className="space-y-1 text-sm">
+                Ordinary eligible card spending per month
+                <Input
+                  aria-label="Ordinary card spending per month"
+                  type="number"
+                  min="0"
+                  value={ordinarySpend}
+                  placeholder="Use confirmed category plan"
+                  onChange={(event) => setOrdinarySpend(event.target.value)}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={closeAfterYear}
+                  onChange={(event) => setCloseAfterYear(event.target.checked)}
+                />
+                Model closing new cards after 13 months
+              </label>
+            </div>
 
-      <RotationValueChart plan={rotationQuery.data} />
+            <CardRankingTable
+              monthlyTotal={monthlyTotal}
+              valuationStance={valuationStance}
+              creditStance={creditStance}
+              setValuationStance={setValuationStance}
+              setCreditStance={setCreditStance}
+            />
+            <RotationTimeline
+              plan={rotationQuery.data}
+              isLoading={rotationQuery.isLoading}
+              isFetching={rotationQuery.isFetching}
+              error={rotationQuery.error}
+              onRetry={() => {
+                void rotationQuery.refetch()
+              }}
+              horizonQuarters={horizonQuarters}
+              onHorizonChange={setHorizonQuarters}
+              playerPreset={playerPreset}
+              onPlayerPresetChange={setPlayerPreset}
+              catalog={catalog}
+            />
+
+            <RotationValueChart plan={rotationQuery.data} />
+            <p className="text-xs text-text-muted">{disclaimer}</p>
+          </div>
+        ) : null}
+      </details>
 
       {factsQuery.isError ? (
         <LoadErrorState

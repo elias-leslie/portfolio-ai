@@ -27,9 +27,10 @@ from app.models.credit_cards import (
     RotationRequest,
     SpendProfile,
 )
+from app.services._card_offer_confirmation import WELCOME_FIELDS, confirm_offer
 from app.services.card_rewards_service import (
-    DEFAULT_BUCKET_MIX,
-    DEFAULT_MONTHLY_TOTAL,
+    CATEGORY_TO_REWARD_BUCKET,
+    EXCLUDED_CATEGORIES,
     CardRewardsService,
 )
 from app.services.card_rotation_engine import CardRotationEngine
@@ -42,7 +43,7 @@ _PRODUCT_COLUMNS = (
     "id, slug, issuer, network, product_name, card_kind, annual_fee, reward_multipliers, "
     "point_program, est_point_value_cents, welcome_bonus_points, welcome_bonus_cash, "
     "welcome_min_spend, welcome_window_days, transfer_partners, credits, issuer_rules, "
-    "source, source_document_id, last_verified_at, created_at, updated_at"
+    "source, source_document_id, last_verified_at, created_at, updated_at, verified_terms"
 )
 
 _CARD_COLUMNS = (
@@ -104,11 +105,14 @@ def _row_to_product(row: tuple[Any, ...]) -> CreditCardProduct:
         last_verified_at=_iso(row[19]),
         created_at=_iso(row[20]),
         updated_at=_iso(row[21]),
+        verified_terms=dict(_loads(row[22], {}) or {}) if len(row) > 22 else {},
     )
 
 
 def _row_to_card(row: tuple[Any, ...]) -> HouseholdCreditCard:
+    metadata = dict(_loads(row[12], {}) or {})
     return HouseholdCreditCard(
+        welcome_earned_date=str(metadata["welcome_earned_date"]) if metadata.get("welcome_earned_date") else None,
         id=str(row[0]),
         product_id=str(row[1]),
         household_account_id=str(row[2]) if row[2] else None,
@@ -176,6 +180,14 @@ class CardManagementService:
         products = {p.id: p for p in self._load_products()}
         for card in cards:
             card.product = products.get(card.product_id)
+            terms = card.metadata.get("welcome_terms")
+            if card.product is not None:
+                # Public offer changes must not rewrite the contract this owner
+                # accepted. Unknown original terms remain unknown until entered.
+                values = {key: terms.get(key) for key in WELCOME_FIELDS if key in terms} if isinstance(terms, dict) else {"welcome_min_spend": None}
+                if isinstance(card.metadata.get("annual_fee_override"), int | float):
+                    values["annual_fee"] = card.metadata["annual_fee_override"]
+                card.product = CreditCardProduct.model_validate({**card.product.model_dump(), **values})
         return cards
 
     def _hydrate_accounts(self, conn: Any, cards: list[HouseholdCreditCard]) -> None:
@@ -221,17 +233,21 @@ class CardManagementService:
         card_id = str(uuid.uuid4())
         now = _now()
         with self.storage.connection() as conn:
+            offer_terms = confirm_offer(conn, req)
             exists = conn.execute(
-                "SELECT 1 FROM credit_card_products WHERE id = %s", [req.product_id]
+                "SELECT welcome_bonus_points,welcome_bonus_cash,welcome_min_spend,welcome_window_days FROM credit_card_products WHERE id = %s", [req.product_id]
             ).fetchone()
             if exists is None:
                 raise KeyError(f"Product {req.product_id} not found.")
+            if offer_terms is None:
+                offer_terms = dict(zip(WELCOME_FIELDS, exists, strict=True))
+                offer_terms["confirmed_at"] = now.isoformat()
             conn.execute(
                 """
                 INSERT INTO household_credit_cards (
                     id, product_id, household_account_id, status, player, role,
-                    opened_date, welcome_deadline, notes, created_at, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    opened_date, welcome_deadline, notes, created_at, updated_at, metadata
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)
                 """,
                 [
                     card_id,
@@ -245,6 +261,7 @@ class CardManagementService:
                     req.notes,
                     now,
                     now,
+                    _json({"welcome_terms": offer_terms, "annual_fee_override": offer_terms.get("annual_fee")}),
                 ],
             )
             conn.commit()
@@ -253,21 +270,44 @@ class CardManagementService:
         return card
 
     def update_owned_card(self, card_id: str, req: CreditCardUpdate) -> HouseholdCreditCard:
-        fields = req.model_dump(exclude_none=True)
+        fields = req.model_dump(exclude_unset=True)
         if not fields:
             with self.storage.connection() as conn:
                 return self._get_card(conn, card_id)
         date_fields = {"opened_date", "closed_date", "annual_fee_due_date", "welcome_deadline"}
         sets: list[str] = []
         params: list[Any] = []
+        metadata_updates: dict[str, object] = {}
         for key, value in fields.items():
+            if key == "welcome_earned_date":
+                parsed = _opt_date(value)
+                metadata_updates[key] = parsed.isoformat() if parsed else None
+                continue
+            if key == "annual_fee":
+                metadata_updates["annual_fee_override"] = value
+                continue
+            if key == "welcome_min_spend":
+                continue
             sets.append(f"{key} = %s")
             params.append(_opt_date(value) if key in date_fields else value)
+        if metadata_updates:
+            sets.append("metadata = COALESCE(metadata,'{}'::jsonb) || %s::jsonb")
+            params.append(_json(metadata_updates))
+        if "closed_date" in fields and "status" not in fields:
+            sets.append("status = CASE WHEN %s::date IS NOT NULL THEN 'closed' WHEN closed_date IS NOT NULL THEN 'rotated_out' ELSE status END")
+            params.append(_opt_date(fields["closed_date"]))
+        if fields.get("closed_date") or fields.get("status") == "closed":
+            sets.append("is_primary_active = FALSE")
         params.append(_now())
         params.append(card_id)
         with self.storage.connection() as conn:
+            if "welcome_min_spend" in fields:
+                conn.execute("""UPDATE household_credit_cards SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),'{welcome_terms}',
+                    COALESCE(metadata->'welcome_terms','{}'::jsonb) || %s::jsonb) WHERE id=%s""",
+                    [_json({"welcome_min_spend": fields["welcome_min_spend"], "confirmed_at": _now().isoformat()}), card_id])
+            assignment = (', '.join(sets) + ', ') if sets else ''
             result = conn.execute(
-                f"UPDATE household_credit_cards SET {', '.join(sets)}, updated_at = %s WHERE id = %s",
+                f"UPDATE household_credit_cards SET {assignment}updated_at = %s WHERE id = %s",
                 params,
             )
             if not (getattr(result, "rowcount", 0) or 0):
@@ -283,6 +323,8 @@ class CardManagementService:
         now = _now()
         with self.storage.connection() as conn:
             target = self._get_card(conn, card_id)
+            if target.closed_date or target.status == "closed":
+                raise ValueError("This card is recorded as closed. Correct its history before making it active.")
             if target.role == "keeper":
                 conn.execute(
                     "UPDATE household_credit_cards SET status = 'active', updated_at = %s WHERE id = %s",
@@ -320,70 +362,69 @@ class CardManagementService:
     def delete_owned_card(self, card_id: str) -> None:
         with self.storage.connection() as conn:
             result = conn.execute(
-                "DELETE FROM household_credit_cards WHERE id = %s", [card_id]
+                "DELETE FROM household_credit_cards WHERE id = %s AND status='candidate' AND opened_date IS NULL", [card_id]
             )
             if not (getattr(result, "rowcount", 0) or 0):
-                raise KeyError(f"Credit card {card_id} not found.")
+                result = conn.execute("UPDATE household_credit_cards SET status='closed', closed_date=COALESCE(closed_date,CURRENT_DATE), is_primary_active=FALSE, updated_at=now() WHERE id=%s", [card_id])
+                if not (getattr(result, "rowcount", 0) or 0):
+                    raise KeyError(f"Credit card {card_id} not found.")
             conn.commit()
-        logger.info("credit_card_deleted", card_id=card_id)
+        logger.info("credit_card_removed_from_wallet", card_id=card_id)
 
     # --------------------------------------------------------- spend profile
 
-    def _amazon_monthly_spend(self) -> float:
-        """Average monthly Amazon/Whole Foods spend over the last 90 days.
-
-        Category mapping can't see the merchant (Amazon lands in Shopping →
-        other), so the amazon bucket is carved out by merchant match instead."""
-        with self.storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT COALESCE(SUM(amount), 0)
-                FROM household_transactions
-                WHERE flow_type = 'expense' AND removed = FALSE
-                  AND transaction_date >= CURRENT_DATE - INTERVAL '90 days'
-                  AND (raw_merchant ILIKE '%%amazon%%' OR raw_merchant ILIKE '%%amzn%%'
-                       OR description ILIKE '%%amazon%%' OR description ILIKE '%%amzn%%'
-                       OR raw_merchant ILIKE '%%whole foods%%' OR description ILIKE '%%whole foods%%')
-                """,
-            ).fetchone()
-        return round(float((row[0] if row else 0) or 0.0) / 3.0, 2)
+    def _keeper_spend_mix(self, buckets: dict[str, float]) -> dict[str, float]:
+        """Carve an observed merchant share out of planned caps, never add spend."""
+        rows = self.transaction_service.spend_rows_for_window(months=3)
+        observed: dict[str, float] = {}
+        amazon: dict[str, float] = {}
+        for row in rows:
+            bucket = CATEGORY_TO_REWARD_BUCKET.get(str(row.get("category", "")), "other")
+            amount = float(row.get("signed_amount", row.get("amount", 0)))
+            observed[bucket] = observed.get(bucket, 0) + amount
+            merchant = str(row.get("merchant", "")).lower()
+            if any(name in merchant for name in ("amazon", "amzn", "whole foods")):
+                amazon[bucket] = amazon.get(bucket, 0) + amount
+        routed = dict(buckets)
+        for bucket, amount in amazon.items():
+            total = observed.get(bucket, 0)
+            if total <= 0 or bucket == "amazon":
+                continue
+            part = round(routed.get(bucket, 0)*max(0, min(1, amount/total)), 2)
+            routed[bucket] = routed.get(bucket, 0)-part
+            routed["amazon"] = routed.get("amazon", 0)+part
+        return routed
 
     def _resolve_profile(
         self, *, monthly_total: float | None, by_bucket: dict[str, float] | None
     ) -> SpendProfile:
-        try:
-            # Reward buckets need the run-rate, not one month: the view's
-            # per-category `gross_monthly_spend` is already the average across
-            # every complete covered month.
-            view = self.transaction_service.build_spending_view()
-            profile = self._rewards.build_spend_profile(view)
-            if profile.source != "default":
-                # Carve merchant-matched Amazon spend out of the buckets the
-                # category mapping put it in (other first, then groceries).
-                amazon = self._amazon_monthly_spend()
-                if amazon > 0:
-                    buckets = dict(profile.by_bucket)
-                    remaining = amazon
-                    for source_bucket in ("other", "groceries"):
-                        take = min(remaining, buckets.get(source_bucket, 0.0))
-                        if take > 0:
-                            buckets[source_bucket] = round(buckets[source_bucket] - take, 2)
-                            remaining = round(remaining - take, 2)
-                    moved = round(amazon - remaining, 2)
-                    if moved > 0:
-                        buckets["amazon"] = round(buckets.get("amazon", 0.0) + moved, 2)
-                        profile = SpendProfile(
-                            monthly_total=profile.monthly_total,
-                            by_bucket={k: v for k, v in buckets.items() if v > 0},
-                            source=profile.source,
-                        )
-        except Exception:
-            logger.warning("card_spend_profile_fallback", exc_info=True)
-            profile = SpendProfile(
-                monthly_total=DEFAULT_MONTHLY_TOTAL,
-                by_bucket=dict(DEFAULT_BUCKET_MIX),
-                source="default",
-            )
+        with self.storage.connection() as conn:
+            rows = conn.execute("SELECT fact_key, fact_value FROM household_confirmed_facts WHERE fact_key LIKE 'category_budget:%'").fetchall()
+        buckets: dict[str, float] = {}
+        # These categories can contain bank drafts, rent, taxes or cash support.
+        # Require an explicit eligible-card amount for them rather than assuming
+        # that every dollar of the household budget earns card rewards.
+        off_card = EXCLUDED_CATEGORIES | {"Bills", "Housing", "Mortgage", "Rent", "Taxes", "Girls", "Child Support"}
+        for key, value in rows:
+            category = str(key).removeprefix("category_budget:")
+            meta = _loads(value, {})
+            if not isinstance(meta, dict) or meta.get("disabled"):
+                continue
+            cap = meta.get("monthlyTarget")
+            if not isinstance(cap, int | float) or cap <= 0:
+                continue
+            eligible = meta.get("eligibleCardSpend")
+            amount = min(float(eligible), cap) if isinstance(eligible, int | float) else (0 if category in off_card else cap)
+            bucket = CATEGORY_TO_REWARD_BUCKET.get(category, "other")
+            buckets[bucket] = round(buckets.get(bucket, 0) + max(0, amount), 2)
+        buckets = self._keeper_spend_mix(buckets) if buckets else buckets
+        profile = SpendProfile(
+            monthly_total=round(sum(buckets.values()), 2), by_bucket={k: v for k, v in buckets.items() if v > 0},
+            source="confirmed_category_plan",
+            notes=["Uses confirmed category caps; cash, transfers, debt, income and known off-card categories are excluded. No guessed spending is added when a cap is absent.",
+                   "Amazon/Whole Foods allocation uses its share of deduplicated recent purchases within each planned category. This share is an estimate, and does not increase the plan.",
+                   "Plan amounts are ceilings, not a reason to spend more. Set a lower ordinary card-spend amount when purchases will be below the caps."],
+        )
         return self._rewards.apply_overrides(profile, monthly_total=monthly_total, by_bucket=by_bucket)
 
     def _active_keeper_products(self) -> list[CreditCardProduct]:
@@ -407,6 +448,10 @@ class CardManagementService:
             stance=req.valuation_stance,
             overrides=req.point_value_overrides,
         )
+        owned = self.list_owned_cards()
+        states = self._rotation._history(owned, ["p1", "p2"], date.today())
+        from app.services._card_issuer_rules import welcome_eligible  # noqa: PLC0415
+        ineligible = {p.slug for p in products if not any(welcome_eligible(p, state) for state in states.values())}
         return self._rewards.rank(
             products,
             profile,
@@ -414,7 +459,8 @@ class CardManagementService:
             overrides=req.point_value_overrides,
             amortization_years=req.amortization_years,
             credit_stance=req.credit_stance,
-            extra_assumptions=keeper_notes,
+            extra_assumptions=[*profile.notes, *keeper_notes],
+            ineligible_bonus_slugs=ineligible,
         )
 
     # --------------------------------------------------------------- rotation
@@ -433,6 +479,7 @@ class CardManagementService:
         # Never rotate into a card the household already holds permanently.
         keeper_slugs = {p.slug for p in keepers}
         candidates = [p for p in products if p.slug not in keeper_slugs]
+        owned = self.list_owned_cards()
         view = self._rotation.build_rotation_plan(
             candidates,
             profile,
@@ -443,7 +490,9 @@ class CardManagementService:
             credit_stance=req.credit_stance,
             players=req.players,
             name=req.name,
-            extra_assumptions=keeper_notes,
+            extra_assumptions=[*profile.notes, *keeper_notes],
+            owned_cards=owned,
+            close_after_months=req.close_after_months,
         )
         if req.persist:
             view.plan_id = self._persist_rotation_plan(view, profile)
@@ -467,7 +516,7 @@ class CardManagementService:
                     view.objective,
                     view.horizon_quarters,
                     _money(profile.monthly_total),
-                    _json(profile.model_dump()),
+                    _json({**profile.model_dump(), "projection": view.model_dump(mode="json")}),
                     _money(view.projected_total_value),
                     _money(view.baseline_single_card_value),
                     now,
@@ -542,6 +591,8 @@ class CardManagementService:
         if plan is None:
             raise KeyError(f"Rotation plan {plan_id} not found.")
         stored_profile = _loads(plan[3], {}) or {}
+        if isinstance(stored_profile.get("projection"), dict):
+            return RotationPlanView.model_validate({**stored_profile["projection"], "plan_id": plan_id})
         req = RotationRequest(
             objective=str(plan[1]),
             horizon_quarters=int(plan[2]),

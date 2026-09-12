@@ -2,7 +2,6 @@
 
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useHouseholdDashboard } from '@/lib/hooks/useHousehold'
 import { useMacroConditions, useMacroCurrent } from '@/lib/hooks/useMacro'
 import { useTodayRefresh } from '@/lib/hooks/useTodayRefresh'
 import {
@@ -27,12 +26,7 @@ export function DailyBriefPanel() {
     isLoading: conditionsLoading,
     error: conditionsError,
   } = useMacroConditions()
-  const { data: household } = useHouseholdDashboard()
-  const updateTimestamp =
-    conditions?.computedAt ??
-    macro?.computedAt ??
-    household?.generatedAt ??
-    null
+  const updateTimestamp = conditions?.computedAt ?? macro?.computedAt ?? null
   const conditionDataUnavailable = !conditions && !macro
 
   return (

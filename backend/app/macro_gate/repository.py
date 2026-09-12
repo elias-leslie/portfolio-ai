@@ -94,7 +94,14 @@ def get_latest() -> dict | None:
     return _row_to_dict(row)
 
 
-def get_history(days: int = 730) -> list[dict]:
+def get_history(days: int = 730, *, latest_detail_only: bool = False) -> list[dict]:
+    # Charts need the scores at every date but full extraction/source metadata
+    # only for the last point's explanation.
+    raw_projection = (
+        "CASE WHEN snapshot_date = MAX(snapshot_date) OVER () THEN raw_json ELSE '{}'::jsonb END"
+        if latest_detail_only
+        else "raw_json"
+    )
     storage = get_storage()
     with storage.connection() as conn:
         rows = conn.execute(
@@ -103,7 +110,7 @@ def get_history(days: int = 730) -> list[dict]:
                    hy_spread, put_call_ratio, factor_crowding_corr,
                    vix_score, term_score, breadth_score,
                    credit_score, putcall_score, crowding_score,
-                   deployment_score, zone, raw_json, computed_at
+                   deployment_score, zone, {raw_projection}, computed_at
             FROM signal_macro_snapshots
             WHERE snapshot_date >= CURRENT_DATE - INTERVAL '{int(days)} days'
             ORDER BY snapshot_date ASC

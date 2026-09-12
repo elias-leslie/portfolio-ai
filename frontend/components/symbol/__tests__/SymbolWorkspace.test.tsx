@@ -11,6 +11,9 @@ import { SymbolWorkspace } from '../SymbolWorkspace'
 vi.mock('@/components/symbol/SymbolWorkflowPanel', () => ({
   SymbolWorkflowPanel: () => <div>Workflow Panel</div>,
 }))
+vi.mock('@/components/symbol/SymbolLotEvidence', () => ({
+  SymbolLotEvidence: () => <div>Recorded tax lots</div>,
+}))
 vi.mock('@/components/watchlist/ThesisSection', () => ({
   ThesisSection: () => <div>Thesis Section</div>,
 }))
@@ -213,7 +216,8 @@ describe('SymbolWorkspace', () => {
       'href',
       '/portfolio?tab=holdings&highlight=concentration#portfolio-overview',
     )
-    expect(screen.getByText(/7\/10 confidence · medium/i)).toBeInTheDocument()
+    expect(screen.getByText(/uncalibrated heuristic/i)).toBeInTheDocument()
+    expect(screen.queryByText(/7\/10 confidence/i)).not.toBeInTheDocument()
     expect(
       screen.queryByText(/if you do not own it yet/i),
     ).not.toBeInTheDocument()
@@ -225,7 +229,7 @@ describe('SymbolWorkspace', () => {
     )
     expect(
       screen.getByText(
-        /no jenny\/data reasoning is attached to this decision yet/i,
+        /no underlying reasoning is attached to this decision yet/i,
       ),
     ).toBeInTheDocument()
     expect(

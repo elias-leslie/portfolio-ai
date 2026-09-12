@@ -71,7 +71,9 @@ def question_summary(question: HouseholdQuestion) -> dict[str, Any]:
 
 
 def summarize_symbol(symbol: str) -> dict[str, Any]:
-    intelligence = build_symbol_intelligence_response(symbol, include_market=True, include_strategies=False)
+    intelligence = build_symbol_intelligence_response(
+        symbol, include_market=True, include_strategies=False
+    )
     payload = intelligence.model_dump(mode="json")
     return {
         "symbol": payload.get("symbol"),
@@ -82,6 +84,11 @@ def summarize_symbol(symbol: str) -> dict[str, Any]:
         "alerts": payload.get("alerts"),
         "news": payload.get("news"),
         "error": payload.get("error"),
+        "decision": payload.get("decision"),
+        "evidence_links": {
+            "decision": f"/symbols/{symbol}?tab=decision",
+            "history": f"/symbols/{symbol}?tab=track",
+        },
     }
 
 
@@ -129,7 +136,9 @@ def _build_current_status(health: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_jenny_operations(recent_routines: list[Any], open_notifications: list[Any]) -> dict[str, Any]:
+def _build_jenny_operations(
+    recent_routines: list[Any], open_notifications: list[Any]
+) -> dict[str, Any]:
     return {
         "recent_routines": [
             {
@@ -207,7 +216,9 @@ def _summarize_services(services: Any) -> dict[str, str]:
     }
 
 
-def _safe_get_routines(jenny_dashboard_reader: JennyDashboardReader, jenny_service: Any) -> list[Any]:
+def _safe_get_routines(
+    jenny_dashboard_reader: JennyDashboardReader, jenny_service: Any
+) -> list[Any]:
     try:
         return jenny_dashboard_reader.get_recent_routines(jenny_service, limit=MAX_RECENT_ROUTINES)
     except Exception as exc:
@@ -215,9 +226,13 @@ def _safe_get_routines(jenny_dashboard_reader: JennyDashboardReader, jenny_servi
         return []
 
 
-def _safe_get_notifications(jenny_dashboard_reader: JennyDashboardReader, jenny_service: Any) -> list[Any]:
+def _safe_get_notifications(
+    jenny_dashboard_reader: JennyDashboardReader, jenny_service: Any
+) -> list[Any]:
     try:
-        return jenny_dashboard_reader.get_open_notifications(jenny_service, limit=MAX_OPEN_NOTIFICATIONS)
+        return jenny_dashboard_reader.get_open_notifications(
+            jenny_service, limit=MAX_OPEN_NOTIFICATIONS
+        )
     except Exception as exc:
         logger.warning(_LOG_NOTIFICATIONS_FAILED, error=str(exc))
         return []
@@ -253,7 +268,9 @@ def detect_symbols(
     return sorted(validated | (candidates & live_symbol_set))
 
 
-def summarize_positions(positions: list[Any], price_fetcher: PriceDataFetcher) -> list[dict[str, Any]]:
+def summarize_positions(
+    positions: list[Any], price_fetcher: PriceDataFetcher
+) -> list[dict[str, Any]]:
     if not positions:
         return []
     price_data = price_fetcher.fetch_price_data(
@@ -345,8 +362,16 @@ def build_compact_context(full_context: dict[str, Any]) -> dict[str, Any]:
             "tracked_account_count": overview.get("tracked_account_count"),
             "needs_refresh_count": overview.get("needs_refresh_count"),
             "open_questions": household.get("open_questions", []),
+            "resolved_values": household.get("resolved_values", []),
+            "budget_snapshot": household.get("budget_snapshot"),
+            "evidence_links": {
+                "accounts": "/money?tab=accounts",
+                "assumptions": "/money?utility=planning",
+            },
         },
-        "symbols": {"detected": full_context.get("symbols", {}).get("detected", [])},
+        "current_view": full_context.get("current_view"),
+        "portfolio": full_context.get("portfolio"),
+        "symbols": full_context.get("symbols", {}),
     }
 
 
@@ -368,12 +393,17 @@ def build_full_context(
     household_dashboard = household_service.get_dashboard()
     recent_documents = household_service.list_documents(limit=MAX_RECENT_DOCUMENTS).items
     confirmed_facts = _coerce_sequence(household_service.list_confirmed_facts())
-    accounts = portfolio_mgr.get_accounts()
-    positions = portfolio_mgr.get_positions()
+    accounts = [
+        account for account in portfolio_mgr.get_accounts() if account.account_type != "paper"
+    ]
+    account_ids = {account.id for account in accounts}
+    positions = [
+        position for position in portfolio_mgr.get_positions() if position.account_id in account_ids
+    ]
     live_symbols = sorted({position.symbol.upper() for position in positions if position.symbol})
     detected_symbols = detect_symbols(message, live_symbols, lookup_fn)
     symbol_contexts = [summarize_symbol(sym) for sym in detected_symbols[:MAX_CONTEXT_SYMBOLS]]
-    analytics = _analytics_fn(include_paper=True)
+    analytics = _analytics_fn(include_paper=False)
     position_summaries = summarize_positions(positions, price_fetcher)
     project_index = _index_fn()
 

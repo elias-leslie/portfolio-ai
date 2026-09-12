@@ -146,6 +146,19 @@ export function NewsArticleCard({ article, index }: NewsArticleCardProps) {
           )}
         </div>
       </div>
+      {article.relationshipReason ? (
+        <p className="mt-3 text-sm text-text-muted">
+          <span className="font-medium text-text">
+            {article.relationship === 'peer'
+              ? 'Business connection'
+              : article.relationship === 'market'
+                ? 'Market context'
+                : 'Company relevance'}
+            :{' '}
+          </span>
+          {article.relationshipReason}
+        </p>
+      ) : null}
       {canRateArticle ? (
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/40 pt-3">
           <span className="text-xs text-text-muted">

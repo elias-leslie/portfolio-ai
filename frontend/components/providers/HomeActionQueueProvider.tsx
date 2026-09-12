@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import {
   createContext,
   type ReactNode,
@@ -12,7 +13,6 @@ import {
 import type { HomeActionItem, HomeActionQueue } from '@/lib/api/home'
 import { useHomeActionQueue } from '@/lib/hooks/useHomeActionQueue'
 import { useAcknowledgeJennyNotification } from '@/lib/hooks/usePortfolio'
-import { useTransitionSymbolWorkflow } from '@/lib/hooks/useSymbolIntelligence'
 
 interface HomeActionQueueContextValue {
   data: HomeActionQueue | undefined
@@ -39,7 +39,7 @@ export function HomeActionQueueProvider({
     enabled,
   })
   const acknowledgeNotification = useAcknowledgeJennyNotification()
-  const transitionWorkflow = useTransitionSymbolWorkflow()
+  const router = useRouter()
   const actions = useMemo(() => data?.actions ?? [], [data?.actions])
   const [clearedActionIds, setClearedActionIds] = useState<Set<string>>(
     () => new Set(),
@@ -79,16 +79,12 @@ export function HomeActionQueueProvider({
         execution.symbol &&
         execution.stage
       ) {
-        transitionWorkflow.mutate(
-          {
-            symbol: execution.symbol,
-            stage: execution.stage,
-          },
-          { onSuccess: clearAction },
+        router.push(
+          `/symbols/${encodeURIComponent(execution.symbol)}?tab=track`,
         )
       }
     },
-    [acknowledgeNotification, transitionWorkflow],
+    [acknowledgeNotification, router],
   )
 
   const value = useMemo<HomeActionQueueContextValue>(
@@ -99,8 +95,7 @@ export function HomeActionQueueProvider({
       ),
       isLoading,
       isFetching,
-      isExecuting:
-        acknowledgeNotification.isPending || transitionWorkflow.isPending,
+      isExecuting: acknowledgeNotification.isPending,
       error: error ?? null,
       refetchActions: () => {
         void refetch()
@@ -117,7 +112,6 @@ export function HomeActionQueueProvider({
       isFetching,
       isLoading,
       refetch,
-      transitionWorkflow.isPending,
     ],
   )
 

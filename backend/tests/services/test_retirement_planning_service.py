@@ -390,6 +390,7 @@ class _StubConn:
         cursor = MagicMock()
         select_sources: dict[str, Any] = {
             "from household_members": ("fetchall", self._members),
+            "from snaptrade_accounts": ("fetchall", []),
             "from household_retirement_income_sources": ("fetchall", self._income),
             "from household_retirement_healthcare_schedule": (
                 "fetchall",
@@ -486,6 +487,11 @@ class _StubStorage:
                 pass
 
         return _Ctx(self._conn)
+
+
+@pytest.fixture(autouse=True)
+def isolated_dashboard(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(RetirementPlanningService, "_load_money_dashboard", lambda _self: SimpleNamespace(accounts=[]))
 
 
 def _make_service(conn: _StubConn) -> RetirementPlanningService:

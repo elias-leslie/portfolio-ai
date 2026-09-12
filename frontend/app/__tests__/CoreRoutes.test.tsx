@@ -17,6 +17,9 @@ global.IntersectionObserver =
 vi.mock('@/components/home/DailyBriefPanel', () => ({
   DailyBriefPanel: () => <div>Daily Brief Panel</div>,
 }))
+vi.mock('@/components/home/HomeActionQueueContent', () => ({
+  HomeActionQueueContent: () => <div>Household actions</div>,
+}))
 vi.mock('@/components/portfolio/InvestingMarketPanel', () => ({
   InvestingMarketTrendPanels: () => <div>Today Market Pulse Panel</div>,
 }))
@@ -128,7 +131,11 @@ describe('core product routes', () => {
     render(<MoneyPage />)
 
     expect(screen.getByText('Money')).toBeInTheDocument()
-    expect(screen.getByText('Money Overview Panel')).toBeInTheDocument()
+    expect(screen.getByText('Money Budget Panel')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^Review$/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
     expect(screen.getByRole('tab', { name: /Accounts/i })).toBeInTheDocument()
   })
 

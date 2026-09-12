@@ -67,6 +67,7 @@ def _update_inference(conn: Any, field_name: str, rounded_value: float, confiden
             metadata = %s::jsonb, updated_at = %s
         WHERE field_name = %s
           AND metadata->>'source' = 'transaction_inference'
+          AND status NOT IN ('confirmed', 'dismissed', 'superseded')
         """,
         [str(rounded_value), confidence, rationale, metadata_json, now, field_name],
     )
@@ -101,6 +102,8 @@ def upsert_transaction_inference(
         return False
     existing = existing_inferences.get(field_name)
     if existing is not None:
+        if existing.get("status") in {"confirmed", "dismissed"}:
+            return False
         existing_confidence = float(existing.get("confidence") or 0.0)
         if existing_confidence >= confidence and existing.get("source", "") != "transaction_inference":
             return False

@@ -47,9 +47,15 @@ class WatchlistService:
         self.price_fetcher = PriceDataFetcher(storage)
         self.repo = WatchlistRepository(storage)
 
-    def get_items_with_scores(self, *, include_decision: bool = True) -> list[dict[str, Any]]:
+    def get_items_with_scores(
+        self, *, include_decision: bool = True, symbol: str | None = None
+    ) -> list[dict[str, Any]]:
         """Get all watchlist items with latest scores (LATERAL JOIN eliminates N+1 pattern)."""
-        items_df = self.repo.get_all_items_with_snapshots()
+        items_df = (
+            self.repo.get_all_items_with_snapshots(symbol=symbol)
+            if symbol
+            else self.repo.get_all_items_with_snapshots()
+        )
 
         if items_df.is_empty():
             return []

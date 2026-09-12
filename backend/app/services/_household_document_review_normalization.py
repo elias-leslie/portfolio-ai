@@ -51,7 +51,9 @@ def normalize_review_checks(*, reviewed: dict[str, Any], extracted_text: str | N
     if review_checks.get("ambiguity_remaining") is None:
         review_checks["ambiguity_remaining"] = bool(reviewed.get("questions"))
     if review_checks.get("ambiguity_remaining") and not review_checks.get("ambiguity_reason") and reviewed.get("questions"):
-        review_checks["ambiguity_reason"] = "Additional user input still required."
+        questions = reviewed.get("questions")
+        texts = [str(question.get("question") or "").strip() for question in questions if isinstance(question, dict)] if isinstance(questions,list) else []
+        review_checks["ambiguity_reason"] = " ".join(text for text in texts[:3] if text) or "The review did not identify the missing fact. Re-review the source before applying changes."
     return review_checks
 
 

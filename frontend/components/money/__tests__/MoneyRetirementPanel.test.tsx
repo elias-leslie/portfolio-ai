@@ -1,6 +1,7 @@
 'use client'
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render as renderUI, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +21,17 @@ import {
   useUpdateRetirementIncomeStreamOverride,
 } from '@/lib/hooks/useHousehold'
 import { MoneyRetirementPanel } from '../MoneyRetirementPanel'
+
+function render(ui: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return renderUI(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
+}
 
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useHouseholdFacts: vi.fn(),
@@ -1134,7 +1146,7 @@ describe('MoneyRetirementPanel', () => {
     await user.type(retireAgeInput, '66')
     await user.click(getRunPreviewButton())
 
-    expect(usePreviewMock).toHaveBeenLastCalledWith(
+    expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
       expect.objectContaining({
         retirementAge: 66,
         primaryAge: 49,
@@ -1143,7 +1155,7 @@ describe('MoneyRetirementPanel', () => {
     )
   })
 
-  it('updates the success-rate plan spend as the manual spend changes', async () => {
+  it('keeps the success rate labeled with its completed spending input while edits request a new run', async () => {
     const user = userEvent.setup()
     usePreviewMock.mockReturnValue({
       data: preview,
@@ -1165,12 +1177,12 @@ describe('MoneyRetirementPanel', () => {
       screen.getByText((_content, element) =>
         Boolean(
           element?.tagName === 'SPAN' &&
-            element.textContent?.includes('Plan $6,500/mo'),
+            element.textContent?.includes('Plan $6,000/mo'),
         ),
       ),
     ).toBeInTheDocument()
     await waitFor(() =>
-      expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
         expect.objectContaining({
           monthlySpend: 6500,
           annualExpenses: 78_000,
@@ -1222,7 +1234,7 @@ describe('MoneyRetirementPanel', () => {
     )
     await user.click(getRunPreviewButton())
 
-    expect(usePreviewMock).toHaveBeenLastCalledWith(
+    expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
       expect.objectContaining({
         allocationHoldings: [
           { symbol: 'VTI', weight: 70 },
@@ -1380,7 +1392,7 @@ describe('MoneyRetirementPanel', () => {
     expect(screen.getAllByText(/\/mo @ 62/).length).toBeGreaterThan(0)
 
     await user.click(getRunPreviewButton())
-    expect(usePreviewMock).toHaveBeenLastCalledWith(
+    expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
       expect.objectContaining({
         primarySocialSecurityStartAge: 70,
         spouseSocialSecurityStartAge: 62,
@@ -1390,7 +1402,7 @@ describe('MoneyRetirementPanel', () => {
     // Empty stays null so the server resolves the saved start age.
     await user.clear(primaryClaimInput)
     await user.click(getRunPreviewButton())
-    expect(usePreviewMock).toHaveBeenLastCalledWith(
+    expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
       expect.objectContaining({ primarySocialSecurityStartAge: null }),
     )
   })
@@ -1408,7 +1420,7 @@ describe('MoneyRetirementPanel', () => {
     render(<MoneyRetirementPanel dashboard={dashboard} />)
 
     expect(
-      screen.getByText('Failed to run retirement preview.'),
+      screen.getByText('Could not calculate the retirement forecast.'),
     ).toBeInTheDocument()
     expect(screen.getByText('422: claim age out of range')).toBeInTheDocument()
 
@@ -1499,7 +1511,7 @@ describe('MoneyRetirementPanel', () => {
     await user.type(medicareInput, '0')
     await user.click(getRunPreviewButton())
 
-    expect(usePreviewMock).toHaveBeenLastCalledWith(
+    expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
       expect.objectContaining({
         aca: {
           tier: 'bronze',
@@ -1791,7 +1803,7 @@ describe('MoneyRetirementPanel', () => {
     await user.clear(netInput)
     await user.type(netInput, '5400')
     await waitFor(() =>
-      expect(usePreviewMock).toHaveBeenLastCalledWith(
+      expect(usePreviewMock.mock.calls.at(-2)?.[0]).toEqual(
         expect.objectContaining({
           spouseNetMonthlyIncome: 5400,
           partialRetirementMonthlySpend: 7200,

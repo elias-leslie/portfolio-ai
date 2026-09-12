@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 from app.models.household_finance import HouseholdProfile, HouseholdProfileUpdate
 from app.services._household_finance_utils import iso, to_float, to_int
 from app.services.household_finance_rows import row_to_profile
+from app.services.retirement_preview_coordinator import preview_coordinator
 
 DEFAULT_HOUSEHOLD_NAME = "Household"
 
@@ -71,7 +73,9 @@ class HouseholdProfileService:
                 raise RuntimeError("Failed to create household profile")
         return row_to_profile(row, to_float=to_float, to_int=to_int, iso=iso)
 
-    def update_profile(self, service: Any, payload: HouseholdProfileUpdate) -> HouseholdProfile:
+    def update_profile(
+        self, service: Any, payload: HouseholdProfileUpdate, *, source: str = "saved_assumptions"
+    ) -> HouseholdProfile:
         profile = self.get_profile(service)
         updates = payload.model_dump(exclude_unset=True)
         if not updates:
@@ -82,6 +86,17 @@ class HouseholdProfileService:
         params.extend([datetime.now(UTC).isoformat(), profile.id])
 
         with service.storage.connection() as conn:
+            before = conn.execute(
+                "SELECT to_jsonb(p) FROM household_profiles p WHERE id = %s FOR UPDATE",
+                [profile.id],
+            ).fetchone()
+            if before is None:
+                raise ValueError("Household profile no longer exists")
+            changes = [
+                {"field": field, "before": before[0].get(field), "after": value}
+                for field, value in payload.model_dump(mode="json", exclude_unset=True).items()
+                if before[0].get(field) != value
+            ]
             conn.execute(
                 f"""
                 UPDATE household_profiles
@@ -90,6 +105,14 @@ class HouseholdProfileService:
                 """,
                 params,
             )
+            if changes:
+                conn.execute(
+                    """INSERT INTO household_profile_changes (id, profile_id, source, changes)
+                       VALUES (%s, %s, %s, %s::jsonb)""",
+                    [str(uuid.uuid4()), profile.id, source, json.dumps(changes, default=str)],
+                )
             conn.commit()
 
+        service.planning_service.refresh_document_requirements(service)
+        preview_coordinator.invalidate()
         return self.get_profile(service)

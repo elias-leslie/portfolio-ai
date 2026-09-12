@@ -6,13 +6,11 @@ and portfolio-return-derived Sharpe calculations shown to the user.
 
 from __future__ import annotations
 
-import math
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from app.analytics.portfolio_performance import performance_report
 from app.analytics.trade_calculations import calculate_stop_loss
-from app.constants import TRADING_DAYS_PER_YEAR
 from app.rules import get_rules
 
 if TYPE_CHECKING:
@@ -136,53 +134,11 @@ def calculate_portfolio_sharpe(
     account_ids: list[str],
     risk_free_rate: float = 0.045,
 ) -> float | None:
-    """Calculate Sharpe ratio from stored daily portfolio equity history."""
-    daily_returns = _get_portfolio_daily_returns(storage, account_ids)
-    if len(daily_returns) < 2:
-        return None
-
-    mean_return = sum(daily_returns) / len(daily_returns)
-    variance = sum((daily_return - mean_return) ** 2 for daily_return in daily_returns) / len(
-        daily_returns
-    )
-    std_dev = math.sqrt(variance)
-    if std_dev == 0:
-        return None
-
-    daily_risk_free_rate = risk_free_rate / TRADING_DAYS_PER_YEAR
-    excess_return = mean_return - daily_risk_free_rate
-    sharpe_ratio = excess_return * math.sqrt(TRADING_DAYS_PER_YEAR) / std_dev
-    if math.isnan(sharpe_ratio) or math.isinf(sharpe_ratio):
-        return None
-    return sharpe_ratio
+    """Publish a ratio only when valuations and external flows support it."""
+    return performance_report(storage, account_ids, risk_free_rate)["sharpe_ratio"]
 
 
-def _get_portfolio_daily_returns(
-    storage: PortfolioStorage,
-    account_ids: list[str],
-) -> list[float]:
-    """Build an aggregate daily return series from account-level equity snapshots."""
-    from app.portfolio.drawdown_db import get_drawdown_history  # noqa: PLC0415
-
-    if not account_ids:
-        return []
-
-    equity_by_date: dict[str, float] = defaultdict(float)
-    for account_id in account_ids:
-        for snapshot in get_drawdown_history(storage, account_id, days=365):
-            snapshot_date = str(snapshot["date"])
-            equity_by_date[snapshot_date] += float(snapshot["equity"])
-
-    if len(equity_by_date) < 2:
-        return []
-
-    ordered_dates = sorted(equity_by_date)
-    daily_returns: list[float] = []
-    previous_equity: float | None = None
-    for snapshot_date in ordered_dates:
-        current_equity = equity_by_date[snapshot_date]
-        if previous_equity is not None and previous_equity > 0:
-            daily_returns.append((current_equity - previous_equity) / previous_equity)
-        previous_equity = current_equity
-
-    return daily_returns
+def _get_portfolio_daily_returns(storage: PortfolioStorage, account_ids: list[str]) -> list[float]:
+    """Compatibility reader; use the validated performance report for display."""
+    report = performance_report(storage, account_ids)
+    return report.get("daily_returns", [])

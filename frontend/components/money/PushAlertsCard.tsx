@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import {
+  identityStorageKey,
+  useHouseholdIdentity,
+} from '@/components/providers/HouseholdIdentityProvider'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,20 +25,18 @@ import {
  * response can identify this handset. The id of the row this device created is
  * the one fact only this device has, so it is kept here.
  */
-const THIS_DEVICE_KEY = 'portfolio-ai:push-subscription-id'
-
-function readThisDeviceId(): string | null {
+function readThisDeviceId(key: string): string | null {
   try {
-    return window.localStorage.getItem(THIS_DEVICE_KEY)
+    return window.localStorage.getItem(key)
   } catch {
     return null
   }
 }
 
-function writeThisDeviceId(id: string | null): void {
+function writeThisDeviceId(key: string, id: string | null): void {
   try {
-    if (id) window.localStorage.setItem(THIS_DEVICE_KEY, id)
-    else window.localStorage.removeItem(THIS_DEVICE_KEY)
+    if (id) window.localStorage.setItem(key, id)
+    else window.localStorage.removeItem(key)
   } catch {
     // A browser refusing storage still gets alerts; it just cannot label the
     // row as its own.
@@ -74,6 +76,8 @@ function deviceStatus(device: PushSubscriptionView): {
  * all, so everything went to everyone or to nobody.
  */
 export function PushAlertsCard() {
+  const identity = useHouseholdIdentity()
+  const deviceKey = identityStorageKey(identity, 'push-subscription-id')
   const { data, isLoading } = usePushSubscriptions()
   const device = useDevicePushState()
   const enable = useEnablePushOnThisDevice()
@@ -85,8 +89,24 @@ export function PushAlertsCard() {
   const [thisDeviceId, setThisDeviceId] = useState<string | null>(null)
 
   useEffect(() => {
-    setThisDeviceId(readThisDeviceId())
-  }, [])
+    const scoped = readThisDeviceId(deviceKey)
+    if (scoped) {
+      setThisDeviceId(scoped)
+      return
+    }
+    // Migrate the old device pointer only after its server row is visible to
+    // this signed-in member. It must not select another person's handset.
+    const legacy = readThisDeviceId('portfolio-ai:push-subscription-id')
+    const visible = data?.subscriptions.find((row) => row.id === legacy)
+    if (
+      visible &&
+      (identity.access === 'local_operator' ||
+        visible.householdMemberId === identity.member_id)
+    ) {
+      writeThisDeviceId(deviceKey, visible.id)
+      setThisDeviceId(visible.id)
+    }
+  }, [deviceKey, data, identity.access, identity.member_id])
 
   const recipients = data?.recipients ?? []
   const subscriptions = data?.subscriptions ?? []
@@ -97,7 +117,11 @@ export function PushAlertsCard() {
   const knownRecipient =
     subscriptions.find((row) => row.id === thisDeviceId)?.householdMemberId ??
     null
-  const selectedRecipient = recipientId ?? knownRecipient ?? null
+  const selectedRecipient =
+    recipientId ??
+    knownRecipient ??
+    (recipients.length === 1 ? recipients[0]?.id : null) ??
+    null
 
   function turnOn() {
     if (!data?.publicKey) return
@@ -105,7 +129,7 @@ export function PushAlertsCard() {
       { publicKey: data.publicKey, householdMemberId: selectedRecipient },
       {
         onSuccess: (created) => {
-          writeThisDeviceId(created.id)
+          writeThisDeviceId(deviceKey, created.id)
           setThisDeviceId(created.id)
         },
       },
@@ -115,7 +139,7 @@ export function PushAlertsCard() {
   function turnOff() {
     disable.mutate(undefined, {
       onSuccess: () => {
-        writeThisDeviceId(null)
+        writeThisDeviceId(deviceKey, null)
         setThisDeviceId(null)
       },
     })

@@ -5,10 +5,25 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { ChatWidgetProvider } from '@/components/providers/ChatWidgetProvider'
 import { HomeActionQueueProvider } from '@/components/providers/HomeActionQueueProvider'
+import {
+  HouseholdIdentityProvider,
+  useHouseholdIdentity,
+} from '@/components/providers/HouseholdIdentityProvider'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 
-export function Providers({ children }: { children: React.ReactNode }) {
+function MemberProviders({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const identity = useHouseholdIdentity()
+  return (
+    <HomeActionQueueProvider
+      enabled={pathname === '/' && identity.access !== 'capture_only'}
+    >
+      <ChatWidgetProvider>{children}</ChatWidgetProvider>
+    </HomeActionQueueProvider>
+  )
+}
+
+export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -29,9 +44,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <HomeActionQueueProvider enabled={pathname === '/'}>
-          <ChatWidgetProvider>{children}</ChatWidgetProvider>
-        </HomeActionQueueProvider>
+        <HouseholdIdentityProvider>
+          <MemberProviders>{children}</MemberProviders>
+        </HouseholdIdentityProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )

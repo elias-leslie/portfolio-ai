@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from app.api.symbols.models import DecisionSection, QuoteSection
+from app.services.news_cached_evidence import filter_cached_news
 
 from .models import NarrativeBulletsDict, NewsIntelligenceDict, RecentNewsDict
 
@@ -308,6 +309,14 @@ class WatchlistItemResponse(BaseModel):
                 overall=item["score"]["overall"],
             )
 
+        clean_recent = filter_cached_news(
+            item["symbol"], item.get("recent_news"), item.get("company_name")
+        )
+        clean_intel = filter_cached_news(
+            item["symbol"], item.get("news_intelligence"), item.get("company_name")
+        )
+        clean_summary = (clean_recent or {}).get("summary") or {}
+        clean_sentiment = (clean_intel or {}).get("sentiment_score", clean_summary.get("score"))
         return cls(
             id=item["id"],
             symbol=item["symbol"],
@@ -318,9 +327,7 @@ class WatchlistItemResponse(BaseModel):
             updated_at=item["updated_at"],
             current_score=current_score,
             quote=QuoteSection(**item["quote"]) if item.get("quote") else None,
-            price_trends=[
-                PriceTrendResponse(**trend) for trend in item.get("price_trends", [])
-            ],
+            price_trends=[PriceTrendResponse(**trend) for trend in item.get("price_trends", [])],
             score_trend=ScoreTrendResponse(**item["score_trend"])
             if item.get("score_trend")
             else None,
@@ -332,10 +339,12 @@ class WatchlistItemResponse(BaseModel):
             signal_type=item.get("signal_type"),
             signal_strength=item.get("signal_strength"),
             narrative_headline=item.get("narrative_headline"),
-            recommended_style=item.get("recommended_style"),
-            style_confidence=item.get("style_confidence"),
-            optimal_holding_period=item.get("optimal_holding_period"),
-            risk_level=item.get("risk_level"),
+            recommended_style=item.get("recommended_style")
+            if item.get("recommended_style") in {"Index", "Trend", "Swing", "Event"}
+            else None,
+            style_confidence=None,
+            optimal_holding_period=None,
+            risk_level=None,
             # Trade calculation fields
             entry_price=item.get("entry_price"),
             stop_loss=item.get("stop_loss"),
@@ -351,9 +360,9 @@ class WatchlistItemResponse(BaseModel):
             earnings_date=item.get("earnings_date"),
             earnings_days_away=item.get("earnings_days_away"),
             # News
-            news_sentiment_score=item.get("news_sentiment_score"),
-            recent_news=item.get("recent_news"),
-            news_intelligence=item.get("news_intelligence"),
+            news_sentiment_score=clean_sentiment,
+            recent_news=clean_recent,
+            news_intelligence=clean_intel,
             # Priority indicators
             priority_indicators=item.get("priority_indicators", []),
             # Timeframe alignment (FEAT-183)

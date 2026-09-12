@@ -11,8 +11,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { MacroSnapshot } from '@/lib/api/macro'
-import { useMacroHistory } from '@/lib/hooks/useMacro'
+import type { MacroSnapshot, MacroTrendPoint } from '@/lib/api/macro'
+import { useMacroTrendHistory } from '@/lib/hooks/useMacro'
 import { formatDate } from '@/lib/utils'
 import { MarketPanelMessage } from './MarketPanelMessage'
 import {
@@ -79,14 +79,17 @@ function scoreTone(value: number | null | undefined): ImpactTone {
   return 'warning'
 }
 
-function buildDriverImpact(snapshots: MacroSnapshot[]): {
+function buildDriverImpact(
+  latest: MacroSnapshot | null | undefined,
+  first: MacroTrendPoint | undefined,
+  count: number,
+): {
   tone: ImpactTone
   title: string
   summary: string
   metrics: ImpactMetric[]
   footer: string | null
 } {
-  const latest = snapshots.at(-1)
   if (!latest) {
     return {
       tone: 'neutral',
@@ -110,7 +113,6 @@ function buildDriverImpact(snapshots: MacroSnapshot[]): {
   const strongest = [...scored].sort(
     (a, b) => (b.score ?? 0) - (a.score ?? 0),
   )[0]
-  const first = snapshots[0]
   const scoreDelta =
     first?.deploymentScore != null
       ? latest.deploymentScore - first.deploymentScore
@@ -178,7 +180,7 @@ function buildDriverImpact(snapshots: MacroSnapshot[]): {
           scoreDelta == null
             ? '-'
             : `${scoreDelta >= 0 ? '+' : ''}${scoreDelta.toFixed(1)}`,
-        detail: `${snapshots.length} snapshots`,
+        detail: `${count} snapshots`,
         tone:
           scoreDelta == null
             ? 'neutral'
@@ -197,8 +199,9 @@ export function MacroRegimeDriversTrendChart() {
   )
   const [impactCollapsed, setImpactCollapsed] = useState(false)
   const days = timeframeToDays(timeframe)
-  const { data, isLoading, error } = useMacroHistory(days)
-  const snapshots = data?.snapshots ?? []
+  const { data, isLoading, error } = useMacroTrendHistory(days)
+  const snapshots = data?.points ?? []
+  const latest = data?.latest ?? undefined
 
   const chartData = useMemo(
     () =>
@@ -214,7 +217,7 @@ export function MacroRegimeDriversTrendChart() {
       })),
     [snapshots],
   )
-  const driverImpact = buildDriverImpact(snapshots)
+  const driverImpact = buildDriverImpact(latest, snapshots[0], snapshots.length)
   const formatXAxis = (date: string) => formatChartDate(date, days)
 
   if (isLoading) {
@@ -252,7 +255,7 @@ export function MacroRegimeDriversTrendChart() {
       chart={
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
           {(Object.keys(DRIVER_CONFIG) as DriverKey[]).map((key) => {
-            const latestSnapshot = snapshots.at(-1)
+            const latestSnapshot = latest
             const current = latestSnapshot?.components[key]
             return (
               <div

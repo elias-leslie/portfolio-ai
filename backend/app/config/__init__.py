@@ -9,7 +9,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from ..utils.project_paths import resolve_project_root
@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # Frontend / CORS
     frontend_host: str | None = None
     frontend_extra_origins: str = ""
+    cloudflare_access_team_domain: str = "summitflow.cloudflareaccess.com"
+    cloudflare_access_aud: str = ""
+    household_member_emails: SecretStr = SecretStr("")
 
     # Cache configuration
     cache_enabled: bool = True

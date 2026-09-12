@@ -68,8 +68,8 @@ from app.services._household_spend_periods import (
 )
 from app.services._household_spend_variance import build_spend_variance
 from app.services._household_statement_merchants import (
-    MIN_SHARED_BILLER_PREFIX,
     normalize_statement_merchant,
+    statement_biller_group_key,
     statement_merchant_key,
 )
 from app.services._household_taxonomy import essentiality_for
@@ -255,8 +255,8 @@ def _undated_receipt_reason(
 class HouseholdTransactionService:
     """Persist normalized household transactions and generate reporting views."""
 
-    def __init__(self) -> None:
-        self.storage = get_storage()
+    def __init__(self, storage: Any | None = None) -> None:
+        self.storage = storage or get_storage()
         self._reversal_pairs: list[ReversalPair] | None = None
 
     def import_document_transactions(
@@ -690,9 +690,9 @@ class HouseholdTransactionService:
     def repair_transaction_system(self, *, limit: int = 5000) -> dict[str, int]:
         """Repair canonical categories, provenance fields, account links, and doc summaries."""
         with self.storage.connection() as conn:
+            merchants_normalized = self._normalize_merchant_names(conn)
             canonicalized = self._canonicalize_stored_categories(conn, limit=limit)
             essentiality_aligned = self._canonicalize_stored_essentiality(conn)
-            merchants_normalized = self._normalize_merchant_names(conn)
             rules_backfilled = self._backfill_merchant_rules(conn, limit=limit)
             provenance_backfilled = self._backfill_transaction_provenance(conn)
             account_linked = self._link_transactions_by_account_mask(conn, limit=limit)
@@ -894,6 +894,13 @@ class HouseholdTransactionService:
             for row in collapse_report_rows(analytics_rows)
             if abs(float(row.get("signed_amount", row["amount"]))) > 0
         ]
+
+    def spending_contributions(self, *, start_date: date, end_date: date) -> list[dict[str, Any]]:
+        """The exact signed category contributions used by the monthly review."""
+        return expand_rows_with_item_splits(
+            self._spend_rows_between(start_date=start_date, end_date=end_date),
+            self._load_item_splits(),
+        )
 
     def spend_total_between(
         self,
@@ -2080,7 +2087,7 @@ class HouseholdTransactionService:
             biller_key = statement_merchant_key(representative)
             if biller_key:
                 name = normalize_statement_merchant(representative) or ""
-                group_key = f"biller:{biller_key[:MIN_SHARED_BILLER_PREFIX]}"
+                group_key = f"biller:{statement_biller_group_key(biller_key)}"
             else:
                 name = _canonical_merchant_name(representative)
                 group_key = f"name:{name.lower()}"

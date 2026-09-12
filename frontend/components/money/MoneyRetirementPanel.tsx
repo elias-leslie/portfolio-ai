@@ -21,6 +21,7 @@ import { NetWorthTrendLine } from '@/components/home/today/NetWorthTrendLine'
 import { formatBudgetDate } from '@/components/money/budget-helpers'
 import { HouseholdHoldingsDialog } from '@/components/money/HouseholdHoldingsDialog'
 import { freshnessToneClass } from '@/components/money/moneyAccountsUtils'
+import { useRetirementInputsReady } from '@/components/money/useRetirementInputsReady'
 import { InfoBadge } from '@/components/shared/InfoBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import {
@@ -42,6 +43,7 @@ import {
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import type {
+  HouseholdConfirmedFact,
   HouseholdFinanceDashboard,
   HouseholdProfileUpdate,
   RetirementAllocationScenario,
@@ -70,7 +72,9 @@ import {
   useUpdateHouseholdProfile,
   useUpdateRetirementIncomeStreamOverride,
 } from '@/lib/hooks/useHousehold'
+import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import { categoryBudgetMetaMap } from './household-fact-metadata'
+import { MonthlyFundingContext } from './MonthlyFundingContext'
 import { buildOwnerOptions } from './owner-options'
 import { RetirementResults } from './RetirementResults'
 import {
@@ -285,9 +289,11 @@ function BucketStrategyTooltip({
 
 export function MoneyRetirementPanel({
   dashboard,
+  facts = [],
   onEditTargets,
 }: {
   dashboard: HouseholdFinanceDashboard
+  facts?: HouseholdConfirmedFact[]
   onEditTargets?: () => void
 }) {
   const [draft, setDraft] = useState(() => defaultDraft(dashboard))
@@ -417,8 +423,22 @@ export function MoneyRetirementPanel({
   const updatePlanning = useUpdateHouseholdPlanning()
   const propertyValuationsQuery = useHouseholdPropertyValuations({ limit: 36 })
   const refreshPropertyValuation = useRefreshHouseholdPropertyValuation()
-  const previewQuery = useRetirementPreview(request)
+  const previewInputsReady = useRetirementInputsReady(
+    JSON.stringify(request),
+    incomeActualsQuery.isPending ||
+      spendingActualsQuery.isPending ||
+      householdFactsQuery.isPending,
+  )
+  const previewQuery = useRetirementPreview(request, previewInputsReady)
   const preview = previewQuery.data
+  useUsableContentTiming(
+    'retirement',
+    previewInputsReady &&
+      Boolean(preview) &&
+      !previewQuery.isFetching &&
+      !previewQuery.error,
+    JSON.stringify(request),
+  )
   const holdingsCoverage = preview?.holdingsCoverage ?? null
 
   useEffect(() => {
@@ -449,11 +469,19 @@ export function MoneyRetirementPanel({
           },
     [actualSpendMonthly, request],
   )
-  const actualSpendPreviewQuery = useRetirementPreview(actualSpendRequest)
+  const [compareActualSpend, setCompareActualSpend] = useState(false)
+  const actualSpendPreviewQuery = useRetirementPreview(
+    actualSpendRequest,
+    compareActualSpend && previewInputsReady && !previewQuery.isFetching,
+  )
   const actualSpendPreview = actualSpendPreviewQuery.data
   const successRatesUpdatedAt = Math.max(
-    previewQuery.dataUpdatedAt || 0,
-    actualSpendPreviewQuery.dataUpdatedAt || 0,
+    preview?.computedAt
+      ? Date.parse(preview.computedAt)
+      : previewQuery.dataUpdatedAt || 0,
+    actualSpendPreview?.computedAt
+      ? Date.parse(actualSpendPreview.computedAt)
+      : actualSpendPreviewQuery.dataUpdatedAt || 0,
   )
   const successRatesRunLabel =
     successRatesUpdatedAt > 0
@@ -1439,7 +1467,7 @@ export function MoneyRetirementPanel({
                     preview.trustedTotals,
                   )}
                 >
-                  {preview.trustedTotals ? 'Trusted' : 'Guarded'}
+                  {preview.trustedTotals ? 'Totals checked' : 'Check totals'}
                 </Badge>
               ) : null}
             </div>
@@ -1447,20 +1475,27 @@ export function MoneyRetirementPanel({
               <div className="flex items-center justify-between gap-3">
                 <span className="text-text-muted">
                   Plan{' '}
-                  {formatCurrency(parseNumber(draft.monthlySpend, 0), {
-                    decimals: 0,
-                  })}
+                  {formatCurrency(
+                    preview
+                      ? preview.inputs.annualExpenses / 12
+                      : parseNumber(draft.monthlySpend, 0),
+                    {
+                      decimals: 0,
+                    },
+                  )}
                   /mo
                 </span>
                 <span className="font-mono text-lg text-text">
                   {preview
                     ? percentPoints(preview.successProbability)
-                    : previewQuery.isFetching
-                      ? 'running…'
-                      : '—'}
+                    : !previewInputsReady
+                      ? 'Preparing inputs…'
+                      : previewQuery.isFetching
+                        ? 'running…'
+                        : '—'}
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-text-muted">
                   Current spend{' '}
                   {spendingActuals
@@ -1470,19 +1505,34 @@ export function MoneyRetirementPanel({
                     : '—'}
                 </span>
                 <span className="font-mono text-lg text-text">
-                  {actualSpendMonthly == null
-                    ? '—'
-                    : actualSpendPreview
-                      ? percentPoints(actualSpendPreview.successProbability)
-                      : actualSpendPreviewQuery.isFetching
-                        ? 'running…'
-                        : '—'}
+                  {!compareActualSpend && actualSpendMonthly != null ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCompareActualSpend(true)}
+                    >
+                      Compare current spend
+                    </Button>
+                  ) : actualSpendMonthly == null ? (
+                    '—'
+                  ) : actualSpendPreview ? (
+                    percentPoints(actualSpendPreview.successProbability)
+                  ) : actualSpendPreviewQuery.isFetching ? (
+                    'running…'
+                  ) : (
+                    '—'
+                  )}
                 </span>
               </div>
             </div>
             {successRatesRunLabel ? (
               <p className="mt-2 text-xs text-text-muted/80">
                 Last run {successRatesRunLabel}
+              </p>
+            ) : null}
+            {preview && (!previewInputsReady || previewQuery.isFetching) ? (
+              <p role="status" className="mt-2 text-xs text-text-muted">
+                Updating forecast; showing the last completed run.
               </p>
             ) : null}
           </div>
@@ -1521,9 +1571,13 @@ export function MoneyRetirementPanel({
               First depletion
             </p>
             <p className="mt-2 text-2xl font-semibold text-text">
-              {preview?.firstDepletionAge
-                ? `Age ${preview.firstDepletionAge}`
-                : 'None'}
+              {!preview
+                ? previewQuery.isFetching
+                  ? 'Calculating…'
+                  : '—'
+                : preview.firstDepletionAge != null
+                  ? `Age ${preview.firstDepletionAge}`
+                  : 'None in this forecast'}
             </p>
             <p className="mt-1 text-xs text-text-muted">
               Deterministic drawdown schedule.
@@ -1847,6 +1901,16 @@ export function MoneyRetirementPanel({
               </div>
             ) : null}
 
+            {(preview?.leverImpacts ?? []).length === 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={previewQuery.isFetching}
+                onClick={() => setRequest({ ...request, includeLevers: true })}
+              >
+                Compare retirement changes
+              </Button>
+            )}
             {(preview?.leverImpacts ?? []).length > 0 ? (
               <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
@@ -1886,7 +1950,9 @@ export function MoneyRetirementPanel({
 
           {bucketTotals.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-5 text-sm text-text-muted xl:col-span-5">
-              No account buckets are available yet.
+              {previewQuery.isFetching
+                ? 'Loading account balances and ownership…'
+                : 'No account balances are available for this forecast.'}
             </div>
           ) : (
             <div className="rounded-2xl border border-border/35 bg-surface-muted/15 p-4 xl:col-span-5">
@@ -2405,6 +2471,10 @@ export function MoneyRetirementPanel({
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                     Partial retirement (spouse still working)
                   </p>
+                  <MonthlyFundingContext
+                    facts={facts}
+                    month={dashboard.generatedAt.slice(0, 7)}
+                  />
                   <div className="mt-3 grid gap-3 md:grid-cols-3">
                     <label className="text-xs text-text-muted">
                       Spouse net take-home $/mo

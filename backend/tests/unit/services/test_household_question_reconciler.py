@@ -135,3 +135,9 @@ def test_cadence_inference_reuses_the_callers_database_connection() -> None:
         "inferred_confidence": 0.9,
         "inferred_rationale": "Observed monthly statement history.",
     }
+
+
+def test_contextual_account_answer_cannot_confirm_or_overwrite_budget():
+    question = _question(question_id="context", field_name="monthly_essential_target", text="Is checking your primary account for monthly bills, deposits, and budget tracking?")
+    # A service with no storage/profile methods makes any accidental write fail.
+    HouseholdQuestionReconciler().apply_answer_to_profile(SimpleNamespace(), question, "Yes, the account ending in 1234")

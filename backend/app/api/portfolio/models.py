@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -173,6 +173,7 @@ class AnalyticsResponse(BaseModel):
     portfolio_beta: float | None
     portfolio_volatility: float | None
     sharpe_ratio: float | None
+    performance: dict[str, Any] | None = None
     sector_exposure: dict[str, float]
     concentration: ConcentrationResponse
     risk_profile: RiskProfileResponse | None

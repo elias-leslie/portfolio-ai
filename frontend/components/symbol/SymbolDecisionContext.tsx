@@ -30,9 +30,11 @@ export function CurrentExposure({
   return (
     <SectionCard variant="surface" title="Current Exposure">
       <p className="font-display italic text-2xl tabular-nums text-text">
-        {data?.portfolio?.held
-          ? formatCurrency(position?.currentValue)
-          : 'Not held'}
+        {!data?.portfolio
+          ? 'Exposure unavailable'
+          : data.portfolio.held
+            ? formatCurrency(position?.currentValue)
+            : 'Not held'}
       </p>
       <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
       {position ? (

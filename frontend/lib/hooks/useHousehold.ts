@@ -140,21 +140,23 @@ export function useHouseholdDashboard(options?: { enabled?: boolean }) {
   })
 }
 
-export function useHouseholdDocuments() {
+export function useHouseholdDocuments(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['household', 'documents'],
     queryFn: ({ signal }) => fetchHouseholdDocuments({ signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
+    enabled: options?.enabled ?? true,
   })
 }
 
-export function useHouseholdFacts() {
+export function useHouseholdFacts(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['household', 'facts'],
     queryFn: fetchConfirmedFacts,
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
+    enabled: options?.enabled ?? true,
   })
 }
 
@@ -177,7 +179,10 @@ export function useHouseholdSpending(params?: { month?: string }) {
   })
 }
 
-export function useHouseholdNetWorthTrend(params?: { days?: number }) {
+export function useHouseholdNetWorthTrend(
+  params?: { days?: number },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['household', 'net-worth-trend', params ?? {}],
     queryFn: ({ signal }) => fetchHouseholdNetWorthTrend(params, { signal }),
@@ -185,6 +190,7 @@ export function useHouseholdNetWorthTrend(params?: { days?: number }) {
     refetchInterval: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    enabled: options?.enabled ?? true,
   })
 }
 
@@ -229,9 +235,13 @@ export function useRefreshHouseholdPropertyValuation() {
   })
 }
 
-export function useRetirementPreview(params: RetirementPreviewRequest) {
+export function useRetirementPreview(
+  params: RetirementPreviewRequest,
+  enabled = true,
+) {
   return useQuery({
     queryKey: ['retirement', 'preview', params],
+    enabled,
     queryFn: ({ signal }) => fetchRetirementPreview(params, { signal }),
     staleTime: HOUSEHOLD_MARKET_VALUE_REFRESH_MS,
     // Keep the last projection on screen while debounced withdrawal-knob
@@ -358,7 +368,10 @@ export function useUpdateHouseholdProfile() {
       updateHouseholdProfile(payload),
     onSuccess: async (profile) => {
       queryClient.setQueryData(['household', 'profile'], profile)
-      await invalidateHouseholdQueries(queryClient)
+      await Promise.all([
+        invalidateHouseholdQueries(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['retirement', 'preview'] }),
+      ])
       toast.success('Household profile updated.')
     },
     onError: (error) => {
@@ -682,7 +695,10 @@ export function useConfirmFact() {
       factValue: string
     }) => confirmFact(factKey, factValue),
     onSuccess: async () => {
-      await invalidateHouseholdQueries(queryClient)
+      await Promise.all([
+        invalidateHouseholdQueries(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['retirement', 'preview'] }),
+      ])
       toast.success('Jenny noted your confirmation.')
     },
     onError: (error) => {

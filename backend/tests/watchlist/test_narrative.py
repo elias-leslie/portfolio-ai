@@ -354,9 +354,9 @@ class TestClassifyTradingStyle:
         )
 
         assert result["style"] == "Index"
-        assert result["confidence"] >= 9  # Very confident for hardcoded list
-        assert "indefinitely" in result["holding_period"].lower()
-        assert result["risk_level"] == "Low"
+        assert result["confidence"] is None
+        assert result["holding_period"] is None
+        assert result["risk_level"] is None
 
     def test_classify_event_style(self) -> None:
         """Test Event style classification for earnings proximity."""
@@ -372,12 +372,9 @@ class TestClassifyTradingStyle:
         )
 
         assert result["style"] == "Event"
-        assert result["confidence"] >= 7
-        assert (
-            "days" in result["holding_period"].lower()
-            or "weeks" in result["holding_period"].lower()
-        )
-        assert result["risk_level"] == "High"
+        assert result["confidence"] is None
+        assert result["holding_period"] is None
+        assert result["risk_level"] is None
 
     def test_classify_swing_style_oversold(self) -> None:
         """Test Swing style classification for RSI in oversold reversal zone."""
@@ -393,9 +390,9 @@ class TestClassifyTradingStyle:
         )
 
         assert result["style"] == "Swing"
-        assert result["confidence"] >= 6
-        assert "week" in result["holding_period"].lower()
-        assert result["risk_level"] == "Medium"
+        assert result["confidence"] is None
+        assert result["holding_period"] is None
+        assert result["risk_level"] is None
 
     def test_classify_swing_style_overbought(self) -> None:
         """Test Swing style classification for RSI in overbought reversal zone."""
@@ -411,9 +408,9 @@ class TestClassifyTradingStyle:
         )
 
         assert result["style"] == "Swing"
-        assert result["confidence"] >= 6
-        assert "week" in result["holding_period"].lower()
-        assert result["risk_level"] == "Medium"
+        assert result["confidence"] is None
+        assert result["holding_period"] is None
+        assert result["risk_level"] is None
 
     def test_classify_trend_style(self) -> None:
         """Test Trend style classification for strong BUY signals."""
@@ -429,15 +426,15 @@ class TestClassifyTradingStyle:
         )
 
         assert result["style"] == "Trend"
-        assert result["confidence"] >= 8
-        assert "month" in result["holding_period"].lower()
-        assert result["risk_level"] == "Medium"
+        assert result["confidence"] is None
+        assert result["holding_period"] is None
+        assert result["risk_level"] is None
 
-    def test_classify_value_style_default(self) -> None:
-        """Test Value style classification as default fallback."""
+    def test_missing_thesis_does_not_imply_value_style(self) -> None:
+        """No setup pattern establishes a value thesis."""
         from app.watchlist.narrative import classify_trading_style
 
-        # Doesn't match any other criteria → Value
+        # Missing evidence must remain unknown.
         result = classify_trading_style(
             symbol="MSFT",
             signal_strength=5,
@@ -446,10 +443,10 @@ class TestClassifyTradingStyle:
             earnings_days_away=None,
         )
 
-        assert result["style"] == "Value"
-        assert result["confidence"] >= 5
-        assert "month" in result["holding_period"].lower()
-        assert result["risk_level"] in ("Medium", "Medium-Low")
+        assert result["style"] is None
+        assert result["confidence"] is None
+        assert result["holding_period"] is None
+        assert result["risk_level"] is None
 
     def test_classify_trading_style_priority_index_first(self) -> None:
         """Test that Index classification takes priority over Event."""

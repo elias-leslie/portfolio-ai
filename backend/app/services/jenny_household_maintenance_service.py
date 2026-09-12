@@ -86,6 +86,7 @@ class JennyHouseholdMaintenanceService:
             limit=1000,
         )
         repair_summary = service.household_service.repair_transaction_system(limit=5000)
+        service.household_service.refresh_derived_values()
         dashboard = service.household_service.get_dashboard()
         notification_count = self._sync_household_notifications(
             service,
@@ -134,7 +135,9 @@ class JennyHouseholdMaintenanceService:
                        status,
                        review_status
                 FROM household_documents
-                WHERE status IN ('staged', 'needs_review')
+                WHERE document_type NOT IN ('api_sync', 'manual_entry')
+                  AND source_type NOT IN ('plaid', 'snaptrade', 'soft_charge', 'manual_entry')
+                  AND (status IN ('staged', 'needs_review')
                    OR COALESCE(review_status, '') IN ('needs_review', 'failed')
                    OR (
                         source_type IN ('bank', 'credit_card', 'brokerage', 'retirement')
@@ -165,6 +168,7 @@ class JennyHouseholdMaintenanceService:
                            {_SUSPICIOUS_TRANSACTION_REPLAY_SQL}
                         )
                    )
+                  )
                 ORDER BY uploaded_at DESC
                 LIMIT %s
                 """,

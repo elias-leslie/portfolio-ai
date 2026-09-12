@@ -535,6 +535,7 @@ export interface RetirementWithdrawalConfig {
 }
 
 export interface RetirementPreviewRequest {
+  includeLevers?: boolean
   householdId: string
   name?: string | null
   trials?: number
@@ -715,6 +716,9 @@ export interface RetirementInputs {
 }
 
 export interface RetirementAccountBucket {
+  owner?: string
+  ownerName?: string | null
+  householdAccountId?: string | null
   bucketType: string
   label: string
   accountType: string
@@ -853,6 +857,8 @@ export interface RetirementBucketStrategy {
 }
 
 export interface RetirementDrawdownYear {
+  withdrawalsByOwner?: Record<string, Record<string, number>>
+  balancesByOwner?: Record<string, Record<string, number>>
   yearIndex: number
   calendarYear: number
   primaryAge: number
@@ -940,6 +946,7 @@ export interface RetirementOutcomeFraming {
 }
 
 export interface RetirementPreview {
+  computedAt?: string
   schemaVersion: number
   trustedTotals: boolean
   accountControlStatus: string
@@ -1135,6 +1142,10 @@ export interface HouseholdDocument {
 
 export interface HouseholdDocumentList {
   items: HouseholdDocument[]
+  totalCount: number
+  pendingCount: number
+  offset: number
+  limit: number
 }
 
 export interface HouseholdDocumentReviewProposalImpact {
@@ -1248,6 +1259,8 @@ export interface HouseholdQuestionList {
 }
 
 export interface HouseholdLedgerEntry {
+  reviewAmount?: number | null
+  reviewCategories?: string[]
   id: string
   kind: string
   /** Linked purchase items; >0 enables the ledger row item expansion. */
@@ -1332,6 +1345,10 @@ export interface HouseholdSpendExclusions {
 }
 
 export interface HouseholdLedger {
+  reviewSpendTotal?: number | null
+  reviewCategory?: string | null
+  scanTruncated?: boolean
+  sourceOptions?: string[]
   generatedAt: string
   timeframeKey: string
   timeframeLabel: string
@@ -1354,6 +1371,10 @@ export interface HouseholdLedger {
 }
 
 export interface HouseholdLedgerParams {
+  month?: string
+  category?: string
+  source?: string
+  inclusion?: string
   window?: string
   kind?: string
   status?: string
@@ -1532,6 +1553,9 @@ export interface HouseholdSpendingSummary {
   daysElapsed: number
   daysInMonth: number
   basisLabel: string
+  coverageStatus?: 'current' | 'incomplete' | 'unknown'
+  coverageDetail?: string
+  coverageThrough?: string | null
   startDate?: string | null
   endDate?: string | null
   totalSpend: number
@@ -1574,6 +1598,7 @@ export interface HouseholdCapPlanRow {
 }
 
 export interface HouseholdCapPlan {
+  plannedAssetDraw?: number | null
   status: 'proposed' | 'no_anchor' | 'essentials_exceed_income'
   headline: string
   detail: string
@@ -1634,6 +1659,7 @@ export interface HouseholdCardCommitments {
 }
 
 export interface HouseholdSpendingView {
+  reviewPlan?: MonthlyReviewPlan | null
   generatedAt: string
   summary: HouseholdSpendingSummary
   availableMonths: string[]
@@ -1879,6 +1905,12 @@ export interface HouseholdProductPricePoint {
   totalPrice: number
   quantity?: number | null
   unitPrice?: number | null
+  unitLabel?: string | null
+  packageLabel?: string | null
+  packageQuantity?: number | null
+  basisEvidence?: string | null
+  packagePrice?: number | null
+  description?: string | null
   source: string
 }
 
@@ -1895,6 +1927,8 @@ export interface HouseholdProductSummary {
   lastObservedDate?: string | null
   latestPrice?: number | null
   latestUnitPrice?: number | null
+  latestUnitLabel?: string | null
+  latestDescription?: string | null
   latestMerchant?: string | null
   bestResearchedVendorKey?: string | null
   bestResearchedVendor?: string | null
@@ -2098,6 +2132,8 @@ export interface HouseholdBuyGuideItem {
   bestObservedDate: string
   bestUrl?: string | null
   bestTitle?: string | null
+  bestValidUntil?: string | null
+  bestConditions?: string | null
   savingsPerUnit: number
   savingsPct: number
   estimatedMonthlySavings?: number | null
@@ -2226,4 +2262,33 @@ export interface HouseholdVendorProfileList {
 
 export interface HouseholdVendorProfileUpdate {
   vendors: HouseholdVendorProfile[]
+}
+
+export interface ReviewDecision {
+  action: string
+  outcome: 'not_reviewed' | 'kept' | 'changed' | 'not_done'
+  note: string
+}
+export interface MonthlyReviewRecord {
+  expectedIncome: number | null
+  plannedAssetDraw: number | null
+  plannedSpending: number | null
+  additionalCommitments: number | null
+  fundingNote: string
+  decisions: ReviewDecision[]
+}
+export interface MonthlyReviewPlan {
+  month: string
+  record: MonthlyReviewRecord
+  confirmedAt: string | null
+  previousMonth: string | null
+  previousRecord: MonthlyReviewRecord | null
+  expectedIncome: number | null
+  incomeSource: string
+  plannedAssetDraw: number | null
+  plannedSpending: number | null
+  additionalCommitments: number | null
+  fundingBalance: number | null
+  unplannedCategories: string[]
+  detail: string
 }

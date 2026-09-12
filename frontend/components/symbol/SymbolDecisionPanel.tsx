@@ -22,10 +22,8 @@ import type {
 } from '@/lib/api/symbols'
 import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
 import { formatCurrency, formatEnumLabel } from '@/lib/formatters'
-import {
-  formatIfNotHeldReasoning,
-  formatTenPointConfidence,
-} from './symbol-formatters'
+import { SymbolLotEvidence } from './SymbolLotEvidence'
+import { formatIfNotHeldReasoning } from './symbol-formatters'
 
 type DecisionActionGroup = 'buy' | 'hold' | 'review' | 'trim' | 'exit' | 'avoid'
 
@@ -150,7 +148,7 @@ function DecisionReasonList({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border/40 bg-surface-muted/10 p-4 text-sm text-text-muted">
-        No Jenny/data reasoning is attached to this decision yet.
+        No underlying reasoning is attached to this decision yet.
       </div>
     )
   }
@@ -197,20 +195,22 @@ function TradingSetup({ data }: { data: SymbolIntelligence }) {
       </div>
       <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Confidence / Risk
+          Setup basis
         </p>
         <p className="mt-2 text-sm text-text">
-          {formatTenPointConfidence(data.trading.confidence)} ·{' '}
-          {data.trading.riskLevel ?? 'Risk unavailable'}
+          {data.trading.basis ??
+            'Uncalibrated heuristic. Risk and confidence have not been established.'}
         </p>
       </div>
       <div className="rounded-2xl border border-border/40 bg-surface/60 p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-          Typical holding time
+          Thesis horizon
         </p>
         <p className="mt-2 text-sm text-text">
-          {data.trading.holdingPeriod ?? '—'} ·{' '}
-          {data.trading.style ?? 'Unknown style'}
+          {data.trading.holdingPeriod ?? 'Not established'} ·{' '}
+          {data.trading.style
+            ? `${data.trading.style} pattern`
+            : 'No supported style'}
         </p>
       </div>
     </div>
@@ -235,7 +235,7 @@ export function SymbolDecisionPanel({
   portfolioContextParts: string[]
 }) {
   const decision = data?.decision ?? null
-  const decisionMeta = formatDecisionMeta(decision)
+  const decisionMeta = formatDecisionMeta(decision, { includeTimestamp: false })
   const conflict = hasMaterialConflict(decision, data?.recommendation)
   const entrySignalEvidence = formatEntrySignalEvidence(data)
   const showTradingSetup = shouldShowTradingSetup(data)
@@ -270,21 +270,64 @@ export function SymbolDecisionPanel({
             </div>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
               {decision?.summary ??
-                'Jenny does not have enough decision context for this symbol yet.'}
+                'There is not enough decision context for this symbol yet.'}
             </p>
             {decisionMeta ? (
               <p className="mt-3 text-xs uppercase tracking-[0.18em] text-text-muted">
                 {decisionMeta}
+                {decision?.sourceTimestamp ? (
+                  <>
+                    {' '}
+                    · <RelativeTime value={decision.sourceTimestamp} />
+                  </>
+                ) : null}
               </p>
             ) : null}
           </div>
 
           <div>
             <p className="mb-3 text-sm font-semibold text-text">
-              Why Jenny is showing this
+              {decision?.sourceKind?.startsWith('jenny_')
+                ? 'Jenny’s reasoning'
+                : 'Model inputs behind this decision'}
             </p>
             <DecisionReasonList reasons={decision?.reasoning ?? []} />
           </div>
+
+          {decision?.portfolioRelevance ? (
+            <p className="text-sm text-text-muted">
+              {decision.portfolioRelevance}
+            </p>
+          ) : null}
+          {decision?.sourceKind !== 'live_signal_model' &&
+          decision?.drivers?.length ? (
+            <details className="text-sm">
+              <summary className="cursor-pointer font-semibold">
+                Current model inputs
+              </summary>
+              <DecisionReasonList reasons={decision.drivers} />
+            </details>
+          ) : null}
+          {decision?.missingEvidence?.length ? (
+            <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm">
+              <p className="font-semibold">Missing or stale evidence</p>
+              <ul className="mt-2 list-disc pl-5 space-y-1">
+                {decision.missingEvidence.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {decision?.reviewTriggers?.length ? (
+            <div className="text-sm">
+              <p className="font-semibold">When to revisit</p>
+              <ul className="mt-2 list-disc pl-5 space-y-1">
+                {decision.reviewTriggers.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {conflict ? (
             <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-text">
@@ -366,6 +409,7 @@ export function SymbolDecisionPanel({
           positionSummary={positionSummary}
           portfolioContextParts={portfolioContextParts}
         />
+        {isHeld ? <SymbolLotEvidence symbol={symbol} /> : null}
         <SourceAuditTrail
           symbol={symbol}
           activeNotification={activeNotification}

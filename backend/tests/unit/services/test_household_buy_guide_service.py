@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.services.household_buy_guide_service import _guide_item, _Observation
+from app.services.household_buy_guide_service import _guide_item, _monthly_units, _Observation
 
 
 def _obs(
@@ -44,7 +44,7 @@ def test_buy_guide_flags_larger_vendor_quote_unit_savings() -> None:
                 merchant="Walmart",
                 source="vendor_quote",
                 label="40 oz",
-                metadata={"url": "https://example.test/oil", "confidence": 0.9},
+                metadata={"url": "https://example.test/oil", **_CONFIRMED},
             ),
         ],
         today=today,
@@ -94,4 +94,90 @@ def test_buy_guide_ignores_low_confidence_vendor_quotes() -> None:
         today=today,
     )
 
+    assert item is None
+
+
+def test_meaningful_dollars_are_not_rejected_by_a_ten_percent_threshold():
+    item = _guide_item(
+        product_id="product-olive-oil",
+        today=date(2026, 6, 19),
+        observations=[
+            _obs(observed=date(2026, 4, 1), total=32, qty=32, label="32 oz"),
+            _obs(observed=date(2026, 5, 1), total=32, qty=32, label="32 oz"),
+            _obs(
+                observed=date(2026, 6, 18),
+                total=60,
+                qty=64,
+                label="64 oz",
+                merchant="Walmart",
+                source="vendor_quote",
+                metadata=_CONFIRMED,
+            ),
+        ],
+    )
+    assert item and item.savings_pct == 6.2
+    assert item.estimated_monthly_savings and 1 < item.estimated_monthly_savings < 3
+
+
+def test_two_purchases_do_not_double_the_observed_restocking_pace():
+    pace = _monthly_units(
+        [
+            _obs(observed=date(2026, 4, 1), total=32, qty=32),
+            _obs(observed=date(2026, 5, 1), total=32, qty=32),
+        ],
+        today=date(2026, 6, 1),
+    )
+    assert pace and 32 < pace < 33
+
+
+_CONFIRMED: dict[str, object] = dict.fromkeys(
+    (
+        "equivalence_confirmed",
+        "availability_confirmed",
+        "fees_confirmed",
+        "coupon_confirmed",
+        "membership_confirmed",
+    ),
+    True,
+)
+
+_CONFIRMED["valid_until"] = "2026-07-01"
+
+
+def test_same_store_offer_is_useful_but_a_coupon_is_not_recurring_savings():
+    item = _guide_item(
+        product_id="product-olive-oil",
+        today=date(2026, 6, 19),
+        observations=[
+            _obs(observed=date(2026, 4, 1), total=32, qty=32),
+            _obs(observed=date(2026, 5, 1), total=32, qty=32),
+            _obs(
+                observed=date(2026, 6, 18),
+                total=28,
+                qty=32,
+                source="vendor_quote",
+                metadata={**_CONFIRMED, "coupon": 4},
+            ),
+        ],
+    )
+    assert item and item.finding_kind == "lower_price_same_store"
+    assert item.estimated_monthly_savings is None
+
+
+def test_offer_expiry_overrides_the_fourteen_day_freshness_window():
+    item = _guide_item(
+        product_id="product-olive-oil",
+        today=date(2026, 6, 19),
+        observations=[
+            _obs(observed=date(2026, 4, 1), total=32, qty=32),
+            _obs(observed=date(2026, 5, 1), total=32, qty=32),
+            _obs(
+                observed=date(2026, 6, 18),
+                total=20,
+                qty=32,
+                source="vendor_quote",
+                metadata={**_CONFIRMED, "valid_until": "2026-06-18"},
+            ),
+        ],
+    )
     assert item is None

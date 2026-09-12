@@ -143,9 +143,7 @@ def test_get_action_queue_keeps_partial_results_when_one_source_fails() -> None:
     assert "Review concentration" in titles
     assert "Action queue is incomplete" in titles
     degraded = next(
-        action
-        for action in payload["actions"]
-        if action["title"] == "Action queue is incomplete"
+        action for action in payload["actions"] if action["title"] == "Action queue is incomplete"
     )
     assert degraded["href"] == "/status"
     assert "workflow" in degraded["detail"]
@@ -308,7 +306,9 @@ def test_jenny_actions_link_into_decision_context() -> None:
     assert actions[1]["href"] == "/symbols/NVDA?tab=decision"
 
 
-def test_jenny_actions_skip_household_notifications_that_already_have_precise_household_routes() -> None:
+def test_jenny_actions_skip_household_notifications_that_already_have_precise_household_routes() -> (
+    None
+):
     dashboard = JennyDashboard(
         notifications=[
             JennyNotification(
@@ -420,8 +420,7 @@ def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
 
     assert actions[0]["title"] == "Portfolio needs a concentration check"
     assert (
-        actions[0]["href"]
-        == "/portfolio?tab=holdings&highlight=concentration#portfolio-overview"
+        actions[0]["href"] == "/portfolio?tab=holdings&highlight=concentration#portfolio-overview"
     )
     assert actions[0]["action_label"] == "Check concentration"
     assert actions[0]["badge"] == "Concentration"
@@ -431,7 +430,9 @@ def test_portfolio_health_actions_flag_concentration(monkeypatch) -> None:
     )
 
 
-def test_portfolio_health_actions_skip_false_positive_for_broad_etf_lookthrough(monkeypatch) -> None:
+def test_portfolio_health_actions_skip_false_positive_for_broad_etf_lookthrough(
+    monkeypatch,
+) -> None:
     service = object.__new__(HomeActionService)
 
     def fake_analytics(include_paper: bool = False) -> SimpleNamespace:
@@ -526,3 +527,48 @@ def test_household_actions_use_specific_labels_and_focused_destinations() -> Non
     assert actions[0]["href"] == "/money?tab=accounts&focus=account-coverage"
     assert actions[1]["action_label"] == "Review accounts"
     assert actions[1]["href"] == "/money?tab=accounts&focus=discovered-accounts"
+
+
+def test_all_household_candidates_are_ranked_before_cutoff_and_repairs_grouped():
+    def need(account, institution, affects=(), code="stale_evidence"):
+        return SimpleNamespace(
+            id=f"account-{account}-{code}",
+            related_account_id=account,
+            priority="high",
+            title=f"Refresh {institution} {account}",
+            detail="Evidence is old",
+            action_href=f"/money?tab=accounts&account={account}&intent=evidence",
+            action_label="Add evidence",
+            affects=list(affects),
+        )
+
+    items = [need(f"college{i}", "College") for i in range(5)]
+    items += [
+        need("card1", "Chase", ["monthly_spend"], "stale_transactions"),
+        need("card2", "Chase", ["safe_to_spend"], "stale_transactions"),
+    ]
+    accounts = [
+        SimpleNamespace(id=f"college{i}", asset_group="education", institution_name="College")
+        for i in range(5)
+    ]
+    accounts += [
+        SimpleNamespace(id="card1", asset_group="credit", institution_name="Chase"),
+        SimpleNamespace(id="card2", asset_group="credit", institution_name="Chase"),
+    ]
+    actions = build_household_actions(items, accounts)
+    assert len(actions) == 2
+    assert actions[0]["title"] == "Update Chase transactions for 2 accounts"
+    assert "institution=Chase" in actions[0]["href"]
+    assert actions[1]["priority"] == "low"
+
+
+def test_household_source_failure_is_not_reported_as_an_empty_success():
+    import pytest
+
+    from app.services._home_action_sources import build_household_actions_from_service
+
+    def unavailable():
+        raise RuntimeError("offline")
+
+    with pytest.raises(RuntimeError, match="offline"):
+        build_household_actions_from_service(SimpleNamespace(get_dashboard=unavailable))

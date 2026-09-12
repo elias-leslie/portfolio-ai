@@ -17,6 +17,10 @@ const confirmFactMutateAsync = vi.fn()
 const categorizeMutateAsync = vi.fn()
 const setTransactionOwnerMutateAsync = vi.fn()
 
+vi.mock('../ReviewPurchaseActions', () => ({
+  ReviewPurchaseActions: () => <div>Confirmed purchase actions</div>,
+}))
+
 vi.mock('@/lib/hooks/useHousehold', () => ({
   useUpdateHouseholdProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateHouseholdSinkingFund: () => ({ mutate: vi.fn(), isPending: false }),
@@ -232,6 +236,7 @@ function budgetCategoryButton(category: string): HTMLButtonElement {
 
 describe('MoneyBudgetPanel', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/money')
     useHouseholdSpendingMock.mockReset()
     useHouseholdFactsMock.mockReset()
     useHouseholdDashboardMock.mockReset()
@@ -368,7 +373,9 @@ describe('MoneyBudgetPanel', () => {
 
     expect(screen.getByText('Unknown purchases')).toBeInTheDocument()
     expect(screen.getByText('Caps waiting on you')).toBeInTheDocument()
-    expect(screen.getByText('Connected MTD spend')).toBeInTheDocument()
+    expect(
+      screen.getByText('Connected spending in this period'),
+    ).toBeInTheDocument()
     // Each of these was a true number that another element on this screen
     // already says: the comparator row for income and the run-rate, Left over
     // for net cash flow and the savings rate, the verdict line for the caps.
@@ -568,7 +575,7 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getByText('Itemized portion')).toBeInTheDocument()
     expect(screen.getByText(/Owner: Alex Demo/)).toBeInTheDocument()
   })
-  it('answers "can we actually spend this" on the review screen itself', () => {
+  it('shows current affordability when household setup is opened', async () => {
     // The figure lived one tab away on the Decision Board, so the screen where
     // the month is judged could not say whether there was money to act on it.
     useHouseholdDashboardMock.mockReturnValue({
@@ -597,6 +604,9 @@ describe('MoneyBudgetPanel', () => {
     })
 
     render(<MoneyBudgetPanel />)
+    await userEvent.click(
+      screen.getByText('Funding, caps, and household setup'),
+    )
 
     // Card heading and the total line of the subtraction under it.
     expect(screen.getAllByText('Free to spend')).toHaveLength(2)
@@ -608,7 +618,7 @@ describe('MoneyBudgetPanel', () => {
     expect(screen.getByText('$30,495')).toBeInTheDocument()
   })
 
-  it('names which input is behind rather than a generic stale-data line', () => {
+  it('names which input is behind rather than a generic stale-data line', async () => {
     useHouseholdDashboardMock.mockReturnValue({
       isLoading: false,
       data: {
@@ -633,6 +643,9 @@ describe('MoneyBudgetPanel', () => {
     })
 
     render(<MoneyBudgetPanel />)
+    await userEvent.click(
+      screen.getByText('Funding, caps, and household setup'),
+    )
 
     expect(
       screen.getByText('Cash and card balances need a refresh.'),
@@ -642,7 +655,7 @@ describe('MoneyBudgetPanel', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('$11,828 free to spend.')).toBeInTheDocument()
   })
-  it('puts the retirement plan on the screen where the month is reviewed', () => {
+  it('keeps the retirement plan in household setup on the review screen', async () => {
     // D13's two-way link: the plan assumes a monthly retirement spend and the
     // month being reviewed shows what actually goes out. This is the one screen
     // that has both, so it is where the gap gets noticed.
@@ -678,6 +691,9 @@ describe('MoneyBudgetPanel', () => {
     })
 
     render(<MoneyBudgetPanel />)
+    await userEvent.click(
+      screen.getByText('Funding, caps, and household setup'),
+    )
 
     expect(screen.getByText('Retirement plan')).toBeInTheDocument()
     expect(

@@ -282,7 +282,9 @@ class HouseholdDocumentPipeline:
             return None
 
         if ambiguity_remaining:
-            reason = "The review still has unresolved account or evidence ambiguity."
+            reason = str(review_checks.get("ambiguity_reason") or "Confirm the account or unresolved fact identified in this review before applying changes.")
+            if itemization_gap:
+                reason += f" Itemisation also needs correction: {itemization_gap}"
         elif itemization_gap:
             reason = f"The document's itemisation is incomplete: {itemization_gap}"
         elif confidence is None:
@@ -1551,6 +1553,12 @@ class HouseholdDocumentPipeline:
         planning_count, planning_skipped, planning_error = _merge_review_planning_items(
             service, document=document, reviewed=reviewed,
         )
+        # Derived planning and question reconciliation run after committed
+        # evidence writes, never as side effects of opening the dashboard.
+        try:
+            service.refresh_derived_values()
+        except Exception as exc:
+            logger.warning("household_derived_refresh_deferred", document_id=document.id, error=str(exc))
         inferred_count = _inferred_value_count(reviewed)
         impacts: list[str] = []
         _append_review_impacts(

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
@@ -41,7 +41,7 @@ export function WorkspaceTabs({
 
     return new URLSearchParams(window.location.search).get(queryKey)
   }
-  const syncLocationToValue = (nextValue: string) => {
+  const syncLocationToValue = (nextValue: string, userNavigation = false) => {
     if (typeof window === 'undefined') {
       return
     }
@@ -63,9 +63,17 @@ export function WorkspaceTabs({
     }
 
     nextUrl.search = nextParams.toString()
-    window.history.replaceState(window.history.state, '', nextUrl)
+    window.history[userNavigation ? 'pushState' : 'replaceState'](
+      window.history.state,
+      '',
+      nextUrl,
+    )
   }
   const [value, setValue] = useState(fallbackValue)
+  const tabContainerRef = useRef<HTMLDivElement>(null)
+  const tabLayoutKey = JSON.stringify(
+    tabs.map(({ value, label, badge }) => [value, label, badge]),
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -121,6 +129,26 @@ export function WorkspaceTabs({
     }
   }, [fallbackValue, queryKey, tabs, value])
 
+  useEffect(() => {
+    // Counts can arrive after the active tab has scrolled into view, changing
+    // the widths of preceding tabs. Keep the complete active label reachable.
+    const revealActiveTab = () =>
+      document
+        .getElementById(`${idBase}-${value}-tab`)
+        ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    revealActiveTab()
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(revealActiveTab)
+    if (tabContainerRef.current) observer?.observe(tabContainerRef.current)
+    window.addEventListener('resize', revealActiveTab)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', revealActiveTab)
+    }
+  }, [idBase, value, tabLayoutKey])
+
   const handleValueChange = (nextValue: string) => {
     if (nextValue === value) {
       return
@@ -132,12 +160,15 @@ export function WorkspaceTabs({
       return
     }
 
-    syncLocationToValue(nextValue)
+    syncLocationToValue(nextValue, true)
   }
 
   return (
     <Tabs value={value} onValueChange={handleValueChange} className={className}>
-      <div className="sticky top-0 z-20 -mx-px rounded-2xl border border-border/40 bg-bg p-3 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-bg/95">
+      <div
+        ref={tabContainerRef}
+        className="sticky top-0 z-20 -mx-px rounded-2xl border border-border/40 bg-bg p-3 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-bg/95"
+      >
         <TabsList
           aria-label={ariaLabel}
           className="flex h-auto w-full flex-nowrap justify-start gap-2 overflow-x-auto bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

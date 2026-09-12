@@ -13,16 +13,25 @@ from functools import lru_cache
 from importlib import import_module
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Path, Query
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.portfolio.contracts.tlh import TLHCandidate, WashSaleVerdict
+from app.portfolio.lot_evidence import SymbolLotEvidence, get_lot_evidence
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/tlh", tags=["portfolio-tlh"])
+
+
+@router.get("/lots/{symbol}", response_model=SymbolLotEvidence)
+async def get_symbol_lots(
+    symbol: str = Path(pattern=r"^[A-Za-z0-9.^=-]{1,32}$"),
+) -> SymbolLotEvidence:
+    """Recorded basis evidence for held assets; no sale or lot consumption."""
+    return await run_in_threadpool(get_lot_evidence, _storage(), symbol)
 
 
 # Fields excluded from the TLHCandidate payload when ``detail=False``.

@@ -129,6 +129,17 @@ def _run(conn: _ScriptedConn) -> dict[str, int]:
     return bridge_cash_activities(_Storage(conn), _StubTransactionService())
 
 
+def test_bridge_keeps_vendor_description_as_raw_evidence() -> None:
+    class RenamingService(_StubTransactionService):
+        def _resolve_merchant(self, *, conn, raw_merchant, category, essentiality):
+            return (None, "A derived display name", category, essentiality, False, None)
+
+    description = "DEBIT CARD PURCHASE PUBLIX #1309 (Cash)"
+    conn = _ScriptedConn([_activity(vendor_account="a", activity_id="x", description=description)])
+    bridge_cash_activities(_Storage(conn), RenamingService())
+    assert conn.transaction_inserts[0]["raw_merchant"] == description
+
+
 def test_connection_duplicates_collapse_to_one_income_row() -> None:
     conn = _ScriptedConn(
         [

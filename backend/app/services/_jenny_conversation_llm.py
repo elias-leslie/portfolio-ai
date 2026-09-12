@@ -55,7 +55,7 @@ def complete_conversation(
         f"Open household questions:\n{_json_block([question_summary(q) for q in open_questions])}\n\n"
         f"User message:\n{message}"
     )
-    client = make_client(agent_slug="persona", use_memory=True)
+    client = make_client(agent_slug="persona", use_memory=False)
     try:
         return client.complete_messages(
             messages=[{"role": "user", "content": prompt}],
@@ -63,7 +63,7 @@ def complete_conversation(
             session_id=session_id,
             thinking_level="low",
             system_prompt=require_agent_hub_prompt(PROMPT_CHAT_SYSTEM),
-            use_memory=True,
+            use_memory=False,
             execute_tools=True,
             task_type="chat",
         )

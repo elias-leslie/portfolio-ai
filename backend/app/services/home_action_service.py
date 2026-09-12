@@ -71,6 +71,7 @@ class HomeActionService:
         self.jenny_service: JennyOperatorService | None = None
         self.workflow_service: SymbolWorkflowService | None = None
         self._cache_lock = Lock()
+        self._build_lock = Lock()
         self._queue_cache: dict[str, object] | None = None
         self._queue_cached_at: datetime | None = None
 
@@ -96,6 +97,8 @@ class HomeActionService:
         return service
 
     def _ensure_cache_state(self) -> None:
+        if not hasattr(self, "_build_lock"):
+            self._build_lock = Lock()
         if not hasattr(self, "_cache_lock"):
             self._cache_lock = Lock()
         if not hasattr(self, "_queue_cache"):
@@ -111,6 +114,11 @@ class HomeActionService:
             self._queue_cached_at = None
 
     def get_action_queue(self) -> dict[str, object]:
+        self._ensure_cache_state()
+        with self._build_lock:
+            return self._get_action_queue()
+
+    def _get_action_queue(self) -> dict[str, object]:
         self._ensure_cache_state()
         with self._cache_lock:
             if self._queue_cache is not None and self._queue_cached_at is not None:

@@ -207,16 +207,13 @@ def calculate_sharpe_ratio(
     Args:
         portfolio_value: Portfolio value with gain percentage
         portfolio_volatility: Portfolio volatility (annualized)
-        risk_free_rate: Risk-free rate (default: 4.5% current T-bill rate)
+        risk_free_rate: Risk-free rate (default: fixed 4.5% planning assumption)
         storage: Optional storage for retrieving historical equity snapshots
         account_ids: Optional account IDs included in the portfolio view
 
     Returns:
         Sharpe ratio, or None if insufficient historical data
     """
-    if portfolio_volatility is None or portfolio_volatility == 0:
-        return None
-
     if storage is None or not account_ids:
         return None
     return calculate_portfolio_sharpe(storage, account_ids, risk_free_rate)

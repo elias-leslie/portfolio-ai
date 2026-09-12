@@ -9,6 +9,8 @@ personalized financial advice.
 
 from __future__ import annotations
 
+import math
+
 from app.models.credit_cards import (
     CardRanking,
     CardRewardEstimate,
@@ -21,7 +23,7 @@ from app.models.household_finance_types import HouseholdSpendingView
 # Canonical reward buckets used by both the catalog multipliers and the profile.
 # "amazon" exists so keeper cards (Amazon Prime Visa, 5% Amazon/Whole Foods) can
 # absorb that spend instead of the rotating card.
-REWARD_BUCKETS: tuple[str, ...] = ("dining", "travel", "flights", "groceries", "gas", "amazon", "other")
+REWARD_BUCKETS: tuple[str, ...] = ("dining", "travel", "flights", "hotels", "transit", "portal_travel", "portal_hotels", "online_groceries", "streaming", "drugstores", "groceries", "gas", "amazon", "other")
 
 # Map canonical household transaction categories onto reward buckets. Anything not
 # listed and not excluded falls through to "other" (base earn).
@@ -32,7 +34,7 @@ CATEGORY_TO_REWARD_BUCKET: dict[str, str] = {
     "Travel": "travel",
     # Premium travel cards generally count transit/rideshare as travel; surfaced
     # as an assumption so the user can override the mix.
-    "Transportation": "travel",
+    "Transportation": "transit",
 }
 
 # Categories that are not card purchases (cash movement, debt, income, brokerage)
@@ -104,16 +106,21 @@ class CardRewardsService:
         by_bucket: dict[str, float] | None = None,
     ) -> SpendProfile:
         """Layer user overrides onto a derived profile."""
-        if by_bucket:
-            cleaned = {k: round(float(v), 2) for k, v in by_bucket.items() if float(v) > 0}
-            total = round(monthly_total if monthly_total is not None else sum(cleaned.values()), 2)
-            return SpendProfile(monthly_total=total, by_bucket=cleaned, source="user_override")
-        if monthly_total is not None and monthly_total > 0:
-            current = profile.monthly_total or sum(DEFAULT_BUCKET_MIX.values())
-            base = profile.by_bucket or DEFAULT_BUCKET_MIX
-            scale = monthly_total / current if current > 0 else 0.0
-            scaled = {k: round(v * scale, 2) for k, v in base.items() if v * scale > 0}
-            return SpendProfile(monthly_total=round(monthly_total, 2), by_bucket=scaled, source="user_override")
+        if monthly_total is not None and (not math.isfinite(monthly_total) or monthly_total < 0):
+            raise ValueError("Ordinary monthly card spending must be a finite non-negative amount.")
+        if by_bucket is not None or monthly_total is not None:
+            base = by_bucket if by_bucket is not None else profile.by_bucket
+            if any(k not in REWARD_BUCKETS or not math.isfinite(float(v)) or float(v) < 0 for k,v in base.items()):
+                raise ValueError("Reward buckets must contain known categories and finite non-negative amounts.")
+            total = round(monthly_total if monthly_total is not None else sum(base.values()), 2)
+            denominator = sum(base.values())
+            if denominator <= 0:
+                buckets = {"other": total} if total else {}
+            else:
+                buckets = {k: round(float(v) * total/denominator, 2) for k,v in base.items() if v > 0}
+                first = next(iter(buckets))
+                buckets[first] = round(buckets[first] + total - sum(buckets.values()), 2)
+            return SpendProfile(monthly_total=total, by_bucket=buckets, source="user_override", notes=profile.notes)
         return profile
 
     def point_value_cents(
@@ -154,7 +161,11 @@ class CardRewardsService:
             multiplier = product.reward_multipliers.get(bucket)
             if multiplier is None:
                 multiplier = product.reward_multipliers.get("other", 1.0)
-            annual = monthly_spend * 12 * float(multiplier) * (point_value_cents / 100.0)
+            caps = (product.issuer_rules or {}).get("reward_caps", {})
+            cap = caps.get(bucket) if isinstance(caps, dict) else None
+            spend = monthly_spend * 12
+            bonus_spend = min(spend, float(cap)) if isinstance(cap, int | float) else spend
+            annual = (bonus_spend * float(multiplier) + (spend-bonus_spend) * float(product.reward_multipliers.get("other", 1))) * (point_value_cents / 100.0)
             earn_value += annual
             contributions.append(
                 CategoryContribution(
@@ -167,10 +178,31 @@ class CardRewardsService:
             )
 
         realization = CREDIT_REALIZATION_STANCES.get(credit_stance, CREDIT_REALIZATION_STANCES[DEFAULT_CREDIT_STANCE])
-        credits_value = sum(
-            credit.annual_value * realization.get(credit.type, 0.0) for credit in product.credits
-        )
-        annual_value = earn_value + credits_value - product.annual_fee
+        credits_value = 0.0
+        for credit in product.credits:
+            eligible_spend = sum(profile.by_bucket.get(bucket, 0)*12 for bucket in credit.eligible_buckets)
+            value = credit.annual_value * realization.get(credit.type, 0.0)
+            if credit.eligible_buckets:
+                value = min(value, eligible_spend) if eligible_spend >= credit.minimum_purchase else 0.0
+            credits_value += value
+            if credit.excludes_rewards and eligible_spend:
+                # Exact purchase order is unknown: deduct the highest eligible
+                # earning rate first so credited purchases are not double-valued.
+                remaining = value
+                for contribution in sorted(contributions, key=lambda c: c.multiplier, reverse=True):
+                    if contribution.bucket not in credit.eligible_buckets:
+                        continue
+                    covered = min(remaining, contribution.monthly_spend*12)
+                    reduction = min(contribution.annual_value, covered*contribution.multiplier*point_value_cents/100)
+                    contribution.annual_value = round(contribution.annual_value-reduction, 2)
+                    earn_value -= reduction
+                    remaining -= covered
+                    if remaining <= 0:
+                        break
+        anniversary_points = product.issuer_rules.get("anniversary_points")
+        anniversary_value = anniversary_points*point_value_cents/100 if isinstance(anniversary_points, int) else 0
+        first_year_recurring = earn_value + credits_value - product.annual_fee
+        annual_value = first_year_recurring + anniversary_value
 
         window_months = (product.welcome_window_days or 90) / 30.0
         reachable_spend = profile.monthly_total * window_months
@@ -178,12 +210,16 @@ class CardRewardsService:
         has_welcome = bool(product.welcome_bonus_points or product.welcome_bonus_cash)
         welcome_reachable = (min_spend <= 0) or (reachable_spend >= min_spend)
         welcome_value = 0.0
-        if welcome_reachable:
+        if welcome_reachable and not product.issuer_rules.get("welcome_offer_unverified"):
             welcome_value = (product.welcome_bonus_points or 0) * (point_value_cents / 100.0) + (
                 product.welcome_bonus_cash or 0.0
             )
 
         warnings: list[str] = []
+        if product.issuer_rules.get("unmodeled_conditional_credits"):
+            warnings.append("Conditional partner benefits are not included without a matching planned purchase. No subscription, lounge or coupon-book savings are assumed.")
+        if product.issuer_rules.get("welcome_offer_unverified"):
+            warnings.append("Welcome bonus excluded until a current personalized offer is verified. The stored historical offer is not promised by the current public page.")
         if has_welcome and not welcome_reachable:
             warnings.append(
                 f"Welcome bonus excluded: ${min_spend:,.0f} minimum spend over "
@@ -199,9 +235,10 @@ class CardRewardsService:
             else:
                 warnings.append("Some statement credits are hard to fully use; valued at a fraction.")
 
-        first_year_value = annual_value + welcome_value
-        steady_state_value = annual_value + (
-            welcome_value / amortization_years if amortization_years > 0 else 0.0
+        first_year_value = first_year_recurring + welcome_value
+        multi_year_average_value = first_year_recurring + (
+            (welcome_value + anniversary_value*max(0, amortization_years-1))/amortization_years
+            if amortization_years > 0 else 0.0
         )
 
         return CardRewardEstimate(
@@ -219,7 +256,8 @@ class CardRewardsService:
             welcome_reachable=welcome_reachable,
             first_year_value=round(first_year_value, 2),
             amortization_years=amortization_years,
-            steady_state_value=round(steady_state_value, 2),
+            steady_state_value=round(annual_value, 2),
+            multi_year_average_value=round(multi_year_average_value, 2),
             category_contributions=contributions,
             warnings=warnings,
         )
@@ -274,6 +312,7 @@ class CardRewardsService:
             monthly_total=round(sum(remaining.values()), 2),
             by_bucket={k: round(v, 2) for k, v in remaining.items()},
             source=profile.source,
+            notes=profile.notes,
         )
         return adjusted, notes
 
@@ -287,6 +326,7 @@ class CardRewardsService:
         amortization_years: int = 3,
         credit_stance: str = DEFAULT_CREDIT_STANCE,
         extra_assumptions: list[str] | None = None,
+        ineligible_bonus_slugs: set[str] | None = None,
     ) -> CardRanking:
         """Rank products by first-year and steady-state value for the profile."""
         estimates = [
@@ -299,6 +339,14 @@ class CardRewardsService:
             )
             for product in products
         ]
+        for estimate in estimates:
+            if estimate.slug in (ineligible_bonus_slugs or set()):
+                excluded_welcome = estimate.welcome_value
+                estimate.first_year_value = round(estimate.first_year_value-excluded_welcome, 2)
+                estimate.multi_year_average_value = round(estimate.multi_year_average_value-excluded_welcome/max(1, amortization_years), 2)
+                estimate.welcome_value = 0
+                estimate.welcome_reachable = False
+                estimate.warnings.append("Bonus excluded for both players: recorded product or bonus history makes a repeat offer uncertain.")
         by_first_year = sorted(estimates, key=lambda e: e.first_year_value, reverse=True)
         by_steady_state = sorted(estimates, key=lambda e: e.steady_state_value, reverse=True)
 
@@ -314,8 +362,8 @@ class CardRewardsService:
         )
         assumptions = [
             f"Valuation stance: {stance} (point values scaled from the balanced floor).",
-            f"Welcome bonuses amortized over {amortization_years} years for steady-state ranking.",
-            "Transit/rideshare spend is treated as travel; transfer-partner upside is excluded.",
+            "Ongoing value excludes welcome bonuses. Multi-year averages spread a one-time bonus over the selected horizon.",
+            "Travel booking-channel bonuses apply only to explicitly allocated portal purchases. Unspecified travel uses the general rate; transfer-partner upside is excluded.",
             "Welcome bonus counted only when the minimum spend is reachable at the assumed rate.",
             realization_line,
             f"Programs valued: {', '.join(programs_used)}.",

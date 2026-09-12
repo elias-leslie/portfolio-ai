@@ -279,3 +279,30 @@ export function MoneyDataServiceSecretInput({
     </div>
   )
 }
+
+export function DataServiceReadState({
+  title,
+  loading,
+  onRetry,
+}: {
+  title: string
+  loading: boolean
+  onRetry: () => void
+}) {
+  return (
+    <SectionCard variant="surface" title={title}>
+      {loading ? (
+        <p role="status" className="text-sm text-text-muted">
+          Loading {title} connection status…
+        </p>
+      ) : (
+        <div role="alert" className="space-y-3 text-sm">
+          <p>{title} connection status is unavailable.</p>
+          <Button variant="outline" onClick={onRetry}>
+            Retry {title} status
+          </Button>
+        </div>
+      )}
+    </SectionCard>
+  )
+}

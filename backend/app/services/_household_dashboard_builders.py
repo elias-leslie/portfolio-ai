@@ -1102,6 +1102,8 @@ def _card_fee_detail(
 def build_cap_plan(
     *,
     categories: list[Any],
+    planned_asset_draw: float | None = None,
+    expected_income: float | None = None,
     anchor: HouseholdIncomeAnchor,
     savings_plan: HouseholdSavingsPlan,
     sinking_funds: list[HouseholdSinkingFund],
@@ -1122,7 +1124,7 @@ def build_cap_plan(
     cap would charge one debt to twelve months at once.
     """
     confirmed_caps = confirmed_caps or {}
-    income = anchor.monthly_income
+    income = expected_income if expected_income is not None else anchor.monthly_income
     savings = (
         savings_plan.monthly_target or 0.0
         if savings_plan.status == "active"
@@ -1144,6 +1146,7 @@ def build_cap_plan(
 
     plan = HouseholdCapPlan(
         anchor_monthly_income=income,
+        planned_asset_draw=planned_asset_draw,
         savings_target=_money_round(savings),
         sinking_fund_total=fund_total,
         card_fee_monthly=card_fees,
@@ -1177,7 +1180,7 @@ def build_cap_plan(
         )
         return plan
 
-    available = _money_round(income - savings - fund_total - card_fees)
+    available = _money_round(income + (planned_asset_draw or 0.0) - savings - fund_total - card_fees)
     essentials_total = _money_round(sum(trailing for _, trailing in essentials))
     pool = _money_round(available - essentials_total)
     trailing_total = _money_round(
@@ -1262,7 +1265,7 @@ def build_cap_plan(
             "saving and the sinking funds."
         )
         plan.detail = (
-            f"{_money(income)} anchor, less {_money(savings)} saving, "
+            f"{_money(income)} income + {_money(planned_asset_draw or 0.0)} planned draw, less {_money(savings)} saving, "
             f"{_money(fund_total)} of fund accruals and "
             f"{_money(card_fees)} of card fees, leaves "
             f"{_money(available)} -- against {_money(essentials_total)} of "
@@ -1277,7 +1280,7 @@ def build_cap_plan(
         "essentials are out."
     )
     plan.detail = (
-        f"{_money(income)} anchor - {_money(savings)} saving - "
+        f"{_money(income)} income + {_money(planned_asset_draw or 0.0)} planned draw - {_money(savings)} saving - "
         f"{_money(fund_total)} fund accruals - {_money(card_fees)} card fees "
         f"= {_money(available)}. "
         f"Essentials take {_money(essentials_total)} at what they actually cost, "

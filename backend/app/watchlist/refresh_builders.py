@@ -122,6 +122,8 @@ def build_recent_news_payload(
         article_payload["decision_value_score"] = assessment.decision_value_score
         article_payload["decision_value_label"] = assessment.decision_value_label
         article_payload["decision_value_reason"] = assessment.decision_value_reason
+        article_payload["relationship"] = assessment.relationship
+        article_payload["relationship_reason"] = assessment.relationship_reason
 
         # Explicit publisher alias to simplify UI rendering logic
         article_payload.setdefault("publisher", article_payload.get("source"))

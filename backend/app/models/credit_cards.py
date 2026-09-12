@@ -34,6 +34,10 @@ class CardCredit(BaseModel):
     """A recurring statement credit attached to a product."""
 
     name: str
+    eligible_buckets: list[str] = Field(default_factory=list)
+    minimum_purchase: float = 0.0
+    excludes_rewards: bool = False
+    conditions: str | None = None
     annual_value: float = 0.0
     # How easy the credit is to actually realize: easy | moderate | hard.
     type: str = "moderate"
@@ -46,18 +50,19 @@ class CreditCardProduct(BaseModel):
     network: str | None = None
     product_name: str
     card_kind: str = "personal"
-    annual_fee: float = 0.0
+    annual_fee: float = Field(default=0.0, ge=0)
     # Keyed by canonical reward bucket (dining, travel, flights, groceries, gas, other).
     reward_multipliers: dict[str, float] = Field(default_factory=dict)
     point_program: str | None = None
     est_point_value_cents: float | None = None
-    welcome_bonus_points: int = 0
-    welcome_bonus_cash: float = 0.0
-    welcome_min_spend: float | None = None
-    welcome_window_days: int | None = None
+    welcome_bonus_points: int = Field(default=0, ge=0)
+    welcome_bonus_cash: float = Field(default=0.0, ge=0)
+    welcome_min_spend: float | None = Field(default=None, ge=0)
+    welcome_window_days: int | None = Field(default=None, ge=0)
     transfer_partners: list[str] = Field(default_factory=list)
     credits: list[CardCredit] = Field(default_factory=list)
     issuer_rules: dict[str, object] = Field(default_factory=dict)
+    verified_terms: dict[str, object] = Field(default_factory=dict)
     source: str = "seed"
     source_document_id: str | None = None
     last_verified_at: str | None = None
@@ -66,6 +71,7 @@ class CreditCardProduct(BaseModel):
 
 
 class HouseholdCreditCard(BaseModel):
+    welcome_earned_date: str | None = None
     id: str
     product_id: str
     household_account_id: str | None = None
@@ -128,7 +134,8 @@ class SpendProfile(BaseModel):
 
     monthly_total: float
     by_bucket: dict[str, float] = Field(default_factory=dict)
-    source: str = "transactions_run_rate"  # transactions_run_rate | user_override | default
+    source: str = "transactions_run_rate"
+    notes: list[str] = Field(default_factory=list)
 
 
 class CategoryContribution(BaseModel):
@@ -156,7 +163,8 @@ class CardRewardEstimate(BaseModel):
     welcome_reachable: bool
     first_year_value: float  # annual_value + welcome_value
     amortization_years: int
-    steady_state_value: float  # annual_value + welcome_value / amortization_years
+    steady_state_value: float  # recurring annual value, excluding one-time bonuses
+    multi_year_average_value: float = 0.0
     category_contributions: list[CategoryContribution] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
@@ -187,6 +195,9 @@ class RotationStepView(BaseModel):
     projected_welcome_value: float
     projected_earn_value: float
     projected_value: float  # welcome + earn - prorated annual fee
+    projected_fees: float = 0.0
+    projected_credits: float = 0.0
+    cash_events: list[dict[str, object]] = Field(default_factory=list)
     rule_warnings: list[str] = Field(default_factory=list)
 
 
@@ -198,6 +209,10 @@ class RotationCumulativePoint(BaseModel):
 
 
 class RotationPlanView(BaseModel):
+    as_of_date: str | None = None
+    projected_fees: float = 0.0
+    baseline_fees: float = 0.0
+    lifecycle: str = "Retain all cards; pay opening and renewal fees."
     plan_id: str | None = None
     name: str
     objective: str
@@ -233,6 +248,7 @@ class RankingRequest(BaseModel):
 
 
 class RotationRequest(BaseModel):
+    close_after_months: int | None = Field(default=None, ge=13, le=120)
     objective: str = "rotate_90d"  # rotate_90d | maximize_welcome_bonuses | maximize_category_earn
     horizon_quarters: int = 8
     monthly_total: float | None = None
@@ -248,6 +264,8 @@ class RotationRequest(BaseModel):
 
 
 class CreditCardCreate(BaseModel):
+    source_document_id: str | None = None
+    offer_fingerprint: str | None = None
     product_id: str
     status: str = "candidate"
     household_account_id: str | None = None
@@ -259,6 +277,9 @@ class CreditCardCreate(BaseModel):
 
 
 class CreditCardUpdate(BaseModel):
+    annual_fee: float | None = Field(default=None, ge=0)
+    welcome_min_spend: float | None = Field(default=None, ge=0)
+    welcome_earned_date: str | None = None
     status: str | None = None
     household_account_id: str | None = None
     player: str | None = None
@@ -276,6 +297,7 @@ class CardIntakeResult(BaseModel):
     """Returned by the offer-intake endpoint after the agent extracts terms."""
 
     document_id: str
+    offer_fingerprint: str | None = None
     status: str  # extracted | needs_review | failed
     product: CreditCardProduct | None = None
     confidence: float | None = None

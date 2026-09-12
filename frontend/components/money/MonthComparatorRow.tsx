@@ -57,83 +57,89 @@ export function MonthComparatorRow({
   const hasOneTime = (oneTimeSpend ?? 0) >= 1
 
   return (
-    <div className="grid gap-3 md:grid-cols-3">
-      <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          Money in · {monthLabel}
-        </p>
-        <p className="mt-3 text-2xl font-semibold text-text">
-          {formatCurrencyWhole(totalIncome)}
-        </p>
-        <p className="mt-1 text-xs text-text-muted">
-          Tracked deposits, reversals netted out.
-        </p>
-      </div>
-      <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          Money out · {monthLabel}
-        </p>
-        <p className="mt-3 text-2xl font-semibold text-text">
-          {formatCurrencyWhole(totalSpend)}
-        </p>
-        {hasOneTime ? (
-          <p className="mt-1 text-xs text-text-muted">
-            {formatCurrencyWhole(everydaySpend)} everyday ·{' '}
-            {formatCurrencyWhole(oneTimeSpend)} one-time.
-          </p>
-        ) : (
-          <p className="mt-1 text-xs text-text-muted">
-            No one-time purchase carried this month.
-          </p>
-        )}
-      </div>
-      <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          Left over
-        </p>
-        <p
-          className={cn(
-            'mt-3 text-2xl font-semibold',
-            (netCashFlow ?? 0) >= 0 ? 'text-gain' : 'text-loss',
-          )}
-        >
-          {formatCurrencyWhole(netCashFlow)}
-        </p>
-        <p className="mt-1 text-xs text-text-muted">
-          In minus out, this month.
-        </p>
-      </div>
-      {comparators.map((comparator) => (
-        <div
-          key={comparator.key}
-          className="rounded-2xl border border-border/35 bg-surface-muted/10 p-4 md:col-span-3 lg:col-span-1"
-        >
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-3 sm:p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-            vs {comparator.label}
+            Income · {monthLabel}
           </p>
-          <p
-            className={cn(
-              'mt-3 text-lg font-semibold',
-              changeTone(comparator.spendChange),
-            )}
-          >
-            {changeText(comparator)}
+          <p className="mt-3 text-2xl font-semibold text-text">
+            {formatCurrencyWhole(totalIncome)}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            {formatCurrencyWhole(comparator.totalSpend)} out ·{' '}
-            {comparator.basis === 'full_month'
-              ? 'full month'
-              : comparator.basisLabel}
-            .
+            Tracked deposits, reversals netted out.
           </p>
-          {comparator.key === 'all_month_average' &&
-          coverageMonthKeys.length > 0 ? (
-            <p className="mt-1 text-xs text-text-muted/80">
-              {coverageMonthKeys.map(formatFullMonthLabel).join(', ')}.
-            </p>
-          ) : null}
         </div>
-      ))}
+        <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+            Money out · {monthLabel}
+          </p>
+          <p className="mt-3 text-2xl font-semibold text-text">
+            {formatCurrencyWhole(totalSpend)}
+          </p>
+          {hasOneTime ? (
+            <p className="mt-1 text-xs text-text-muted">
+              {formatCurrencyWhole(everydaySpend)} everyday ·{' '}
+              {formatCurrencyWhole(oneTimeSpend)} one-time.
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-text-muted">
+              No one-time purchase carried this month.
+            </p>
+          )}
+        </div>
+        <div className="col-span-2 rounded-2xl border border-border/35 bg-surface-muted/20 p-3 sm:p-4 md:col-span-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+            Income less spending
+          </p>
+          <p className={cn('mt-3 text-2xl font-semibold', 'text-text')}>
+            {formatCurrencyWhole(netCashFlow)}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">
+            In minus out, this month.
+          </p>
+        </div>
+      </div>
+      {comparators.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer text-sm text-text-muted">
+            Compare with previous months
+          </summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {comparators.map((comparator) => (
+              <div
+                key={comparator.key}
+                className="rounded-2xl border border-border/35 bg-surface-muted/10 p-4 md:col-span-3 lg:col-span-1"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
+                  vs {comparator.label}
+                </p>
+                <p
+                  className={cn(
+                    'mt-3 text-lg font-semibold',
+                    changeTone(comparator.spendChange),
+                  )}
+                >
+                  {changeText(comparator)}
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  {formatCurrencyWhole(comparator.totalSpend)} out ·{' '}
+                  {comparator.basis === 'full_month'
+                    ? 'full month'
+                    : comparator.basisLabel}
+                  .
+                </p>
+                {comparator.key === 'all_month_average' &&
+                coverageMonthKeys.length > 0 ? (
+                  <p className="mt-1 text-xs text-text-muted/80">
+                    {coverageMonthKeys.map(formatFullMonthLabel).join(', ')}.
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   )
 }

@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.models.household_review import MonthlyReviewPlan
+
 
 class HouseholdAssetAllocationSlice(BaseModel):
     """Per-asset-group rollup for the allocation chart.
@@ -232,6 +234,9 @@ class HouseholdRecentTransaction(BaseModel):
 
 
 class HouseholdLedgerEntry(BaseModel):
+    # Signed contribution to the requested review/category, distinct from the full charge.
+    review_amount: float | None = None
+    review_categories: list[str] = Field(default_factory=list)
     id: str
     kind: str
     # Linked purchase items (itemized receipts/orders). Count + distinct item
@@ -323,6 +328,10 @@ class HouseholdSpendExclusions(BaseModel):
 
 
 class HouseholdLedger(BaseModel):
+    review_spend_total: float | None = None
+    review_category: str | None = None
+    scan_truncated: bool = False
+    source_options: list[str] = Field(default_factory=list)
     generated_at: str
     timeframe_key: str = "all"
     timeframe_label: str
@@ -568,6 +577,9 @@ class HouseholdSpendingSummary(BaseModel):
     days_elapsed: int = 0
     days_in_month: int = 0
     basis_label: str = "full month"
+    coverage_status: str = "unknown"
+    coverage_detail: str = "Spending-feed coverage has not been checked."
+    coverage_through: str | None = None
     start_date: str | None = None
     end_date: str | None = None
     total_spend: float = 0.0
@@ -601,6 +613,7 @@ class HouseholdSpendingSummary(BaseModel):
 
 
 class HouseholdSpendingView(BaseModel):
+    review_plan: MonthlyReviewPlan | None = None
     generated_at: str
     summary: HouseholdSpendingSummary
     # Every calendar month the household has lived through with a ledger, newest
@@ -796,6 +809,7 @@ class HouseholdCapPlan(BaseModel):
     headline: str = ""
     detail: str = ""
     anchor_monthly_income: float | None = None
+    planned_asset_draw: float | None = None
     savings_target: float = 0.0
     sinking_fund_total: float = 0.0
     # The cards' annual fees, spread over the year they cover. $190 charged
@@ -1253,6 +1267,10 @@ class HouseholdDocumentReview(BaseModel):
 
 class HouseholdDocumentList(BaseModel):
     items: list[HouseholdDocument] = Field(default_factory=list)
+    total_count: int = 0
+    pending_count: int = 0
+    offset: int = 0
+    limit: int = 20
 
 
 class HouseholdQuestion(BaseModel):
@@ -1365,6 +1383,12 @@ class HouseholdProductPricePoint(BaseModel):
     total_price: float
     quantity: float | None = None
     unit_price: float | None = None
+    unit_label: str | None = None
+    package_label: str | None = None
+    package_quantity: float | None = None
+    basis_evidence: str | None = None
+    package_price: float | None = None
+    description: str | None = None
     source: str
 
 
@@ -1381,6 +1405,8 @@ class HouseholdProductSummary(BaseModel):
     last_observed_date: str | None = None
     latest_price: float | None = None
     latest_unit_price: float | None = None
+    latest_unit_label: str | None = None
+    latest_description: str | None = None
     latest_merchant: str | None = None
     best_researched_vendor_key: str | None = None
     best_researched_vendor: str | None = None
@@ -1556,6 +1582,8 @@ class HouseholdBuyGuideItem(BaseModel):
     best_observed_date: str
     best_url: str | None = None
     best_title: str | None = None
+    best_valid_until: str | None = None
+    best_conditions: str | None = None
     savings_per_unit: float
     savings_pct: float
     estimated_monthly_savings: float | None = None

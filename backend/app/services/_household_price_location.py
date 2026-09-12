@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 DEFAULT_HOUSEHOLD_POSTAL_CODE = os.getenv("HOUSEHOLD_PRICE_POSTAL_CODE", "33770")
 
@@ -46,3 +48,8 @@ __all__ = [
     "price_location_context",
     "vendor_location_hint",
 ]
+
+
+def shopping_today() -> date:
+    """Shelf-tag expiry follows the household's local calendar day."""
+    return datetime.now(ZoneInfo(os.getenv("HOUSEHOLD_PRICE_TIMEZONE", "America/New_York"))).date()

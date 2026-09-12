@@ -18,6 +18,29 @@ _INTEGRATION_FOLDERS = (
 _MANUAL_FOLDER = (_TESTS_ROOT / "manual").resolve()
 
 
+@pytest.fixture(autouse=True)
+def testclient_local_transport(monkeypatch):
+    """Starlette's in-process transport represents this suite's local operator.
+
+    Real IPs and signed assertions still exercise the actual access checks.
+    Production never accepts the non-IP 'testclient' transport name.
+    """
+    from pydantic import SecretStr
+
+    from app.services import household_identity
+
+    monkeypatch.setattr(household_identity.settings, "household_member_emails", SecretStr(""))
+
+    original = household_identity.is_local_connection
+    monkeypatch.setattr(
+        household_identity,
+        "is_local_connection",
+        lambda request: (
+            bool(request.client and request.client.host == "testclient") or original(request)
+        ),
+    )
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Add custom CLI flags."""
     parser.addoption(
@@ -65,9 +88,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     skip_integration = pytest.mark.skip(
         reason="Skipped integration test. Use --runintegration to include."
     )
-    skip_manual = pytest.mark.skip(
-        reason="Skipped live/manual test. Use --runmanual to include."
-    )
+    skip_manual = pytest.mark.skip(reason="Skipped live/manual test. Use --runmanual to include.")
 
     for item in items:
         item_path = Path(str(getattr(item, "fspath", ""))).resolve()

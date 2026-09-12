@@ -31,6 +31,7 @@ class SymbolWorkflowOutcomeSnapshot(BaseModel):
     created_at: str
     jenny_verdict: str | None = None
     management_action: str | None = None
+    evidence_snapshot: dict[str, object] | None = None
     position: SymbolWorkflowPositionContext | None = None
 
 
@@ -42,6 +43,7 @@ class SymbolWorkflow(BaseModel):
     updated_by: str
     notes: str | None = None
     next_review_at: str | None = None
+    available_actions: list[str] = Field(default_factory=list)
     available_transitions: list[str] = Field(default_factory=list)
     position: SymbolWorkflowPositionContext | None = None
     latest_outcome: SymbolWorkflowOutcomeSnapshot | None = None

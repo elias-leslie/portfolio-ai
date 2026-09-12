@@ -41,7 +41,7 @@ class _ScriptedConn:
 
     def execute(self, sql: str, params: list[Any] | None = None) -> _ScriptedConn:
         self.queries.append((sql, params or []))
-        if "best_quote_rank" in sql:
+        if "AS vendor_key" in sql:
             self._result = ("all", self.best_price_rows)
         elif "SELECT COUNT(*)" in sql and "FROM household_purchase_items" in sql:
             self._result = ("one", (self.review_count,))
@@ -103,8 +103,30 @@ _PRODUCT_ROW = (
 )
 
 _POINT_ROWS = [
-    ("prod-1", date(2026, 1, 5), "Walmart", Decimal("1.48"), Decimal("1"), Decimal("1.48"), "receipt"),
-    ("prod-1", date(2026, 6, 1), "Walmart", Decimal("1.92"), Decimal("1"), Decimal("1.92"), "receipt"),
+    (
+        "prod-1",
+        date(2026, 1, 5),
+        "Walmart",
+        Decimal("1.48"),
+        Decimal("1"),
+        Decimal("1.48"),
+        "receipt",
+        "GV EDAMAME 12OZ",
+        {},
+        "12 oz",
+    ),
+    (
+        "prod-1",
+        date(2026, 6, 1),
+        "Walmart",
+        Decimal("1.92"),
+        Decimal("1"),
+        Decimal("1.92"),
+        "receipt",
+        "GV EDAMAME 12OZ",
+        {},
+        "12 oz",
+    ),
 ]
 
 _ITEM_ROW = (
@@ -140,12 +162,12 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
                 "walmart",
                 "Walmart",
                 Decimal("5.98"),
-                Decimal("0.4983"),
+                1,
                 "12 oz",
-                "weight_oz",
+                "Edamame 12 oz",
+                {},
                 date(2026, 6, 8),
-                Decimal("0.91"),
-                "https://www.walmart.com/ip/example",
+                {"equivalence_confirmed": True, "url": "https://www.walmart.com/ip/example"},
                 "vendor_quote",
             )
         ],
@@ -170,7 +192,8 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
     # Points arrive oldest-first; latest price comes from the newest point.
     assert [point.total_price for point in product.price_points] == [1.48, 1.92]
     assert product.latest_price == 1.92
-    assert product.latest_unit_price == 1.92
+    assert product.latest_unit_price == 0.16
+    assert product.latest_unit_label == "oz"
     assert product.latest_merchant == "Walmart"
     assert product.best_researched_vendor_key == "walmart"
     assert product.best_researched_vendor == "Walmart"
@@ -179,7 +202,7 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
     assert product.best_researched_unit_label == "oz"
     assert product.best_researched_package_label == "12 oz"
     assert product.best_researched_observed_date == "2026-06-08"
-    assert product.best_researched_confidence == 0.91
+    assert product.best_researched_confidence is None
     assert product.best_researched_url == "https://www.walmart.com/ip/example"
     assert product.best_researched_source == "vendor_quote"
     # Search reaches the SQL as an ILIKE pattern.
@@ -194,19 +217,19 @@ def test_list_products_builds_summaries_with_latest_price_from_points() -> None:
 def test_product_detail_returns_observations_identifiers_and_items() -> None:
     conn = _ScriptedConn(
         product_detail_row=_PRODUCT_ROW[:10],
-        observation_rows=[row[1:7] for row in _POINT_ROWS],
+        observation_rows=[row[1:] for row in reversed(_POINT_ROWS)],
         best_price_rows=[
             (
                 "prod-1",
                 "aldi",
                 "Aldi",
                 Decimal("4.99"),
-                Decimal("0.4158"),
+                1,
                 "12 ounces",
-                "weight_oz",
+                "Edamame 12 oz",
+                {},
                 date(2026, 6, 9),
-                Decimal("0.88"),
-                None,
+                {"equivalence_confirmed": True},
                 "vendor_quote",
             )
         ],

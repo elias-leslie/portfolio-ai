@@ -229,6 +229,13 @@ def _classify_wells_flow(description: str) -> str:
 def _classify_merchant(
     *, raw_merchant: str, description: str, amount: float | None = None
 ) -> tuple[str, str]:
+    # A bank cash withdrawal can name the shop hosting the terminal. The shop
+    # does not establish what the withdrawn money bought. Fees remain expenses.
+    if re.match(r"^cash advance\s+(?!fee\b|interest\b)", description, re.IGNORECASE):
+        return ("Cash", "mixed")
+    statement_name = normalize_statement_merchant(description)
+    if statement_name is not None:
+        raw_merchant = statement_name
     normalized = _merchant_root(f"{raw_merchant} {description}")
     rules = [
         (["payroll", "ui benefit", "payables", "salary", "wages"], ("Income", "essential")),

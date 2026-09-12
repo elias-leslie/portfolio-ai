@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from urllib.parse import urlencode
 
 from app.api.portfolio.analytics_routes import get_analytics_payload
 from app.api.symbols.builders import build_portfolio_section
@@ -64,11 +65,7 @@ def _household_action_label(item: object) -> str:
         label = action_label or "Add evidence"
     elif "utility=planning" in action_href:
         section = need_id.removeprefix("need_planning_").replace("_", " ")
-        label = (
-            f"Add {section} info"
-            if section and section != need_id
-            else "Add planning info"
-        )
+        label = f"Add {section} info" if section and section != need_id else "Add planning info"
     elif getattr(item, "related_question_id", None):
         label = "Answer question"
     elif need_type == "confirm":
@@ -92,8 +89,7 @@ def build_portfolio_health_actions() -> list[dict[str, object]]:
     concentration_method = str(_field_value(concentration, "method", "line_item") or "line_item")
     top_holding_name = str(_field_value(concentration, "top_holding_name", "") or "").strip()
     vehicle_top_holding_pct = float(
-        _field_value(concentration, "vehicle_top_holding_pct", top_holding_pct)
-        or top_holding_pct
+        _field_value(concentration, "vehicle_top_holding_pct", top_holding_pct) or top_holding_pct
     )
     vehicle_top_holding_name = str(
         _field_value(concentration, "vehicle_top_holding_name", "") or ""
@@ -196,9 +192,7 @@ def build_jenny_actions(dashboard: object, storage: object | None) -> list[dict[
         if _is_household_jenny_decision(decision):
             continue
         href = (
-            f"/symbols/{notification.symbol}?tab=decision"
-            if notification.symbol
-            else "/portfolio"
+            f"/symbols/{notification.symbol}?tab=decision" if notification.symbol else "/portfolio"
         )
         priority = (
             "critical"
@@ -265,7 +259,7 @@ def build_jenny_actions_from_service(
         dashboard = jenny_service.get_dashboard()
     except Exception as exc:
         logger.warning("home_action_jenny_failed", error=str(exc))
-        return []
+        raise
 
     return build_jenny_actions(dashboard, storage)
 
@@ -284,15 +278,10 @@ def build_workflow_actions(workflows: Iterable[dict[str, object]]) -> list[dict[
                     "priority": "medium",
                     "title": f"Close the loop on {symbol}",
                     "detail": "Workflow stage: review due.",
-                    "action_label": "Mark reviewed",
-                    "href": f"/symbols/{symbol}",
+                    "action_label": "Review decision",
+                    "href": f"/symbols/{symbol}?tab=track",
                     "symbol": symbol,
                     "badge": "Review due",
-                    "execution": {
-                        "kind": "workflow_transition",
-                        "symbol": symbol,
-                        "stage": "tracked",
-                    },
                     "_rank_score": action_rank_score(
                         "medium",
                         freshness=120.0,
@@ -309,15 +298,10 @@ def build_workflow_actions(workflows: Iterable[dict[str, object]]) -> list[dict[
                     "priority": "warning",
                     "title": f"Reset {symbol} after invalidation",
                     "detail": "Workflow stage: invalidated.",
-                    "action_label": "Restart discovery",
-                    "href": f"/symbols/{symbol}",
+                    "action_label": "Review next step",
+                    "href": f"/symbols/{symbol}?tab=track",
                     "symbol": symbol,
                     "badge": "Invalidated",
-                    "execution": {
-                        "kind": "workflow_transition",
-                        "symbol": symbol,
-                        "stage": "discover",
-                    },
                     "_rank_score": action_rank_score(
                         "warning",
                         freshness=100.0,
@@ -333,31 +317,98 @@ def build_workflow_actions_from_service(workflow_service: object) -> list[dict[s
         workflows = workflow_service.list_priority_workflows(limit=3)
     except Exception as exc:
         logger.warning("home_action_workflow_failed", error=str(exc))
-        return []
+        raise
 
     return build_workflow_actions(workflows)
 
 
-def build_household_actions(items: Iterable[object]) -> list[dict[str, object]]:
+def build_household_actions(
+    items: Iterable[object],
+    accounts: Iterable[object] = (),
+) -> list[dict[str, object]]:
+    account_map = {}
+    for account in accounts:
+        for key in ("id", "household_account_id", "tracked_account_id"):
+            value = _field_value(account, key)
+            if value:
+                account_map[str(value)] = account
     actions: list[dict[str, object]] = []
-    for index, item in enumerate(list(items)[:4], start=1):
+    groups: dict[tuple[str, str], list[dict[str, object]]] = {}
+    # Rank all candidates before limiting the queue. The inbox's first four
+    # can be older evidence requests, not the four decisions most affected.
+    for item in items:
+        need_id = str(_field_value(item, "id", ""))
+        account = account_map.get(str(_field_value(item, "related_account_id", "")))
+        affects = set(_field_value(item, "affects", []) or [])
+        priority = str(_field_value(item, "priority", "low"))
+        score = household_rank_score(item)
+        is_refresh = any(
+            need_id.endswith(f"-{code}")
+            for code in (
+                "stale_balance",
+                "stale_evidence",
+                "refresh_balance_soon",
+                "refresh_soon",
+                "refresh_transactions_soon",
+                "stale_transactions",
+                "missing_transaction_history",
+                "statement_gap",
+                "missing_evidence",
+                "missing_current_state",
+            )
+        )
+        if need_id.startswith("account-control-"):
+            score = max(score, action_rank_score("critical", impact=500))
+        elif affects.intersection({"safe_to_spend", "monthly_spend", "budget_status"}):
+            score = max(score, action_rank_score("high", impact=600))
+        elif is_refresh and _field_value(account, "asset_group") == "education":
+            priority = "low"
+            score = action_rank_score("low", impact=100)
+        action = {
+            "id": f"household-{need_id}",
+            "source": "household",
+            "category": "household",
+            "priority": priority,
+            "title": _field_value(item, "title", "Review household evidence"),
+            "detail": _field_value(item, "detail", ""),
+            "action_label": _household_action_label(item),
+            "href": _field_value(item, "action_href") or "/money",
+            "symbol": None,
+            "badge": "Household",
+            "_rank_score": score,
+        }
+        institution = str(_field_value(account, "institution_name", "") or "").strip()
+        if is_refresh and institution:
+            kind = (
+                "transactions"
+                if any(
+                    word in need_id
+                    for word in ("transactions", "transaction_history", "statement_gap")
+                )
+                else "balances"
+            )
+            groups.setdefault((institution, kind), []).append(action)
+        else:
+            actions.append(action)
+    for (institution, kind), group in groups.items():
+        group.sort(key=lambda action: float(action["_rank_score"]), reverse=True)
+        if len(group) == 1:
+            actions.extend(group)
+            continue
+        lead = group[0]
         actions.append(
             {
-                "id": f"household-{index}-{item.id}",
-                "source": "household",
-                "category": "household",
-                "priority": item.priority,
-                "title": item.title,
-                "detail": item.detail,
-                "action_label": _household_action_label(item),
-                "href": item.action_href or "/money",
-                "symbol": None,
-                "badge": "Household",
-                "_rank_score": household_rank_score(item),
+                **lead,
+                "id": f"household-refresh-{institution}-{kind}",
+                "title": f"Update {institution} {kind} for {len(group)} accounts",
+                "detail": "One provider review can address these requests: "
+                + "; ".join(str(action["title"]) for action in group)
+                + ".",
+                "href": "/money?" + urlencode({"tab": "accounts", "institution": institution}),
+                "action_label": "Review these accounts",
             }
         )
-
-    return actions
+    return sorted(actions, key=lambda action: float(action["_rank_score"]), reverse=True)
 
 
 def build_household_actions_from_service(household_service: object) -> list[dict[str, object]]:
@@ -365,6 +416,6 @@ def build_household_actions_from_service(household_service: object) -> list[dict
         dashboard = household_service.get_dashboard()
     except Exception as exc:
         logger.warning("home_action_household_failed", error=str(exc))
-        return []
+        raise
 
-    return build_household_actions(dashboard.inbox)
+    return build_household_actions(dashboard.inbox, getattr(dashboard, "accounts", []))

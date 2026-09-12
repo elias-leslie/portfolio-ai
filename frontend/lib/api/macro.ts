@@ -276,3 +276,15 @@ export function fetchMacroBacktest(
     `/api/macro/backtest${buildMacroBacktestQuery(args)}`,
   )
 }
+
+export type MacroTrendPoint = Pick<
+  MacroSnapshot,
+  'snapshotDate' | 'deploymentScore' | 'components'
+>
+export interface MacroTrendResponse {
+  points: MacroTrendPoint[]
+  latest: MacroSnapshot | null
+}
+export function fetchMacroTrendHistory(days = 90): Promise<MacroTrendResponse> {
+  return apiRequest<MacroTrendResponse>(`/api/macro/history/trend?days=${days}`)
+}

@@ -23,7 +23,7 @@ class _WatchlistCoreReadRepository:
 
     storage: PortfolioStorage
 
-    def get_all_items_with_snapshots(self) -> pl.DataFrame:
+    def get_all_items_with_snapshots(self, *, symbol: str | None = None) -> pl.DataFrame:
         return self.storage.query(
             """
             SELECT wi.id, wi.symbol, wi.note, wi.source, wi.created_at, wi.updated_at,
@@ -44,8 +44,10 @@ class _WatchlistCoreReadRepository:
             ) ws ON TRUE
             LEFT JOIN symbols s ON s.symbol = wi.symbol
             WHERE wi.symbol NOT LIKE 'ZZTEST%%'
+              AND (%s::text IS NULL OR UPPER(wi.symbol) = %s)
             ORDER BY wi.created_at DESC
-            """
+            """,
+            [symbol.upper() if symbol else None, symbol.upper() if symbol else None],
         )
 
     def get_item_by_id(self, item_id: str) -> pl.DataFrame:

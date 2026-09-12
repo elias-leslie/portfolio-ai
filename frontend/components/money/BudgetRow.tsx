@@ -1,6 +1,7 @@
 'use client'
 
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 import type * as React from 'react'
 import { Fragment, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -18,8 +19,11 @@ import { InlineComboboxField } from './InlineComboboxField'
 import { buildOwnerOptions } from './owner-options'
 import { TransactionEditor } from './TransactionEditor'
 import { type BudgetRowEntry, entryBreach } from './useBudgetRows'
+import { reviewLedgerHref } from './useMoneyQuery'
 
 export interface BudgetRowProps {
+  month?: string
+  isProvisional?: boolean
   entry: BudgetRowEntry
   isExpanded: boolean
   categoryTransactions: HouseholdSpendingTransaction[]
@@ -43,6 +47,8 @@ export interface BudgetRowProps {
 }
 
 export function BudgetRow({
+  month,
+  isProvisional = false,
   entry,
   isExpanded,
   categoryTransactions,
@@ -61,7 +67,12 @@ export function BudgetRow({
   // Judged on the month being reported, matching the variance under it. The
   // badge and the number beside it reading two different periods is how a row
   // came to say "Confirmed cap" above "$212 over".
-  const status = budgetStatus(currentBudget, foundBudget, row.totalSpend)
+  const status = budgetStatus(
+    currentBudget,
+    foundBudget,
+    row.totalSpend,
+    isProvisional,
+  )
   const breach = entryBreach(entry)
 
   useEffect(() => {
@@ -106,6 +117,15 @@ export function BudgetRow({
               <Badge variant="warning">Review</Badge>
             ) : null}
           </button>
+          {month ? (
+            <Link
+              href={reviewLedgerHref(month, row.category)}
+              className="mt-1 inline-block text-xs text-primary underline"
+              aria-label={`Check ${row.category} in the ledger`}
+            >
+              Check transactions
+            </Link>
+          ) : null}
         </td>
         <td className="border-b border-border/20 px-4 py-3">
           <Badge variant="outline">{formatEnumLabel(row.essentiality)}</Badge>
@@ -159,8 +179,14 @@ export function BudgetRow({
               {formatCurrency(breach.overAmount, { decimals: 0 })} over
             </div>
           ) : breach.underAmount > 0 ? (
-            <div className="mt-1 text-xs font-medium text-gain">
-              {formatCurrency(breach.underAmount, { decimals: 0 })} under
+            <div
+              className={cn(
+                'mt-1 text-xs font-medium',
+                isProvisional ? 'text-text-muted' : 'text-gain',
+              )}
+            >
+              {formatCurrency(breach.underAmount, { decimals: 0 })}{' '}
+              {isProvisional ? 'remaining' : 'under'}
             </div>
           ) : (
             <div className="mt-1 text-xs text-text-muted">on cap</div>

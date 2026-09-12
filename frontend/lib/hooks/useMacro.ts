@@ -5,6 +5,7 @@ import {
   fetchMacroConditionsHistory,
   fetchMacroCurrent,
   fetchMacroHistory,
+  fetchMacroTrendHistory,
   type MacroBacktestQueryArgs,
   type MacroBacktestResponse,
   type MacroConditionsHistoryResponse,
@@ -63,6 +64,16 @@ export function useMacroBacktest(args: MacroBacktestQueryArgs = {}) {
   return useQuery<MacroBacktestResponse>({
     queryKey: ['macro', 'backtest', args],
     queryFn: () => fetchMacroBacktest(args),
+    staleTime: 10 * ONE_MINUTE,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+}
+
+export function useMacroTrendHistory(days = 90) {
+  return useQuery({
+    queryKey: ['macro', 'history', 'trend', days],
+    queryFn: () => fetchMacroTrendHistory(days),
     staleTime: 10 * ONE_MINUTE,
     refetchOnWindowFocus: false,
     retry: 1,

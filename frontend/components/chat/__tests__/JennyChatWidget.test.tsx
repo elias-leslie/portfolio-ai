@@ -160,7 +160,7 @@ describe('JennyChatWidget', () => {
 
   it('renders nothing when the widget is disabled', async () => {
     window.localStorage.setItem(
-      'portfolio-ai:jenny-chat:widget-enabled',
+      'portfolio-ai:member:local:jenny-chat:widget-enabled',
       'false',
     )
     renderWidget()

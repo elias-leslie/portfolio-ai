@@ -31,6 +31,8 @@ def test_build_market_section_drops_nan_sp500_change() -> None:
 def test_build_news_section_from_watchlist_uses_recent_news_fallback() -> None:
     section = build_news_section_from_watchlist(
         {
+            "symbol": "NVDA",
+            "company_name": "NVIDIA Corporation",
             "news_intelligence": {"article_count_24h": 200},
             "recent_news": {
                 "summary": {"article_count": 2},
@@ -47,7 +49,7 @@ def test_build_news_section_from_watchlist_uses_recent_news_fallback() -> None:
     )
 
     assert section is not None
-    assert section.article_count_24h == 200
+    assert section.article_count_24h == 2
     assert section.headline == "NVIDIA supplier demand stays elevated"
     assert len(section.recent_articles) == 1
     assert (
@@ -63,6 +65,7 @@ def test_build_quote_section_marks_fresh_canonical_quote() -> None:
             "price": 122.04,
             "source": "yfinance",
             "cached_at": datetime.now(UTC) - timedelta(seconds=30),
+            "quote_time": datetime.now(UTC) - timedelta(seconds=30),
             "session": "pre_market",
         }
     )
@@ -71,3 +74,16 @@ def test_build_quote_section_marks_fresh_canonical_quote() -> None:
     assert section.price == 122.04
     assert section.freshness_status == "fresh"
     assert section.session == "pre_market"
+
+
+def test_quote_freshness_uses_vendor_time_instead_of_recent_cache_write():
+    quote = {
+        "price": 123,
+        "cached_at": datetime.now(UTC),
+        "quote_time": datetime.now(UTC) - timedelta(days=1),
+    }
+    section = build_quote_section(quote)
+    assert section is not None and section.freshness_status == "stale"
+    quote.pop("quote_time")
+    section = build_quote_section(quote)
+    assert section is not None and section.freshness_status == "unknown"

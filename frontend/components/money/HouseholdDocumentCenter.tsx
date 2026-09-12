@@ -1,8 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type {
-  HouseholdDocument,
   HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
@@ -10,36 +10,55 @@ import { EvidenceUploadComposer } from './EvidenceUploadComposer'
 import { ImportCenterSidebar } from './ImportCenterSidebar'
 
 export function HouseholdDocumentCenter({
-  documents,
   importCenter,
   dateQualityIssues = [],
   focusedReview = false,
 }: {
-  documents: HouseholdDocument[]
   importCenter?: ImportCenter
   dateQualityIssues?: HouseholdTransactionDateIssue[]
   focusedReview?: boolean
 }) {
+  const [uploadOpen, setUploadOpen] = useState(false)
+  useEffect(() => {
+    const showUpload = () => {
+      if (window.location.hash === '#add-evidence-upload') setUploadOpen(true)
+    }
+    showUpload()
+    window.addEventListener('hashchange', showUpload)
+    window.addEventListener('locationchange', showUpload)
+    return () => {
+      window.removeEventListener('hashchange', showUpload)
+      window.removeEventListener('locationchange', showUpload)
+    }
+  }, [])
   return (
     <SectionCard
       variant="surface"
       title="Evidence Intake"
-      description="Add money evidence once. Jenny should determine what it is, which account it affects, and whether it updates balances, transactions, recurring spend, or price tracking."
+      description="Resolve pending decisions using the original evidence and exact proposed changes."
     >
-      <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-        <div id="add-evidence-upload">
-          <EvidenceUploadComposer
-            title="Add anything"
-            description="Statements, screenshots, exports, copied account text, bills, and receipts all go through the same intake path."
-          />
-        </div>
-
+      <div className="space-y-6">
         <ImportCenterSidebar
-          documents={documents}
           importCenter={importCenter}
           dateQualityIssues={dateQualityIssues}
           focusedReview={focusedReview}
         />
+        <details
+          id="add-evidence-upload"
+          open={uploadOpen}
+          onToggle={(event) => setUploadOpen(event.currentTarget.open)}
+          className="scroll-mt-64 rounded-xl border p-4 md:scroll-mt-48"
+        >
+          <summary className="cursor-pointer font-medium">
+            Add anything · Upload evidence
+          </summary>
+          <div className="mt-4">
+            <EvidenceUploadComposer
+              title="Add evidence"
+              description="Statements, screenshots, exports, account text, bills, and receipts."
+            />
+          </div>
+        </details>
       </div>
     </SectionCard>
   )

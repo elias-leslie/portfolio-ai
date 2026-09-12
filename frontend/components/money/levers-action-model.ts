@@ -62,24 +62,6 @@ function money(value: number, decimals = 0) {
   return formatCurrency(value, { decimals })
 }
 
-function pointValue(point: { unitPrice?: number | null; totalPrice: number }) {
-  return point.unitPrice ?? point.totalPrice
-}
-
-function productTrend(product: HouseholdProductSummary): TrendSeries[] {
-  return [
-    {
-      id: product.id,
-      label: product.canonicalName,
-      tone: 'bad',
-      points: product.pricePoints.map((point) => ({
-        date: point.observedDate,
-        value: pointValue(point),
-      })),
-    },
-  ]
-}
-
 function categoryTrend(
   category: string,
   rows: HouseholdCategoryMonthlyTrendPoint[],
@@ -95,7 +77,6 @@ function categoryTrend(
 
 export function buildSavingsActions({
   priceFindings,
-  products,
   transactions,
   merchantRows,
   categoryMonthlyTrend,
@@ -153,32 +134,8 @@ export function buildSavingsActions({
     })
   }
 
-  for (const product of products) {
-    if (product.purchaseCount < 2 || product.pricePoints.length < 2) continue
-    const values = product.pricePoints
-      .map(pointValue)
-      .filter((value) => value > 0)
-    if (values.length < 2) continue
-    const latest = values[values.length - 1]
-    const priorLow = Math.min(...values.slice(0, -1))
-    const delta = latest - priorLow
-    if (delta < Math.max(0.5, priorLow * 0.15)) continue
-    actions.push({
-      id: `recurring-${product.id}`,
-      kind: 'recurring_item',
-      priority: 2,
-      title: `Find lower unit-price substitute for ${product.canonicalName}`,
-      playbook: 'Compare same size/oz or alternate brand',
-      detail: `${product.purchaseCount} buys. Latest unit basis is ${money(latest, 2)} vs prior low ${money(priorLow, 2)}.`,
-      amountLabel: `${money(delta, 2)} higher/unit`,
-      evidenceLabel: 'Recurring item',
-      tone: 'warning',
-      score: delta * product.purchaseCount,
-      footnote:
-        'This flags a recurring item to price-check; it is not verified cheaper elsewhere until a vendor quote exists.',
-      trend: productTrend(product),
-    })
-  }
+  // Unit history is evidence for review, not an actionable saving. Confirmed
+  // current offers are surfaced by the shared Buy Guide in Monthly Review.
 
   for (const merchant of merchantRows) {
     if (

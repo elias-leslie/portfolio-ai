@@ -1,7 +1,7 @@
 """Price-check findings: cheaper-elsewhere detection with noise thresholds.
 
 A finding is worth showing only when the saving is material — at least
-max($3, 15% of what the household pays) on a product bought at least twice.
+$3 per comparable package with verified conditions on a product bought at least twice.
 A single aggregate roll-up rides along only when the run's combined savings
 reach $25. Findings are in-app only ([G:2d62382d]): they never feed Money or
 Today alerts.
@@ -20,7 +20,6 @@ from app.services._household_finance_utils import iso_or_none, to_float
 from app.storage import get_storage
 
 MIN_SAVINGS_ABS = 3.0
-MIN_SAVINGS_PCT = 0.15
 MIN_PURCHASE_COUNT = 2
 ROLLUP_MIN_TOTAL = 25.0
 _OPEN_FINDINGS_CAP = 50
@@ -36,6 +35,7 @@ class FindingCandidate:
     household_price: float
     vendor_key: str
     vendor_price: float
+    evidence_verified: bool = False
     unit_label: str | None = None
     comparison_quantity: float | None = None
     household_package_label: str | None = None
@@ -61,6 +61,12 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
     """Pure threshold logic: per-product findings plus an optional roll-up."""
     drafts: list[FindingDraft] = []
     for candidate in candidates:
+        if (
+            not candidate.evidence_verified
+            or not candidate.unit_label
+            or not candidate.comparison_quantity
+        ):
+            continue
         if candidate.purchase_count < MIN_PURCHASE_COUNT:
             continue
         if candidate.household_price <= 0:
@@ -77,7 +83,7 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
             else round(candidate.vendor_price * basis_quantity, 2)
         )
         savings = round(household_equivalent_total - vendor_equivalent_total, 2)
-        threshold = max(MIN_SAVINGS_ABS, MIN_SAVINGS_PCT * household_equivalent_total)
+        threshold = MIN_SAVINGS_ABS
         if savings < threshold:
             continue
         drafts.append(
@@ -87,6 +93,7 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
                 product_id=candidate.product_id,
                 vendor_key=candidate.vendor_key,
                 payload={
+                    "evidence_verified": True,
                     "product_name": candidate.product_name,
                     "household_price": candidate.household_price,
                     "vendor_price": candidate.vendor_price,
@@ -110,10 +117,9 @@ def evaluate_candidates(candidates: list[FindingCandidate]) -> list[FindingDraft
                 kind="savings_rollup",
                 savings_estimate=total,
                 payload={
+                    "evidence_verified": True,
                     "finding_count": len(drafts),
-                    "product_names": [
-                        d.payload["product_name"] for d in drafts if d.payload
-                    ],
+                    "product_names": [d.payload["product_name"] for d in drafts if d.payload],
                 },
             )
         )
@@ -180,7 +186,8 @@ class HouseholdPriceFindingsService:
                        f.vendor_key, f.savings_estimate, f.payload, f.created_at
                 FROM household_price_findings f
                 LEFT JOIN household_products p ON p.id = f.product_id
-                WHERE f.status = 'open'
+                WHERE f.status = 'open' AND f.payload->'evidence_verified'='true'::jsonb
+                  AND f.created_at>=CURRENT_TIMESTAMP-INTERVAL '14 days'
                 ORDER BY (f.kind = 'savings_rollup') DESC,
                          f.savings_estimate DESC NULLS LAST,
                          f.created_at DESC

@@ -116,6 +116,10 @@ export async function fetchHouseholdLedger(
 ): Promise<HouseholdLedger> {
   const search = new URLSearchParams()
   if (params?.window) search.set('window', params.window)
+  if (params?.month) search.set('month', params.month)
+  if (params?.category) search.set('category', params.category)
+  if (params?.source) search.set('source', params.source)
+  if (params?.inclusion) search.set('inclusion', params.inclusion)
   if (params?.kind) search.set('kind', params.kind)
   if (params?.status) search.set('status', params.status)
   if (params?.account) search.set('account', params.account)

@@ -71,9 +71,7 @@ class PushService:
         return bool(settings.vapid_private_key and settings.vapid_public_key)
 
     def config(self) -> PushConfig:
-        return PushConfig(
-            enabled=self.is_configured(), public_key=settings.vapid_public_key
-        )
+        return PushConfig(enabled=self.is_configured(), public_key=settings.vapid_public_key)
 
     # -- recipients ----------------------------------------------------------
 
@@ -121,7 +119,9 @@ class PushService:
             for row in rows
         ]
 
-    def register(self, payload: PushSubscriptionInput) -> PushSubscriptionView:
+    def register(
+        self, payload: PushSubscriptionInput, *, enforce_owner: bool = False
+    ) -> PushSubscriptionView:
         """Upsert one device.
 
         A browser can hand back the same endpoint after a permission re-grant,
@@ -142,6 +142,8 @@ class PushService:
                     device_label = EXCLUDED.device_label,
                     user_agent = EXCLUDED.user_agent,
                     updated_at = now()
+                WHERE NOT %s OR household_push_subscriptions.household_member_id IS NULL
+                    OR household_push_subscriptions.household_member_id = EXCLUDED.household_member_id
                 RETURNING id
                 """,
                 [
@@ -152,8 +154,13 @@ class PushService:
                     payload.keys.auth_secret,
                     payload.device_label,
                     payload.user_agent,
+                    enforce_owner,
                 ],
             ).fetchone()
+            if row is None:
+                raise ValueError(
+                    "This browser's alerts belong to another member. Turn them off before switching accounts."
+                )
             conn.commit()
         subscription_id = str(row[0]) if row else ""
         logger.info("push_subscription_registered", subscription_id=subscription_id)
@@ -162,21 +169,21 @@ class PushService:
             PushSubscriptionView(id=subscription_id),
         )
 
-    def unregister(self, subscription_id: str) -> bool:
+    def unregister(self, subscription_id: str, *, member_id: str | None = None) -> bool:
         with self._storage.connection() as conn:
             row = conn.execute(
-                "DELETE FROM household_push_subscriptions WHERE id = %s RETURNING id",
-                [subscription_id],
+                "DELETE FROM household_push_subscriptions WHERE id = %s AND (%s::uuid IS NULL OR household_member_id = %s::uuid) RETURNING id",
+                [subscription_id, member_id, member_id],
             ).fetchone()
             conn.commit()
         return row is not None
 
-    def unregister_endpoint(self, endpoint: str) -> bool:
+    def unregister_endpoint(self, endpoint: str, *, member_id: str | None = None) -> bool:
         """Used when a device turns alerts off on the device itself."""
         with self._storage.connection() as conn:
             row = conn.execute(
-                "DELETE FROM household_push_subscriptions WHERE endpoint = %s RETURNING id",
-                [endpoint],
+                "DELETE FROM household_push_subscriptions WHERE endpoint = %s AND (%s::uuid IS NULL OR household_member_id = %s::uuid) RETURNING id",
+                [endpoint, member_id, member_id],
             ).fetchone()
             conn.commit()
         return row is not None
@@ -263,9 +270,7 @@ class PushService:
                 )
                 return "expired"
             self._mark_failure(target.id, f"{status or 'error'}: {exc}")
-            logger.warning(
-                "push_send_failed", subscription_id=target.id, status=status
-            )
+            logger.warning("push_send_failed", subscription_id=target.id, status=status)
             return "failed"
         except Exception as exc:  # one dead device must not stop the rest
             self._mark_failure(target.id, str(exc))
@@ -287,14 +292,13 @@ class PushService:
         if subscription_id:
             sql += " WHERE id = %s"
             params.append(subscription_id)
-        elif household_member_ids:
-            sql += " WHERE household_member_id = ANY(%s)"
+        if household_member_ids:
+            sql += (" AND" if subscription_id else " WHERE") + " household_member_id = ANY(%s)"
             params.append(list(household_member_ids))
         with self._storage.connection() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [
-            _Target(id=str(row[0]), endpoint=row[1], p256dh=row[2], auth=row[3])
-            for row in rows
+            _Target(id=str(row[0]), endpoint=row[1], p256dh=row[2], auth=row[3]) for row in rows
         ]
 
     def _mark_success(self, subscription_id: str) -> None:
@@ -335,6 +339,4 @@ def send_push(
     tag: str | None = None,
 ) -> PushDelivery:
     """Module-level convenience for alert call sites."""
-    return PushService().send(
-        title=title, body=body, severity=severity, url=url, tag=tag
-    )
+    return PushService().send(title=title, body=body, severity=severity, url=url, tag=tag)

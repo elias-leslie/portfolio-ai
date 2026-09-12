@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.portfolio.analytics import PortfolioAnalytics
+from app.portfolio.analytics_returns import calculate_portfolio_value
 from app.portfolio.manager import PortfolioManager
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage import PortfolioStorage
@@ -48,14 +48,9 @@ def get_live_portfolio_totals(
     price_fetcher = PriceDataFetcher(storage)
     symbols = list({position.symbol for position in positions})
     price_data = price_fetcher.fetch_cached_price_data(symbols)
-    analytics = PortfolioAnalytics().calculate_full_analytics(
-        positions,
-        price_data,
-        storage=storage,
-        account_ids=list(account_ids),
-    )
+    value = calculate_portfolio_value(positions, price_data)
 
     return PortfolioTotals(
         cash_balance_total=cash_balance_total,
-        invested_total_value=analytics.portfolio_value.total_value,
+        invested_total_value=value.total_value,
     )

@@ -70,7 +70,7 @@ def apply_profile_updates(
                 keys=list(cleaned.keys()),
             )
             return updated_fields
-        household_service.update_profile(validated)
+        household_service.update_profile(validated, source=PROVENANCE_JENNY_CHAT)
         updated_fields.extend(k for k in cleaned if k not in updated_fields)
     return updated_fields
 
@@ -100,7 +100,7 @@ def compose_reply(
 ) -> str:
     reply = strip_agent_output_tags(str(getattr(completion, "content", "") or ""))
     planning_items = planning_updates.get("planning_items") if isinstance(planning_updates, dict) else None
-    if resolved_questions:
+    if updated_fields:
         labels = [
             field_labels.get(field_name, field_name.replace("_", " "))
             for field_name in updated_fields
@@ -108,7 +108,8 @@ def compose_reply(
         if labels:
             reply = (
                 f"{reply}\n\n"
-                f"I also used your message to update the household plan: {', '.join(labels)}."
+                f"Saved household changes: {', '.join(labels)}. "
+                "[Review saved values and change history](/money?utility=planning)."
             ).strip()
     elif isinstance(planning_items, list) and planning_items:
         reply = f"{reply}\n\nI also added those planning details to your household plan.".strip()

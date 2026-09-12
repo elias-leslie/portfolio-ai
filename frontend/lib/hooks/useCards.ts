@@ -67,8 +67,9 @@ export function useCardRankings(params: RankingRequest) {
   })
 }
 
-export function useRotationPlan(params: RotationRequest) {
+export function useRotationPlan(params: RotationRequest, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ['cards', 'rotation-plan', params],
     queryFn: ({ signal }) => fetchRotationPlan(params, { signal }),
     staleTime: CARDS_STALE_MS,
@@ -187,11 +188,7 @@ export function useRefreshCatalogResearch() {
     onSuccess: async (result) => {
       await refreshCardQueries(queryClient)
       toast.success(
-        `Catalog research complete: ${result.updatesApplied} update${
-          result.updatesApplied === 1 ? '' : 's'
-        } applied, ${result.candidatesAdded} candidate${
-          result.candidatesAdded === 1 ? '' : 's'
-        } added.`,
+        `${result.pendingReview ?? 0} proposed term changes ready for review. Catalog values stay unchanged until verified.`,
       )
     },
     onError: (error) => {

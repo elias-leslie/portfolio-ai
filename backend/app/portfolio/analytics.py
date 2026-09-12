@@ -10,6 +10,7 @@ The implementation is split across focused modules:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from .analytics_returns import (
@@ -155,6 +156,7 @@ class PortfolioAnalytics:
         price_data: dict[str, PriceData],
         storage: PortfolioStorage | None = None,
         account_ids: list[str] | None = None,
+        historical_performance: Mapping[str, object] | None = None,
     ) -> PortfolioAnalyticsModel:
         """Calculate complete portfolio analytics.
 
@@ -183,12 +185,16 @@ class PortfolioAnalytics:
         )
 
         # Calculate new metrics
-        sharpe_ratio = calculate_sharpe_ratio(
-            portfolio_value,
-            portfolio_volatility,
-            storage=storage,
-            account_ids=account_ids,
-        )
+        if historical_performance is not None:
+            supplied_ratio = historical_performance.get("sharpe_ratio")
+            sharpe_ratio = float(supplied_ratio) if isinstance(supplied_ratio, (int, float)) else None
+        else:
+            sharpe_ratio = calculate_sharpe_ratio(
+                portfolio_value,
+                portfolio_volatility,
+                storage=storage,
+                account_ids=account_ids,
+            )
         risk_profile = calculate_risk_profile(
             portfolio_beta, portfolio_volatility, concentration_metrics
         )

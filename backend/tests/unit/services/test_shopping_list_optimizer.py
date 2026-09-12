@@ -161,3 +161,12 @@ def test_unit_basis_can_pick_larger_package_without_losing_sticker_price() -> No
     assert assignment["sticker_price"] == 26.38
     assert assignment["unit_price"] == 0.2612
     assert assignment["unit_label"] == "fl oz"
+
+
+def test_partial_baskets_do_not_claim_savings_for_different_missing_items():
+    result = optimize_shopping_list(
+        [_item("a", "a"), _item("b", "b"), _item("c", "c")],
+        [_quote("a", "amazon", 100), _quote("b", "walmart", 1)],
+        [_profile("amazon"), _profile("walmart")],
+    )
+    assert result["split_recommendation"]["recommended"] is False

@@ -100,7 +100,9 @@ export function ProductDetailSheet({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            {detail?.product.canonicalName ?? 'Product detail'}
+            {detail?.product.latestDescription ??
+              detail?.product.canonicalName ??
+              'Product detail'}
           </DialogTitle>
           <DialogDescription>
             {detail
@@ -128,7 +130,9 @@ export function ProductDetailSheet({
                     decimals: 2,
                     nullDisplay: '—',
                   })}{' '}
-                  <span className="text-xs text-text-muted">latest</span>
+                  <span className="text-xs text-text-muted">
+                    latest package
+                  </span>
                 </p>
                 <p className="text-xs text-text-muted">
                   {detail.product.purchaseCount} purchase
@@ -200,9 +204,18 @@ export function ProductDetailSheet({
                         </td>
                         <td className="border-b border-border/20 px-3 py-1.5 text-right font-mono tabular-nums text-text">
                           {formatCurrency(observation.unitPrice, {
-                            decimals: 2,
+                            decimals: 3,
                             nullDisplay: '—',
                           })}
+                          {observation.unitPrice != null &&
+                          observation.unitLabel
+                            ? `/${observation.unitLabel}`
+                            : ''}
+                          {observation.basisEvidence && (
+                            <span className="block text-xs font-normal text-text-muted">
+                              Label: {observation.basisEvidence}
+                            </span>
+                          )}
                         </td>
                         <td className="border-b border-border/20 px-3 py-1.5 text-xs text-text-muted">
                           {formatEnumLabel(observation.source)}

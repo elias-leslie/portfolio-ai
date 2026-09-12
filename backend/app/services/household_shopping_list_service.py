@@ -26,12 +26,14 @@ from app.services._household_finance_utils import iso_or_none, to_float
 from app.services._household_report_builder import _normalized_item_key
 from app.services._price_vendor_adapters import VENDOR_ADAPTERS
 from app.services._shopping_list_optimizer import optimize_shopping_list
+from app.services._shopping_list_quotes import (
+    confirmed_list_quotes,
+    fingerprint,
+    validate_saved_estimate,
+)
 from app.storage import get_storage
 
 LIST_PARSER_AGENT_SLUG = "household-list-parser"
-_FRESH_QUOTE_DAYS = 14
-_FRESH_ACTUAL_OBSERVATION_DAYS = 90
-_MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
 _SUGGESTION_LOOKBACK_DAYS = 365
 _SUGGESTION_DEFAULT_DAYS_AHEAD = 14
 _SUGGESTION_DEFAULT_WATCH_DAYS = 45
@@ -61,6 +63,7 @@ class HouseholdShoppingListService:
                 ORDER BY updated_at DESC, created_at DESC
                 """
             ).fetchall()
+            rows = [validate_saved_estimate(conn, row) for row in rows]
             items = self._items_for_lists(conn, [str(row[0]) for row in rows])
         return HouseholdShoppingListsResponse(
             generated_at=datetime.now(UTC).isoformat(),
@@ -405,6 +408,9 @@ class HouseholdShoppingListService:
                 [_optimizer_profile(profile) for profile in profiles],
                 max_local_stores=max_local_stores,
             )
+            result["evidence_version"] = 2
+            result["quote_evidence"] = {q["observation_id"]: q["evidence_fingerprint"] for q in quotes}
+            result["items_fingerprint"] = fingerprint([_optimizer_item(item) for item in items])
             result["generated_at"] = datetime.now(UTC).isoformat()
             conn.execute(
                 """
@@ -515,7 +521,7 @@ class HouseholdShoppingListService:
 
     @staticmethod
     def _list_row(conn: Any, list_id: str) -> Any:
-        return conn.execute(
+        row = conn.execute(
             """
             SELECT id, name, status, latest_optimization, created_at, updated_at
             FROM household_shopping_lists
@@ -523,6 +529,8 @@ class HouseholdShoppingListService:
             """,
             [list_id],
         ).fetchone()
+
+        return validate_saved_estimate(conn, row)
 
     def _replace_items(
         self,
@@ -601,7 +609,6 @@ class HouseholdShoppingListService:
         return by_list
 
     def _vendor_profiles(self, conn: Any) -> list[HouseholdVendorProfile]:
-        self._seed_vendor_profiles(conn)
         rows = conn.execute(
             """
             SELECT vendor_key, display_name, enabled, delivery_fee, pickup_fee,
@@ -610,7 +617,10 @@ class HouseholdShoppingListService:
             ORDER BY vendor_key
             """
         ).fetchall()
-        return [_vendor_profile(row) for row in rows]
+        profiles = [_vendor_profile(row) for row in rows]
+        existing = {profile.vendor_key for profile in profiles}
+        profiles.extend(HouseholdVendorProfile(vendor_key=adapter.vendor_key, display_name=adapter.display_name) for adapter in VENDOR_ADAPTERS if adapter.vendor_key not in existing)
+        return profiles
 
     @staticmethod
     def _seed_vendor_profiles(conn: Any) -> None:
@@ -626,156 +636,7 @@ class HouseholdShoppingListService:
 
     @staticmethod
     def _quotes_for_items(conn: Any, items: list[HouseholdShoppingListItem]) -> list[dict[str, Any]]:
-        product_ids = [item.product_id for item in items if item.product_id]
-        if not product_ids:
-            return []
-        rows = conn.execute(
-            f"""
-            WITH latest_actual AS (
-                SELECT DISTINCT ON (product_id)
-                       product_id,
-                       package_normalized_quantity,
-                       package_normalized_unit
-                FROM household_product_price_observations
-                WHERE product_id = ANY(%s::uuid[])
-                  AND source <> 'vendor_quote'
-                  AND package_normalized_quantity IS NOT NULL
-                  AND package_normalized_quantity > 0
-                  AND package_normalized_unit IS NOT NULL
-                ORDER BY product_id, observed_date DESC, created_at DESC
-            ),
-            comparable_observations AS (
-                SELECT o.product_id,
-                       CASE
-                         WHEN o.metadata->>'vendor_key' IS NOT NULL
-                           THEN o.metadata->>'vendor_key'
-                         WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                           LIKE '%%amazon%%' THEN 'amazon'
-                         WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                           LIKE '%%walmart%%' THEN 'walmart'
-                         WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                           LIKE '%%publix%%' THEN 'publix'
-                         WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                           LIKE '%%aldi%%' THEN 'aldi'
-                         WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                           LIKE '%%costco%%' THEN 'costco'
-                         ELSE LOWER(
-                           REPLACE(
-                             COALESCE(m.canonical_name, m.display_name, o.source),
-                             ' ',
-                             '_'
-                           )
-                         )
-                       END AS vendor_key,
-                       o.total_price,
-                       CAST(
-                           o.total_price / NULLIF(o.package_normalized_quantity, 0)
-                           AS DOUBLE PRECISION
-                       ) AS normalized_unit_price,
-                       CAST(
-                           (
-                               o.total_price / NULLIF(o.package_normalized_quantity, 0)
-                           )
-                           * COALESCE(
-                               latest_actual.package_normalized_quantity,
-                               o.package_normalized_quantity
-                           )
-                           AS DOUBLE PRECISION
-                       ) AS comparison_price,
-                       o.package_display_label,
-                       o.package_normalized_unit,
-                       o.observed_date,
-                       COALESCE((o.metadata->>'membership_required')::boolean, false)
-                           AS membership_required,
-                       CAST(NULLIF(o.metadata->>'confidence', '') AS DOUBLE PRECISION)
-                           AS confidence,
-                       o.metadata->>'url' AS url,
-                       o.source,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY o.product_id,
-                             CASE
-                               WHEN o.metadata->>'vendor_key' IS NOT NULL
-                                 THEN o.metadata->>'vendor_key'
-                               WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                                 LIKE '%%amazon%%' THEN 'amazon'
-                               WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                                 LIKE '%%walmart%%' THEN 'walmart'
-                               WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                                 LIKE '%%publix%%' THEN 'publix'
-                               WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                                 LIKE '%%aldi%%' THEN 'aldi'
-                               WHEN LOWER(COALESCE(m.canonical_name, m.display_name, ''))
-                                 LIKE '%%costco%%' THEN 'costco'
-                               ELSE LOWER(
-                                 REPLACE(
-                                   COALESCE(m.canonical_name, m.display_name, o.source),
-                                   ' ',
-                                   '_'
-                                 )
-                               )
-                             END
-                           ORDER BY
-                               o.observed_date DESC,
-                               o.total_price / NULLIF(o.package_normalized_quantity, 0) ASC,
-                               o.created_at DESC
-                       ) AS quote_rank
-                FROM household_product_price_observations o
-                LEFT JOIN household_merchants m ON m.id = o.merchant_id
-                LEFT JOIN latest_actual ON latest_actual.product_id = o.product_id
-                WHERE o.product_id = ANY(%s::uuid[])
-                  AND o.total_price > 0
-                  AND o.package_normalized_quantity IS NOT NULL
-                  AND o.package_normalized_quantity > 0
-                  AND o.package_normalized_unit IS NOT NULL
-                  AND (
-                      latest_actual.package_normalized_unit IS NULL
-                      OR latest_actual.package_normalized_unit = o.package_normalized_unit
-                  )
-                  AND (
-                      o.source <> 'vendor_quote'
-                      OR (
-                          jsonb_typeof(o.metadata -> 'confidence') = 'number'
-                          AND (o.metadata ->> 'confidence')::double precision
-                              >= {_MIN_VENDOR_QUOTE_CONFIDENCE}
-                      )
-                  )
-            )
-            SELECT product_id, vendor_key, total_price, normalized_unit_price,
-                   comparison_price, package_display_label, package_normalized_unit,
-                   observed_date, membership_required, confidence, url, source
-            FROM comparable_observations
-            WHERE quote_rank = 1
-            """,
-            [product_ids, product_ids],
-        ).fetchall()
-        today = datetime.now(UTC).date()
-        quotes = []
-        for row in rows:
-            observed = row[7]
-            age_days = (today - observed).days if observed else _FRESH_QUOTE_DAYS + 1
-            quotes.append(
-                {
-                    "product_id": str(row[0]),
-                    "vendor_key": str(row[1]),
-                    "total_price": float(row[2] or 0.0),
-                    "unit_price": to_float(row[3]),
-                    "comparison_price": to_float(row[4]),
-                    "package_label": str(row[5]) if row[5] else None,
-                    "unit_label": _unit_label(str(row[6]) if row[6] else None),
-                    "observed_date": iso_or_none(row[7]),
-                    "membership_required": bool(row[8]),
-                    "confidence": to_float(row[9]),
-                    "url": str(row[10]) if row[10] else None,
-                    "source": str(row[11] or ""),
-                    "is_fresh": age_days
-                    <= (
-                        _FRESH_QUOTE_DAYS
-                        if str(row[11] or "") == "vendor_quote"
-                        else _FRESH_ACTUAL_OBSERVATION_DAYS
-                    ),
-                }
-            )
-        return quotes
+        return confirmed_list_quotes(conn, items)
 
 
 def parse_shopping_list_items(content: str) -> list[dict[str, Any]]:
@@ -841,6 +702,8 @@ def _list_model(row: Any, items: list[HouseholdShoppingListItem]) -> HouseholdSh
     latest_optimization = (
         raw_optimization if isinstance(raw_optimization, dict) else json.loads(raw_optimization or "null")
     )
+    if latest_optimization and latest_optimization.get("items_fingerprint") != fingerprint([_optimizer_item(item) for item in items]):
+        latest_optimization = None
     return HouseholdShoppingList(
         id=str(row[0]),
         name=str(row[1]),

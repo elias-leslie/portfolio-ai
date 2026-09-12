@@ -173,7 +173,7 @@ def sync_document_requirements(
     sections: dict[str, list[Any]],
 ) -> None:
     desired = generate_requirement_seeds(profile=profile, sections=sections)
-    documents = service.list_documents(limit=200).items
+    documents = service.list_documents(limit=200, refresh_application_state=False).items
     matched_docs = {
         seed["requirement_key"]: matching_document_id(seed["document_kind"], documents)
         for seed in desired

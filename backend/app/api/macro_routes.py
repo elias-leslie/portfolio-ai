@@ -70,6 +70,17 @@ class MacroSnapshotResponse(BaseModel):
     computed_at: str | None = None
 
 
+class MacroTrendPoint(BaseModel):
+    snapshot_date: str
+    deployment_score: float
+    components: dict[str, float | None]
+
+
+class MacroTrendResponse(BaseModel):
+    points: list[MacroTrendPoint]
+    latest: MacroSnapshotResponse | None = None
+
+
 class MacroHistoryResponse(BaseModel):
     snapshots: list[MacroSnapshotResponse]
     weights: dict[str, float]
@@ -414,6 +425,25 @@ async def history(days: int = Query(default=730, ge=1, le=3650)) -> MacroHistory
     return MacroHistoryResponse(
         snapshots=[_snapshot_to_response(row) for row in rows],
         weights=dict(WEIGHTS),
+    )
+
+
+@router.get("/history/trend", response_model=MacroTrendResponse)
+async def trend_history(days: int = Query(default=90, ge=1, le=3650)) -> MacroTrendResponse:
+    rows = await run_in_threadpool(repository.get_history, days, latest_detail_only=True)
+    return MacroTrendResponse(
+        points=[
+            MacroTrendPoint(
+                snapshot_date=row["snapshot_date"],
+                deployment_score=row["deployment_score"],
+                components={
+                    key: row.get(f"{key}_score")
+                    for key in ("vix", "term", "breadth", "credit", "putcall", "crowding")
+                },
+            )
+            for row in rows
+        ],
+        latest=_snapshot_to_response(rows[-1]) if rows else None,
     )
 
 

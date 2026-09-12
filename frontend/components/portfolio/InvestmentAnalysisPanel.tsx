@@ -18,6 +18,7 @@ import type {
 } from '@/lib/api/portfolio'
 import { formatCurrencyWhole, formatPercent } from '@/lib/formatters'
 import { usePortfolioAnalytics } from '@/lib/hooks/usePortfolio'
+import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import { cn } from '@/lib/utils'
 
 function Metric({
@@ -333,6 +334,45 @@ function AnalysisContent({ analytics }: { analytics: PortfolioAnalytics }) {
         />
       </div>
 
+      {analytics.performance && (
+        <SectionCard title="Investment performance" variant="surface">
+          <p className="text-sm">{analytics.performance.detail}</p>
+          {analytics.performance.cumulativeReturn != null && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Metric
+                label="Flow-adjusted return"
+                value={formatPercent(
+                  analytics.performance.cumulativeReturn * 100,
+                )}
+                detail={`${analytics.performance.startDate} – ${analytics.performance.endDate}; ${analytics.performance.accountCount} tracked investment accounts.`}
+              />
+              <Metric
+                label="US stock reference"
+                value={
+                  analytics.performance.benchmarkReturn == null
+                    ? '—'
+                    : formatPercent(analytics.performance.benchmarkReturn * 100)
+                }
+                detail={analytics.performance.benchmarkLabel}
+              />
+            </div>
+          )}
+          <details className="mt-3 text-xs text-text-muted">
+            <summary className="cursor-pointer">
+              Calculation and coverage
+            </summary>
+            <p className="mt-2">
+              {analytics.performance.method}.{' '}
+              {analytics.performance.observations} observations; at least{' '}
+              {analytics.performance.minimumObservations} required for Sharpe.
+              Risk-free rate{' '}
+              {(analytics.performance.riskFreeRate * 100).toFixed(2)}% annually:{' '}
+              {analytics.performance.riskFreeSource}.
+            </p>
+          </details>
+        </SectionCard>
+      )}
+
       <div className="grid gap-4 xl:grid-cols-2">
         <SectionCard
           title="Concentration and risk"
@@ -363,9 +403,8 @@ function AnalysisContent({ analytics }: { analytics: PortfolioAnalytics }) {
                 label="Sharpe ratio"
                 value={analytics.sharpeRatio?.toFixed(2) ?? '—'}
                 detail={
-                  analytics.sharpeRatio == null
-                    ? 'Not enough portfolio snapshot history for a return series.'
-                    : 'Risk-adjusted result from available portfolio snapshot history.'
+                  analytics.performance?.detail ??
+                  'Verified cash flows and sufficient aligned valuation history are required.'
                 }
               />
               <Metric
@@ -423,6 +462,8 @@ function AnalysisContent({ analytics }: { analytics: PortfolioAnalytics }) {
 export function InvestmentAnalysisPanel() {
   const { data, isLoading, error, refetch, isFetching } =
     usePortfolioAnalytics()
+
+  useUsableContentTiming('investment-analysis', Boolean(data) && !error)
 
   if (isLoading && !data) {
     return (

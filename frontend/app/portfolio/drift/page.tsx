@@ -87,9 +87,10 @@ function DriftBar({ row }: DriftBarProps) {
 interface DriftRowCardProps {
   row: DriftRow
   missingTarget: boolean
+  unknownShare: number
 }
 
-function DriftRowCard({ row, missingTarget }: DriftRowCardProps) {
+function DriftRowCard({ row, missingTarget, unknownShare }: DriftRowCardProps) {
   if (row.assetClass === 'unclassified') {
     return (
       <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
@@ -122,10 +123,16 @@ function DriftRowCard({ row, missingTarget }: DriftRowCardProps) {
       </div>
     )
   }
+  const uncertain =
+    unknownShare > 0 &&
+    row.driftPct <= 0 &&
+    row.actualPct + unknownShare >= row.targetPct - row.driftBandPct
   const direction = row.driftPct > 0 ? 'over' : 'under'
-  const tone = row.outOfBand
-    ? 'text-amber-700 dark:text-amber-400'
-    : 'text-emerald-700 dark:text-emerald-400'
+  const tone = uncertain
+    ? 'text-muted-foreground'
+    : row.outOfBand
+      ? 'text-amber-700 dark:text-amber-400'
+      : 'text-emerald-700 dark:text-emerald-400'
   return (
     <div className="space-y-3 rounded-lg border bg-card/50 p-4">
       <div className="flex items-baseline justify-between gap-2">
@@ -135,15 +142,20 @@ function DriftRowCard({ row, missingTarget }: DriftRowCardProps) {
           </div>
           <div className="text-xs text-muted-foreground">
             Goal {formatPct(row.targetPct)} · You have{' '}
-            {formatPct(row.actualPct)}
+            {formatPct(row.actualPct)} identified
+            {unknownShare > 0
+              ? `; ${formatPct(unknownShare)} unclassified`
+              : ''}
           </div>
         </div>
         <div className={`text-right text-sm font-semibold ${tone}`}>
           {formatSignedPct(row.driftPct)}
           <div className="text-xs font-normal text-muted-foreground">
-            {row.outOfBand
-              ? `${direction} by more than wiggle room`
-              : 'on plan'}
+            {uncertain
+              ? 'Holdings detail needed to judge'
+              : row.outOfBand
+                ? `${direction} by more than wiggle room`
+                : 'on plan'}
           </div>
         </div>
       </div>
@@ -264,6 +276,10 @@ function DriftPageContent({ scopeId }: DriftPageContentProps) {
       <div className="grid gap-3 md:grid-cols-2">
         {data.rows.map((row) => (
           <DriftRowCard
+            unknownShare={
+              data.rows.find((item) => item.assetClass === 'unclassified')
+                ?.actualPct ?? 0
+            }
             key={row.assetClass}
             row={row}
             missingTarget={data.classesMissingTargets.includes(row.assetClass)}

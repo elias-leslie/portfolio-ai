@@ -26,6 +26,7 @@ from app.portfolio.contracts.retirement import (
     WithdrawalPhaseConfig,
 )
 from app.services._aca_estimator import ACAPerson, ACAYearPlan, build_aca_year_plans
+from app.services._retirement_ownership import bucket_kind, owned_bucket_key, rmd_start_age
 from app.services._withdrawal_engine import BridgeConfig as EngineBridgeConfig
 from app.services._withdrawal_engine import HealthcarePoint as EngineHealthcarePoint
 from app.services._withdrawal_engine import PhaseConfig as EnginePhaseConfig
@@ -45,16 +46,58 @@ RMD_START_AGE = 73
 # 10% additional tax on pre-tax withdrawals before 59½ (limited exceptions).
 EARLY_WITHDRAWAL_PENALTY_AGE = 59.5
 # IRS Uniform Lifetime Table (effective 2022) — distribution-period divisors
-# by age. RMDs begin at 73; 72 is kept for completeness, and ages past 120 use
+# by age. The start age depends on birth cohort; ages past 120 use
 # the 120+ divisor.
 IRS_UNIFORM_LIFETIME_DIVISORS: dict[int, float] = {
-    72: 27.4, 73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0,
-    79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8, 85: 16.0,
-    86: 15.2, 87: 14.4, 88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8,
-    93: 10.1, 94: 9.5, 95: 8.9, 96: 8.4, 97: 7.8, 98: 7.3, 99: 6.8,
-    100: 6.4, 101: 6.0, 102: 5.6, 103: 5.2, 104: 4.9, 105: 4.6, 106: 4.3,
-    107: 4.1, 108: 3.9, 109: 3.7, 110: 3.5, 111: 3.4, 112: 3.3, 113: 3.1,
-    114: 3.0, 115: 2.9, 116: 2.8, 117: 2.7, 118: 2.5, 119: 2.3, 120: 2.0,
+    72: 27.4,
+    73: 26.5,
+    74: 25.5,
+    75: 24.6,
+    76: 23.7,
+    77: 22.9,
+    78: 22.0,
+    79: 21.1,
+    80: 20.2,
+    81: 19.4,
+    82: 18.5,
+    83: 17.7,
+    84: 16.8,
+    85: 16.0,
+    86: 15.2,
+    87: 14.4,
+    88: 13.7,
+    89: 12.9,
+    90: 12.2,
+    91: 11.5,
+    92: 10.8,
+    93: 10.1,
+    94: 9.5,
+    95: 8.9,
+    96: 8.4,
+    97: 7.8,
+    98: 7.3,
+    99: 6.8,
+    100: 6.4,
+    101: 6.0,
+    102: 5.6,
+    103: 5.2,
+    104: 4.9,
+    105: 4.6,
+    106: 4.3,
+    107: 4.1,
+    108: 3.9,
+    109: 3.7,
+    110: 3.5,
+    111: 3.4,
+    112: 3.3,
+    113: 3.1,
+    114: 3.0,
+    115: 2.9,
+    116: 2.8,
+    117: 2.7,
+    118: 2.5,
+    119: 2.3,
+    120: 2.0,
 }
 # HSA draws are modeled as non-medical (taxed as ordinary income, 20%
 # penalty before 65) since the engine can't earmark medical spending — so
@@ -120,11 +163,11 @@ BUCKET_RULE_EXPLANATIONS: dict[str, dict[str, str]] = {
     },
     "governmental_457b": {
         "early_access": "Penalty-free at any age after you separate from service; taxed as ordinary income.",
-        "rmd": "Required minimum distributions begin at 73.",
+        "rmd": "Required minimum distributions use the account owner's birth cohort: 75 for births in 1960 or later; earlier cohorts use the applicable earlier age.",
     },
     "pre_tax": {
         "early_access": "10% penalty on withdrawals before 59½ (limited exceptions); taxed as ordinary income.",
-        "rmd": "Required minimum distributions begin at 73.",
+        "rmd": "Required minimum distributions use the account owner's birth cohort: 75 for births in 1960 or later; earlier cohorts use the applicable earlier age.",
     },
     "roth": {
         "early_access": "Contributions withdrawable anytime; earnings tax-free after 59½ and the 5-year rule.",
@@ -326,6 +369,7 @@ def _aggregate_income_yield_freshness(
             return status, _FRESHNESS_ROLLUP_LABELS[status]
     return "fresh", _FRESHNESS_ROLLUP_LABELS["fresh"]
 
+
 def _split_members(
     members: list[dict[str, Any]],
     anchor: date | int | None = None,
@@ -343,12 +387,17 @@ def _split_members(
             continue
         role = (row.get("role") or "").strip().lower()
         relationship = (row.get("relationship") or "").strip().lower()
-        if row.get("is_dependent") or role in {"child", "dependent"} or relationship in {
-            "child",
-            "daughter",
-            "son",
-            "dependent",
-        }:
+        if (
+            row.get("is_dependent")
+            or role in {"child", "dependent"}
+            or relationship
+            in {
+                "child",
+                "daughter",
+                "son",
+                "dependent",
+            }
+        ):
             continue
         if primary_age is None and (
             role in {"primary", "self", "owner"}
@@ -356,8 +405,7 @@ def _split_members(
         ):
             primary_age = age
         elif spouse_age is None and (
-            role in {"spouse", "partner"}
-            or relationship in {"mother", "wife", "spouse", "partner"}
+            role in {"spouse", "partner"} or relationship in {"mother", "wife", "spouse", "partner"}
         ):
             spouse_age = age
         elif primary_age is None:
@@ -477,9 +525,11 @@ def _bucket_balances(
     inputs: RetirementInputs,
     buckets: tuple[RetirementAccountBucket, ...],
 ) -> dict[str, float]:
+    buckets = buckets or inputs.account_buckets
     balances = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
     for bucket in buckets:
-        balances[bucket.bucket_type] = balances.get(bucket.bucket_type, 0.0) + bucket.current_value
+        key = owned_bucket_key(bucket.bucket_type, bucket.owner)
+        balances[key] = balances.get(key, 0.0) + bucket.current_value
     if sum(balances.values()) <= 0 and inputs.portfolio_value > 0:
         balances["taxable"] = inputs.portfolio_value
     return balances
@@ -578,9 +628,7 @@ def _allocation_with_bucket_cash(
     if total <= 0:
         return allocation
     cash_value = sum(
-        float(bucket.current_value or 0.0)
-        for bucket in buckets
-        if bucket.bucket_type == "cash"
+        float(bucket.current_value or 0.0) for bucket in buckets if bucket.bucket_type == "cash"
     )
     non_cash_value = max(0.0, total - cash_value)
     values: dict[str, float] = {}
@@ -624,7 +672,9 @@ def _income_tax_drag_estimate(
     baseline_ordinary_income: float = 0.0,
 ) -> dict[str, Any]:
     tax_context = tax_context or _tax_context_from_profile(None, inputs)
-    total_value = sum(float(bucket.current_value or 0.0) for bucket in buckets) or inputs.portfolio_value
+    total_value = (
+        sum(float(bucket.current_value or 0.0) for bucket in buckets) or inputs.portfolio_value
+    )
     if total_value <= 0 or income_yield <= 0:
         return _empty_tax_drag()
     taxable_value = sum(
@@ -638,7 +688,9 @@ def _income_tax_drag_estimate(
     if taxable_share <= 0:
         return _empty_tax_drag(taxable_asset_share=0.0)
 
-    rows = holding_yields or _asset_class_income_yield_rows(inputs.asset_allocation, inputs.cash_yield)
+    rows = holding_yields or _asset_class_income_yield_rows(
+        inputs.asset_allocation, inputs.cash_yield
+    )
     ordinary_income = 0.0
     qualified_income = 0.0
     for row in rows:
@@ -676,7 +728,9 @@ def _income_tax_drag_estimate(
         "estimated_ordinary_income": round(ordinary_income, 2),
         "estimated_qualified_dividends": round(qualified_income, 2),
         "estimated_income_tax_drag": round(tax, 2),
-        "estimated_income_tax_drag_rate": round(tax / taxable_income, 6) if taxable_income > 0 else 0.0,
+        "estimated_income_tax_drag_rate": round(tax / taxable_income, 6)
+        if taxable_income > 0
+        else 0.0,
         "baseline_ordinary_income": round(max(0.0, baseline_ordinary_income), 2),
         "income_tax_drag_method": (
             "Incremental federal estimate on taxable-account interest/dividends over entered current salary; "
@@ -831,9 +885,7 @@ def _withdrawal_summary(
     """Bridge size/length + first-year and post-SS withdrawal rates for the UI summary strip."""
     retirement_age = _household_retirement_primary_age(inputs)
     primary_claim, spouse_claim = _ss_claim_ages(inputs)
-    earliest_claim = min(
-        [primary_claim] + ([spouse_claim] if spouse_claim is not None else [])
-    )
+    earliest_claim = min([primary_claim] + ([spouse_claim] if spouse_claim is not None else []))
     first_retirement = next((row for row in drawdown if row.primary_age >= retirement_age), None)
     post_ss = next(
         (row for row in drawdown if row.primary_age >= max(earliest_claim, retirement_age)),
@@ -1069,13 +1121,18 @@ def _effective_gain_ratio(inputs: RetirementInputs) -> float:
     return TAXABLE_WITHDRAWAL_GAIN_RATIO
 
 
-
 # Buckets whose draws are taxed as ordinary income (HSA is modeled as non-medical use).
-_ORDINARY_INCOME_BUCKETS = frozenset({"pre_tax", "governmental_457b", "hsa"})
+_ORDINARY_INCOME_BUCKETS = frozenset(
+    owned_bucket_key(kind, owner)
+    for kind in ("pre_tax", "governmental_457b", "hsa")
+    for owner in ("primary", "spouse", "unknown")
+)
 
 
-def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
-    if primary_age < RMD_START_AGE or pre_tax_balance <= 0:
+def _rmd_amount(
+    pre_tax_balance: float, primary_age: int, *, birth_year: int | None = None
+) -> float:
+    if primary_age < rmd_start_age(birth_year) or pre_tax_balance <= 0:
         return 0.0
     # Exact IRS Uniform Lifetime Table divisor. The real table is convex, so a
     # linear slope-1 approximation over-states RMDs sharply with age (and would
@@ -1087,6 +1144,7 @@ def _rmd_amount(pre_tax_balance: float, primary_age: int) -> float:
 
 
 def _early_withdrawal_penalty_rate(bucket: str, primary_age: int) -> float:
+    bucket = bucket_kind(bucket)
     # Integer ages compare against 59.5 so the modeled cutoff matches the rule
     # text shown to users ("before 59½") rather than a bare magic number.
     if bucket == "pre_tax" and primary_age < EARLY_WITHDRAWAL_PENALTY_AGE:
@@ -1134,10 +1192,35 @@ def _tax_assumptions(
     gain_ratio_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     warnings = []
+    if any(
+        bucket.owner == "unknown"
+        and bucket.bucket_type in {"pre_tax", "governmental_457b", "hsa", "roth"}
+        for bucket in buckets
+    ):
+        warnings.append(
+            "Confirm the owner of retirement accounts marked unknown. Early-access penalties use the younger adult's age and RMD estimates use the older adult's age until ownership is confirmed."
+        )
+    if inputs:
+        primary_birth = inputs.primary_birth_year or inputs.as_of_date.year - inputs.primary_age
+        spouse_birth = inputs.spouse_birth_year or (
+            inputs.as_of_date.year - inputs.spouse_age if inputs.spouse_age is not None else None
+        )
+        warnings.append(
+            f"RMD start ages: primary {rmd_start_age(primary_birth):g}"
+            + (f"; spouse {rmd_start_age(spouse_birth):g}." if spouse_birth else ".")
+            + " Each owner's prior modeled year-end balance is calculated separately; first-year amounts use the starting balance as an estimate."
+        )
+        if 1959 in {primary_birth, spouse_birth}:
+            warnings.append(
+                "For the 1959 birth cohort, age 73 follows the IRS proposed clarification; confirm the final applicable rule before an actual distribution."
+            )
+    warnings.append("The 2026 Uniform Lifetime Table is used. Inherited accounts, a sole-beneficiary spouse more than 10 years younger, Roth contribution/conversion ordering, and 457 rollovers from other plan types need account-specific confirmation.")
     if context.filing_status_source != "saved":
         warnings.append("Set filing status in saved assumptions to remove filing-status inference.")
     if context.state_tax_rate > 0:
-        warnings.append("State tax is not included in the federal retirement drawdown tax estimate yet.")
+        warnings.append(
+            "State tax is not included in the federal retirement drawdown tax estimate yet."
+        )
     if any(bucket.bucket_type == "governmental_457b" for bucket in buckets):
         warnings.append(
             "Governmental 457(b) is modeled as penalty-free after the plan owner separates from service; "
@@ -1146,10 +1229,12 @@ def _tax_assumptions(
     if inputs and inputs.social_security_payable_ratio < 1.0:
         percent = round(inputs.social_security_payable_ratio * 100)
         year = inputs.social_security_depletion_year or DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR
-        warnings.append(f"Social Security is modeled at {percent}% of scheduled benefits starting in {year}.")
-    capital_gains_zero_rate_limit, capital_gains_twenty_rate_threshold = LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[
-        context.filing_status
-    ]
+        warnings.append(
+            f"Social Security is modeled at {percent}% of scheduled benefits starting in {year}."
+        )
+    capital_gains_zero_rate_limit, capital_gains_twenty_rate_threshold = (
+        LONG_TERM_CAPITAL_GAINS_BRACKETS_2026[context.filing_status]
+    )
     lots_derived_gain_ratio = inputs is not None and inputs.taxable_gain_ratio is not None
     effective_gain_ratio = (
         inputs.taxable_gain_ratio
@@ -1168,6 +1253,18 @@ def _tax_assumptions(
             f"No taxable cost-basis lots found; assuming {round(effective_gain_ratio * 100)}% "
             "of each taxable withdrawal is a long-term gain."
         )
+    if gain_ratio_meta and "coverage" in gain_ratio_meta:
+        gain_ratio_source = gain_ratio_meta["source"]
+        coverage = gain_ratio_meta["coverage"]
+        gain_ratio_detail = (
+            f"Cost basis covers {coverage:.1%} of taxable assets. "
+            f"The modeled gain share is {effective_gain_ratio:.1%}. "
+            + (
+                "Uncovered assets use a 15% planning assumption; the bounds below show the uncertainty."
+                if coverage < 0.999
+                else "Basis is matched to the current account holdings."
+            )
+        )
     return {
         "tax_year": FEDERAL_TAX_YEAR,
         "filing_status": context.filing_status,
@@ -1180,6 +1277,9 @@ def _tax_assumptions(
         "taxable_withdrawal_gain_ratio": round(effective_gain_ratio, 6),
         "taxable_withdrawal_gain_ratio_source": gain_ratio_source,
         "taxable_withdrawal_gain_ratio_detail": gain_ratio_detail,
+        "basis_coverage": gain_ratio_meta,
+        "tax_rule_version": "US federal 2026; SECURE 2.0 owner/cohort rules",
+        "rules_checked_at": "2026-09-11",
         "taxable_cost_basis": (gain_ratio_meta or {}).get("cost_basis"),
         "taxable_market_value": (gain_ratio_meta or {}).get("market_value"),
         "state_tax_rate": context.state_tax_rate,
@@ -1234,7 +1334,11 @@ def _state_tax_source_from_profile(profile: Any) -> str:
     state = str(getattr(profile, "state_of_residence", "") or "").strip().upper()
     if state in NO_STATE_INCOME_TAX_STATES:
         return f"{state}_no_state_income_tax"
-    return "saved_marginal_state_tax_rate" if getattr(profile, "marginal_state_tax_rate", None) is not None else "not_set"
+    return (
+        "saved_marginal_state_tax_rate"
+        if getattr(profile, "marginal_state_tax_rate", None) is not None
+        else "not_set"
+    )
 
 
 def _social_security_payable_ratio(value: float | None) -> float:
@@ -1370,7 +1474,9 @@ def _federal_tax_estimate(
     age_65_count = int(primary_age >= 65)
     if status == "married_filing_jointly" and spouse_age is not None:
         age_65_count += int(spouse_age >= 65)
-    additional_deduction = ADDITIONAL_STANDARD_DEDUCTION_65_2026[status] * inflation_factor * age_65_count
+    additional_deduction = (
+        ADDITIONAL_STANDARD_DEDUCTION_65_2026[status] * inflation_factor * age_65_count
+    )
     total_deduction = standard_deduction + additional_deduction
     taxable_ordinary = max(0.0, gross_ordinary - total_deduction)
     deduction_remaining = max(0.0, total_deduction - gross_ordinary)
@@ -1429,7 +1535,9 @@ def _long_term_capital_gains_tax(
     remaining = taxable_capital_gains
     zero_rate_amount = min(remaining, max(0.0, zero_rate_limit - taxable_ordinary))
     remaining -= zero_rate_amount
-    fifteen_rate_amount = min(remaining, max(0.0, twenty_rate_limit - max(taxable_ordinary, zero_rate_limit)))
+    fifteen_rate_amount = min(
+        remaining, max(0.0, twenty_rate_limit - max(taxable_ordinary, zero_rate_limit))
+    )
     remaining -= fifteen_rate_amount
     return fifteen_rate_amount * 0.15 + max(0.0, remaining) * 0.20
 

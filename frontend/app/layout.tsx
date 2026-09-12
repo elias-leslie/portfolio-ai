@@ -4,8 +4,7 @@ import Script from 'next/script'
 import './globals.css'
 import './globals-watchlist.css'
 import { Toaster } from 'sonner'
-import { JennyChatWidget } from '@/components/chat/JennyChatWidget'
-import { Navigation } from '@/components/Navigation'
+import { HouseholdShell } from '@/components/HouseholdShell'
 import { cn } from '@/lib/utils'
 import { Providers } from './providers'
 
@@ -72,15 +71,7 @@ export default function RootLayout({
           >
             Skip to main content
           </a>
-          <Navigation />
-          <main
-            id="main-content"
-            className="flex-1 overflow-auto"
-            tabIndex={-1}
-          >
-            {children}
-          </main>
-          <JennyChatWidget />
+          <HouseholdShell>{children}</HouseholdShell>
           <Toaster
             position="top-right"
             richColors

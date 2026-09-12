@@ -3,8 +3,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { HouseholdPriceInsight } from '@/lib/api/household'
 import { MoneyPurchasesPanel } from '../MoneyPurchasesPanel'
+
+vi.mock('@/components/capture/ShoppingPilot', () => ({
+  ShoppingPilot: () => <div>Staple price check</div>,
+}))
 
 const useHouseholdProductsMock = vi.hoisted(() => vi.fn())
 const useHouseholdBuyGuideMock = vi.hoisted(() => vi.fn())
@@ -117,6 +120,7 @@ function buildProduct(index: number, overrides = {}) {
         totalPrice: 3.98,
         quantity: 1,
         unitPrice: 0.33,
+        unitLabel: 'oz',
         source: 'receipt',
       },
       {
@@ -125,6 +129,7 @@ function buildProduct(index: number, overrides = {}) {
         totalPrice: 4.5,
         quantity: 1,
         unitPrice: 0.38,
+        unitLabel: 'oz',
         source: 'receipt',
       },
     ],
@@ -178,22 +183,6 @@ function buildReviewItem(overrides = {}) {
   }
 }
 
-const unitPriceUpInsight: HouseholdPriceInsight = {
-  merchant: 'Walmart',
-  itemName: 'Olive Oil',
-  signalType: 'unit_price_up',
-  latestPrice: 14.0,
-  previousPrice: 11.5,
-  priceChange: 2.5,
-  priceChangePct: 21,
-  latestDate: '2026-03-15',
-  previousDate: '2026-01-10',
-  unitPriceChangePct: 18,
-  shrinkflationFlag: false,
-  confidence: 0.8,
-  recommendation: 'Compare equivalent pack sizes before reordering.',
-}
-
 // The review card and detail sheet also call useHouseholdProducts (with
 // undefined while their pickers are idle); the catalog's own calls always
 // carry a sort, so filter to those.
@@ -208,6 +197,7 @@ function lastCatalogParams() {
 
 describe('MoneyPurchasesPanel', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/money?tab=purchases')
     useHouseholdProductsMock.mockReset()
     useHouseholdBuyGuideMock.mockReset()
     usePurchaseItemReviewQueueMock.mockReset()
@@ -283,14 +273,16 @@ describe('MoneyPurchasesPanel', () => {
   it('renders catalog rows with name, price, and a hoverable sparkline', () => {
     mockCatalog([buildProduct(1), buildProduct(2)])
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(screen.getByText('Product 001')).toBeInTheDocument()
     expect(screen.getAllByText('Great Value · 12 oz')).toHaveLength(2)
     expect(screen.getAllByText('$4.50')).toHaveLength(2)
     expect(screen.getByText('Showing 1-2 of 2 products')).toBeInTheDocument()
 
-    const sparklines = screen.getAllByRole('img', { name: /Price history/ })
+    const sparklines = screen.getAllByRole('img', {
+      name: /Comparable price history/,
+    })
     expect(sparklines).toHaveLength(2)
 
     // Hovering surfaces the nearest observation's full detail.
@@ -304,7 +296,7 @@ describe('MoneyPurchasesPanel', () => {
     const user = userEvent.setup()
     mockCatalog([buildProduct(1)])
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     await user.type(screen.getByLabelText('Search products'), 'olive')
 
@@ -320,7 +312,7 @@ describe('MoneyPurchasesPanel', () => {
       { totalCount: 120, returnedCount: 50 },
     )
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(lastCatalogParams().offset).toBe(0)
 
@@ -350,7 +342,7 @@ describe('MoneyPurchasesPanel', () => {
     setOwnerMutateAsync.mockResolvedValue(true)
     mockCatalog([buildProduct(1, { ownerItemId: 'item-owner-1' })])
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     const ownerInput = screen.getByLabelText('Owner for Product 001')
     await user.click(ownerInput)
@@ -366,7 +358,7 @@ describe('MoneyPurchasesPanel', () => {
   it('shows the review empty state when nothing needs review', () => {
     mockCatalog([])
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(
       screen.getByText(/No product matches waiting on review/),
@@ -385,7 +377,7 @@ describe('MoneyPurchasesPanel', () => {
       },
     })
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(screen.getByText('GV OLIVE OIL 17OZ')).toBeInTheDocument()
     expect(screen.getByText('70% match')).toBeInTheDocument()
@@ -434,7 +426,7 @@ describe('MoneyPurchasesPanel', () => {
       isLoading: false,
     })
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     await user.click(screen.getByRole('button', { name: 'Details' }))
 
@@ -465,7 +457,7 @@ describe('MoneyPurchasesPanel', () => {
       isLoading: false,
     })
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     await user.click(screen.getByRole('button', { name: 'Details' }))
     await user.click(
@@ -490,29 +482,21 @@ describe('MoneyPurchasesPanel', () => {
     })
   })
 
-  it('renders the relocated Price Signals table with signal badges', () => {
+  it('uses catalog price history without a duplicate unsupported signals section', () => {
     mockCatalog([])
-
-    render(<MoneyPurchasesPanel priceInsights={[unitPriceUpInsight]} />)
-
-    expect(screen.getByText('Price Signals')).toBeInTheDocument()
-    expect(screen.getByText('Unit price up')).toBeInTheDocument()
-    expect(screen.getByText('Olive Oil')).toBeInTheDocument()
-  })
-
-  it('shows the price-signals empty state without evidence', () => {
-    mockCatalog([])
-
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
-
-    expect(screen.getByText('No price-drift evidence yet.')).toBeInTheDocument()
+    render(<MoneyPurchasesPanel />)
+    expect(screen.getByText('Product Catalog')).toBeInTheDocument()
+    expect(screen.queryByText('Price Signals')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('No price-drift evidence yet.'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows the price-check empty state and triggers a run', async () => {
     const user = userEvent.setup()
     mockCatalog([])
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(screen.getByText('No price check has run yet.')).toBeInTheDocument()
     expect(screen.getByText('No savings findings yet.')).toBeInTheDocument()
@@ -542,7 +526,7 @@ describe('MoneyPurchasesPanel', () => {
       },
     })
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(
       screen.getByText('Jenny is checking vendor prices…'),
@@ -601,7 +585,7 @@ describe('MoneyPurchasesPanel', () => {
       },
     })
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(
       screen.getByText(/12 products · 18 quotes · 2 findings/),
@@ -699,7 +683,7 @@ describe('MoneyPurchasesPanel', () => {
       },
     })
 
-    render(<MoneyPurchasesPanel priceInsights={[]} />)
+    render(<MoneyPurchasesPanel />)
 
     expect(screen.getAllByText('Groceries')).not.toHaveLength(0)
     expect(screen.getAllByText(/1 open item/).length).toBeGreaterThan(0)

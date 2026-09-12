@@ -155,8 +155,6 @@ def test_get_dashboard_returns_composed_household_view() -> None:
         patch(f"{assembly_path}.retirement_next_steps", return_value=["Keep saving"]),
         patch(f"{assembly_path}.fetch_current_month_spend", return_value=1200.0),
         patch(f"{assembly_path}.fetch_monthly_retirement_contributions", return_value=900.0),
-        patch(f"{assembly_path}.fetch_inferred_value_rows", return_value={}),
-        patch(f"{assembly_path}.infer_profile_from_transactions"),
         patch(
             f"{assembly_path}.build_household_account_control",
             return_value=HouseholdAccountControlResult(
@@ -193,54 +191,19 @@ def test_get_dashboard_returns_composed_household_view() -> None:
     assert datetime.fromisoformat(dashboard.generated_at).tzinfo == UTC
 
 
-def test_get_dashboard_debounces_registry_sync() -> None:
+def test_get_dashboard_never_synchronizes_registry_or_infers_values() -> None:
     service = _service()
     service.account_registry_service = Mock()
     service.dashboard_composer = Mock()
     service.dashboard_composer.build_dashboard.side_effect = ["first", "second"]
-
-    original_last_sync = HouseholdFinanceService._last_dashboard_registry_sync_monotonic
-    HouseholdFinanceService._last_dashboard_registry_sync_monotonic = 0.0
-    try:
-        with patch(
-            "app.services.household_finance_service.monotonic",
-            side_effect=[100.0, 100.0, 100.1, 105.0],
-        ):
-            first = service.get_dashboard()
-            second = service.get_dashboard()
-    finally:
-        HouseholdFinanceService._last_dashboard_registry_sync_monotonic = original_last_sync
-
-    assert first == "first"
-    assert second == "second"
-    service.account_registry_service.sync_registry.assert_called_once_with(
-        service,
-        limit=1000,
-    )
+    service.refresh_derived_values = cast(Any, Mock())
+    assert service.get_dashboard() == "first"
+    assert service.get_dashboard() == "second"
+    service.account_registry_service.sync_registry.assert_not_called()
+    service.refresh_derived_values.assert_not_called()
 
 
-def test_force_dashboard_registry_sync_bypasses_debounce() -> None:
-    service = _service()
-    service.account_registry_service = Mock()
-
-    original_last_sync = HouseholdFinanceService._last_dashboard_registry_sync_monotonic
-    HouseholdFinanceService._last_dashboard_registry_sync_monotonic = 100.0
-    try:
-        with patch(
-            "app.services.household_finance_service.monotonic",
-            side_effect=[105.0, 105.0, 105.0],
-        ):
-            service._ensure_dashboard_registry_sync(limit=1000, force=True)
-    finally:
-        HouseholdFinanceService._last_dashboard_registry_sync_monotonic = original_last_sync
-
-    service.account_registry_service.sync_registry.assert_called_once_with(
-        service,
-        limit=1000,
-    )
-
-
-def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync() -> None:
+def test_gather_service_data_does_not_synchronize_registry() -> None:
     service = Mock()
     service._ensure_dashboard_registry_sync = Mock()
     service.account_registry_service = Mock()
@@ -257,7 +220,7 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
     service.portfolio_mgr.get_accounts.return_value = []
     service.portfolio_mgr.get_positions.return_value = []
     service.price_fetcher = Mock()
-    service.price_fetcher.fetch_price_data.return_value = {}
+    service.price_fetcher.fetch_cached_price_data.return_value = {}
 
     account_control = HouseholdAccountControl(
         status="clear",
@@ -302,7 +265,7 @@ def test_gather_service_data_uses_dashboard_sync_gate_before_raw_registry_sync()
 
     service.transaction_service.backfill_from_latest_reviews.assert_not_called()
     service.evidence_service.backfill_from_latest_reviews.assert_not_called()
-    service._ensure_dashboard_registry_sync.assert_called_once_with(limit=1000)
+    service._ensure_dashboard_registry_sync.assert_not_called()
     service.account_registry_service.sync_registry.assert_not_called()
     service.price_fetcher.fetch_cached_price_data.assert_not_called()
 

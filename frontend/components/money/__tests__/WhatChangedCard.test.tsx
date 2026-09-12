@@ -65,7 +65,7 @@ describe('WhatChangedCard', () => {
     render(<WhatChangedCard variance={variance()} />)
 
     expect(screen.getByText('−$5,157')).toBeInTheDocument()
-    expect(screen.getByText('-60%')).toBeInTheDocument()
+    expect(screen.getByText('$5,655 → $498')).toBeInTheDocument()
   })
 
   it('offers no toggle when neither month had a one-time purchase', () => {

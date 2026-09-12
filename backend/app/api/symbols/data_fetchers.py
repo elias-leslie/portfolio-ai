@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 from app.logging_config import get_logger
 from app.portfolio.price_fetcher import PriceDataFetcher
 from app.storage.helpers import row_to_dict, rows_to_dicts
-from app.utils.market_hours import get_market_status
 
 from .portfolio_context import fetch_symbol_portfolio_context
 
@@ -70,10 +69,17 @@ def get_quote_data(
         return {}
 
     fetcher = PriceDataFetcher(storage)
-    quote = fetcher.fetch_price_data(
-        [normalized_symbol],
-        force_refresh=force_refresh,
-        max_age_minutes=_SYMBOL_QUOTE_MAX_AGE_MINUTES,
+    quote = (
+        fetcher.fetch_price_data(
+            [normalized_symbol],
+            force_refresh=force_refresh,
+            max_age_minutes=_SYMBOL_QUOTE_MAX_AGE_MINUTES,
+        )
+        if force_refresh
+        else fetcher.fetch_cached_price_data(
+            [normalized_symbol],
+            max_age_minutes=None,
+        )
     ).get(normalized_symbol)
 
     fetch_error = quote.error if quote else None
@@ -99,7 +105,8 @@ def get_quote_data(
         "price": quote.price if quote.price > 0 and not quote.error else None,
         "source": quote.source,
         "cached_at": quote.cached_at,
-        "session": get_market_status(quote.cached_at),
+        "quote_time": quote.quote_time,
+        "session": quote.price_session,
         "error": fetch_error or quote.error,
     }
 
@@ -130,6 +137,9 @@ def _build_watchlist_result(item: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {
         "id": str(item.get("id")),
         "symbol": item.get("symbol"),
+        "company_name": item.get("company_name"),
+        "signal_reasons_bullish": item.get("signal_reasons_bullish"),
+        "signal_reasons_bearish": item.get("signal_reasons_bearish"),
         "note": item.get("note"),
         "overall_score": score.get("overall"),
         "signal_type": item.get("signal_type"),
@@ -160,7 +170,7 @@ def _build_watchlist_result(item: dict[str, Any]) -> dict[str, Any]:
 
 def get_watchlist_data(symbol: str, watchlist_service: WatchlistService) -> dict[str, Any] | None:
     """Fetch watchlist data for symbol using the watchlist service."""
-    items = watchlist_service.get_items_with_scores(include_decision=False)
+    items = watchlist_service.get_items_with_scores(include_decision=False, symbol=symbol.upper())
     for item in items:
         if item.get("symbol", "").upper() == symbol.upper():
             return _build_watchlist_result(item)
@@ -341,8 +351,7 @@ def fetch_all_data(
     )
 
     has_watchlist_news = bool(
-        watchlist
-        and (watchlist.get("news_intelligence") or watchlist.get("recent_news"))
+        watchlist and (watchlist.get("news_intelligence") or watchlist.get("recent_news"))
     )
     news = (
         {}

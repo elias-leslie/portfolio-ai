@@ -76,7 +76,7 @@ def build_card_commitments(
 
     rows: list[HouseholdCardCommitment] = []
     for card in cards:
-        if str(getattr(card, "status", "")) != "active":
+        if str(getattr(card, "status", "")) not in {"active", "rotated_out", "inactive"}:
             continue
         product = getattr(card, "product", None)
         row = HouseholdCardCommitment(
@@ -121,15 +121,21 @@ def build_card_commitments(
         row.welcome_progress = round(float(getattr(card, "welcome_progress_amount", 0.0) or 0.0), 2)
         deadline = _as_date(getattr(card, "welcome_deadline", None))
         status = str(getattr(card, "welcome_status", "") or "not_started")
-        if row.welcome_min_spend <= 0:
-            row.welcome_status = "none"
-            row.welcome_detail = "No welcome bonus on this card."
-        elif status == "earned":
+        if status == "earned":
             row.welcome_status = "earned"
             row.welcome_detail = (
                 f"Bonus earned -- {_money(row.welcome_progress)} against a "
                 f"{_money(row.welcome_min_spend)} minimum."
             )
+        elif getattr(product, "welcome_min_spend", None) is None:
+            row.welcome_status = "unknown"
+            row.welcome_detail = "Confirm the original welcome offer and deadline in Cards; current public offers do not establish this card's terms."
+        elif row.welcome_min_spend <= 0:
+            row.welcome_status = "none"
+            row.welcome_detail = "No minimum purchase requirement is recorded."
+        elif status == "spend_met":
+            row.welcome_status = "spend_met"
+            row.welcome_detail = "Recorded purchases meet the requirement. Confirm the bonus when the issuer awards it."
         elif status == "missed":
             row.welcome_status = "missed"
             row.welcome_detail = (
@@ -194,7 +200,7 @@ def build_card_commitments(
     plan.annual_fee_monthly = round(plan.annual_fee_yearly / 12, 2)
 
     soonest = sorted(
-        (row for row in rows if row.annual_fee > 0 and (row.annual_fee_days_away or -1) >= 0),
+        (row for row in rows if row.annual_fee > 0 and row.annual_fee_days_away is not None and row.annual_fee_days_away >= 0),
         key=lambda row: row.annual_fee_days_away or 0,
     )
     if not plan.annual_fee_yearly:

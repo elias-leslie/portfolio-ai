@@ -2,7 +2,7 @@ import type {
   HouseholdQuestion,
   HouseholdResolvedValue,
 } from '@/lib/api/household'
-import { formatCurrency } from '@/lib/formatters'
+import { assumptionField, formatAssumptionValue } from './assumption-fields'
 
 export type QuestionSourceDocument = {
   id?: string | null
@@ -32,28 +32,9 @@ export function formatResolvedValue(value: HouseholdResolvedValue): string {
   if (value.value == null || value.value === '') {
     return 'Waiting on more evidence'
   }
-  if (value.fieldName === 'target_retirement_age') {
-    return `Age ${value.value}`
-  }
-  if (
-    value.fieldName === 'adult_count' ||
-    value.fieldName === 'dependent_count'
-  ) {
-    return value.value
-  }
-  if (value.fieldName === 'emergency_fund_target_months') {
-    return `${value.value} months`
-  }
-  if (
-    value.fieldName === 'effective_tax_rate' ||
-    value.fieldName === 'marginal_federal_tax_rate' ||
-    value.fieldName === 'marginal_state_tax_rate'
-  ) {
-    return `${value.value}%`
-  }
-  const numeric = Number(value.value)
-  return Number.isFinite(numeric)
-    ? formatCurrency(numeric, { decimals: 0, nullDisplay: 'Not set' })
+  const definition = assumptionField(value.fieldName)
+  return definition
+    ? formatAssumptionValue(definition, value.value)
     : value.value
 }
 

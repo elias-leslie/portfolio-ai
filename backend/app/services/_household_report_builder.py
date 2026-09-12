@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -22,7 +23,8 @@ from app.models.household_finance import (
 from app.services._household_document_pipeline_utils import parse_decimal_value
 from app.services._household_item_splits import expand_rows_with_item_splits
 from app.services._household_statement_merchants import (
-    MIN_SHARED_BILLER_PREFIX,
+    normalize_statement_merchant,
+    statement_biller_group_key,
     statement_merchant_key,
 )
 
@@ -32,7 +34,7 @@ _UNIT_PATTERN = (
     r"milliliters?|milliliter|ml|liters?|liter|l|count|ct|capsules?|softgels?|tablets?|pieces?"
 )
 _MULTIPACK_SIZE_RE = re.compile(
-    rf"\b(?P<count>\d+(?:\.\d+)?)\s*(?:x|-)\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
+    rf"\b(?P<count>\d+(?:\.\d+)?)\s*(?:x|\u00d7)\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>{_UNIT_PATTERN})\b",
     re.IGNORECASE,
 )
 _VALUE_UNIT_PACK_OF_RE = re.compile(
@@ -108,6 +110,8 @@ class _PackageMeasure:
     raw_quantity: float
     raw_unit: str
     score: float
+    evidence_text: str = ""
+    parser_version: int = 2
 
 
 def _coerce_metadata(raw_metadata: Any) -> dict[str, Any]:
@@ -139,7 +143,9 @@ def _singularize_unit(raw_unit: str) -> str:
     return normalized
 
 
-def _build_measure(*, quantity: float, raw_unit: str, multiplier: float = 1.0) -> _PackageMeasure | None:
+def _build_measure(
+    *, quantity: float, raw_unit: str, multiplier: float = 1.0
+) -> _PackageMeasure | None:
     unit = _singularize_unit(raw_unit)
     conversion = (
         _WEIGHT_CONVERSIONS.get(unit)
@@ -161,7 +167,11 @@ def _build_measure(*, quantity: float, raw_unit: str, multiplier: float = 1.0) -
     if multiplier > 1:
         score += 12.0
     score += min(normalized_quantity, 500.0) / 50.0
-    raw_display = f"{multiplier:g} x {quantity:g} {label_unit}" if multiplier > 1 else f"{quantity:g} {label_unit}"
+    raw_display = (
+        f"{multiplier:g} x {quantity:g} {label_unit}"
+        if multiplier > 1
+        else f"{quantity:g} {label_unit}"
+    )
     return _PackageMeasure(
         normalized_quantity=round(normalized_quantity, 4),
         normalized_unit=normalized_unit,
@@ -176,77 +186,122 @@ def _extract_package_measure(description: str, metadata: dict[str, Any]) -> _Pac
     cached_enrichment = metadata.get("product_enrichment")
     cached_enrichment_dict = cached_enrichment if isinstance(cached_enrichment, dict) else {}
     cached_measure = cached_enrichment_dict.get("package_measure")
-    if isinstance(cached_measure, dict):
+    if (
+        isinstance(cached_measure, dict)
+        and cached_measure.get("parser_version") == 2
+        and cached_measure.get("evidence_text")
+        and not _SIMPLE_SIZE_RE.search(str(metadata.get("Product Name") or "") + " " + description)
+        and not re.search(
+            r"\b(dispenser|sprayer|cruet|fire hd|kindle|ipad|tablet case|tablet cover|screen protector)\b",
+            description,
+            re.I,
+        )
+    ):
         normalized_quantity = _parse_decimal_text(cached_measure.get("normalized_quantity"))
         normalized_unit = str(cached_measure.get("normalized_unit") or "").strip()
         display_label = str(cached_measure.get("display_label") or "").strip()
-        raw_quantity = _parse_decimal_text(cached_measure.get("raw_quantity")) or normalized_quantity
-        raw_unit = str(cached_measure.get("raw_unit") or "").strip() or normalized_unit
+        raw_quantity = (
+            _parse_decimal_text(cached_measure.get("raw_quantity")) or normalized_quantity
+        )
         if (
             normalized_quantity is not None
             and normalized_unit
             and display_label
             and raw_quantity is not None
         ):
-            return _PackageMeasure(
-                normalized_quantity=normalized_quantity,
-                normalized_unit=normalized_unit,
-                display_label=display_label,
-                raw_quantity=raw_quantity,
-                raw_unit=raw_unit,
-                score=999.0,
-            )
-
+            reparsed = _extract_package_measure(str(cached_measure["evidence_text"]), {})
+            if (
+                reparsed is not None
+                and reparsed.normalized_unit == normalized_unit
+                and abs(reparsed.normalized_quantity - normalized_quantity) < 0.001
+            ):
+                return reparsed
+            # Keep incompatible old cache data as evidence, never as a trusted basis.
+    external = cached_enrichment_dict.get("open_food_facts")
+    external_text = (
+        str(external.get("quantity") or "")
+        if isinstance(external, dict) and external.get("barcode")
+        else ""
+    )
     text = " ".join(
-        part
-        for part in (
-            str(metadata.get("Product Name") or "").strip(),
-            description.strip(),
+        dict.fromkeys(
+            part
+            for part in (
+                str(metadata.get("Product Name") or "").strip(),
+                description.strip(),
+                external_text,
+            )
+            if part
         )
-        if part
     )
     if not text:
         return None
+    # A container's capacity is not the amount of a consumable being purchased.
+    if re.search(
+        r"\b(dispenser|sprayer|cruet|empty bottle|storage container|measuring cup)\b", text, re.I
+    ):
+        return None
+    electronic = bool(
+        re.search(
+            r"\b(fire hd|kindle|ipad|tablet case|tablet cover|screen protector)\b", text, re.I
+        )
+    )
 
     candidates: list[_PackageMeasure] = []
-    for match in _MULTIPACK_SIZE_RE.finditer(text):
-        count = _parse_decimal_text(match.group("count"))
-        value = _parse_decimal_text(match.group("value"))
-        if count is None or value is None:
-            continue
-        candidate = _build_measure(quantity=value, raw_unit=match.group("unit"), multiplier=count)
-        if candidate is not None:
-            candidates.append(candidate)
-
-    for pattern in (_VALUE_UNIT_PACK_OF_RE, _PACK_OF_VALUE_UNIT_RE):
+    covered: list[tuple[int, int]] = []
+    for pattern in (_MULTIPACK_SIZE_RE, _VALUE_UNIT_PACK_OF_RE, _PACK_OF_VALUE_UNIT_RE):
         for match in pattern.finditer(text):
             count = _parse_decimal_text(match.group("count"))
             value = _parse_decimal_text(match.group("value"))
             if count is None or value is None:
                 continue
             candidate = _build_measure(
-                quantity=value,
-                raw_unit=match.group("unit"),
-                multiplier=count,
+                quantity=value, raw_unit=match.group("unit"), multiplier=count
             )
             if candidate is not None:
-                candidates.append(candidate)
-
+                candidates.append(replace(candidate, evidence_text=match.group()))
+                covered.append(match.span())
     for match in _SIMPLE_SIZE_RE.finditer(text):
+        if any(start <= match.start() < end for start, end in covered):
+            continue
+        if electronic and match.group("unit").lower() in {"tablet", "tablets"}:
+            continue
+        # Hyphenated numeric names/doses are not pack declarations.
+        if re.search(r"\d\s*-\s*$", text[: match.start()]):
+            continue
         value = _parse_decimal_text(match.group("value"))
         if value is None:
             continue
         candidate = _build_measure(quantity=value, raw_unit=match.group("unit"))
         if candidate is not None:
-            candidates.append(candidate)
-
+            candidates.append(replace(candidate, evidence_text=match.group()))
     if not candidates:
         return None
-
-    return max(
-        candidates,
-        key=lambda candidate: (candidate.score, candidate.normalized_quantity),
+    # Weight and volume printed together need product-specific interpretation;
+    # do not infer a liquid's density or choose the larger number.
+    dimensions = {candidate.normalized_unit for candidate in candidates}
+    if "weight_oz" in dimensions and "volume_fl_oz" in dimensions:
+        return None
+    best = max(candidates, key=lambda candidate: (candidate.score, candidate.normalized_quantity))
+    ambiguous = any(
+        candidate.normalized_unit == best.normalized_unit
+        and abs(candidate.normalized_quantity / best.normalized_quantity - 1) > 0.03
+        for candidate in candidates
     )
+    # Prefer the label's explicit base unit over a rounded metric equivalent.
+    direct_units = {"weight_oz": "oz", "volume_fl_oz": "fl oz", "count": "count"}
+    preferred = max(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.normalized_unit == best.normalized_unit
+        ),
+        key=lambda candidate: (
+            candidate.raw_unit == direct_units[best.normalized_unit],
+            candidate.score,
+        ),
+    )
+    return None if ambiguous else preferred
 
 
 def _transaction_date(row: dict[str, Any]) -> date | None:
@@ -274,16 +329,17 @@ def _merchant_aliases(raw_merchant: str) -> set[str]:
     root = _merchant_root(raw_merchant)
     aliases: set[str] = {root, root.replace(" ", "")} if root else set()
     collapsed = root.replace(" ", "") if root else ""
-    # A statement line's biller key, plus the truncation-tolerant prefix, so
-    # "DIRECT DEBIT DUKEENERGY BILL PAY (Cash)" and "Dukeenergy Bill Pay
-    # 910066616132 ..." resolve to the same merchant instead of two (P1-12).
+    # Use the complete counterparty identity, never generic prefix matching.
     biller_key = statement_merchant_key(raw_merchant)
     if biller_key:
-        aliases.add(f"biller:{biller_key}")
-        if len(biller_key) >= MIN_SHARED_BILLER_PREFIX:
-            aliases.add(f"biller:{biller_key[:MIN_SHARED_BILLER_PREFIX]}")
+        aliases.add(f"biller:{statement_biller_group_key(biller_key)}")
+        normalized = _merchant_root(normalize_statement_merchant(raw_merchant) or "")
+        if normalized:
+            aliases.update({normalized, normalized.replace(" ", "")})
     if "walmart" in collapsed or "wmsupercenter" in collapsed:
-        aliases.update({"walmart", "wal mart", "walmart supercenter", "wm supercenter", "wmsupercenter"})
+        aliases.update(
+            {"walmart", "wal mart", "walmart supercenter", "wm supercenter", "wmsupercenter"}
+        )
     if "amazon" in collapsed or "amzn" in collapsed:
         aliases.update({"amazon", "amzn", "amazon mktpl", "amazoncom", "amazon com"})
     if "wholefoods" in collapsed:
@@ -332,11 +388,7 @@ def _transaction_identity_tokens(row: dict[str, Any]) -> set[str]:
         )
         if value
     ).lower()
-    tokens = {
-        token
-        for token in re.findall(r"[a-z0-9#]{4,}", text)
-        if token not in _NOISE_TOKENS
-    }
+    tokens = {token for token in re.findall(r"[a-z0-9#]{4,}", text) if token not in _NOISE_TOKENS}
     return tokens
 
 
@@ -356,9 +408,7 @@ def _transaction_overlap_signature(row: dict[str, Any]) -> tuple[str, ...]:
     text = _TRAILING_CITY_STATE_RE.sub(" ", text)
     text = _TRAILING_STATE_RE.sub(" ", text)
     tokens = [
-        token
-        for token in re.findall(r"[a-z0-9#]{3,}", text)
-        if token not in _OVERLAP_NOISE_TOKENS
+        token for token in re.findall(r"[a-z0-9#]{3,}", text) if token not in _OVERLAP_NOISE_TOKENS
     ]
     return tuple(sorted(dict.fromkeys(tokens)))
 
@@ -376,9 +426,7 @@ def _signatures_overlap(
     shared_tokens = existing_tokens.intersection(candidate_tokens)
     if len(shared_tokens) >= 2:
         return True
-    return bool(shared_tokens) and (
-        len(existing_tokens) == 1 or len(candidate_tokens) == 1
-    )
+    return bool(shared_tokens) and (len(existing_tokens) == 1 or len(candidate_tokens) == 1)
 
 
 def _date_distance_days(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> int | None:
@@ -415,7 +463,9 @@ def _effective_document_type(row: dict[str, Any]) -> str:
     return document_type
 
 
-def _different_evidence_sources(existing_row: dict[str, Any], candidate_row: dict[str, Any]) -> bool:
+def _different_evidence_sources(
+    existing_row: dict[str, Any], candidate_row: dict[str, Any]
+) -> bool:
     source_types = {
         str(existing_row.get("source_type") or ""),
         str(candidate_row.get("source_type") or ""),
@@ -473,9 +523,8 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
         existing_signature = _transaction_overlap_signature(existing_row)
         candidate_signature = _transaction_overlap_signature(candidate_row)
         signature_overlap = _signatures_overlap(existing_signature, candidate_signature)
-        generic_alias_overlap = (
-            (not existing_signature or not candidate_signature)
-            and bool(shared_aliases)
+        generic_alias_overlap = (not existing_signature or not candidate_signature) and bool(
+            shared_aliases
         )
 
     # Two rows on different known accounts are different purchases by
@@ -483,22 +532,16 @@ def report_rows_overlap(existing_row: dict[str, Any], candidate_row: dict[str, A
     existing_account_id = str(existing_row.get("household_account_id") or "").strip()
     candidate_account_id = str(candidate_row.get("household_account_id") or "").strip()
     accounts_conflict = bool(
-        existing_account_id
-        and candidate_account_id
-        and existing_account_id != candidate_account_id
+        existing_account_id and candidate_account_id and existing_account_id != candidate_account_id
     )
     cross_source_duplicate = (
         near_cross_source_duplicate
         and bool(shared_aliases)
         and not accounts_conflict
-        and (
-            "import" in source_kinds
-            or ("receipt" in document_types and len(document_types) > 1)
-        )
+        and ("import" in source_kinds or ("receipt" in document_types and len(document_types) > 1))
     )
     return (
-        (same_date or near_cross_source_duplicate)
-        and (signature_overlap or generic_alias_overlap)
+        (same_date or near_cross_source_duplicate) and (signature_overlap or generic_alias_overlap)
     ) or cross_source_duplicate
 
 
@@ -543,10 +586,7 @@ def collapse_report_rows(report_rows: list[dict[str, Any]]) -> list[dict[str, An
 
 
 def _is_plain_charge_row(row: dict[str, Any]) -> bool:
-    return (
-        row.get("source_kind") != "import"
-        and _effective_document_type(row) != "receipt"
-    )
+    return row.get("source_kind") != "import" and _effective_document_type(row) != "receipt"
 
 
 def collapse_report_rows_with_exclusions(
@@ -558,10 +598,29 @@ def collapse_report_rows_with_exclusions(
     # most one plain charge row — a second same-amount charge nearby is a
     # second real purchase, not more evidence of the first.
     absorbed_plain_charge_ids: set[int] = set()
+    # Overlap requires amounts within half a cent. Whole-dollar buckets and
+    # their neighbours contain every possible match, including negative values
+    # and boundary amounts. Keep original survivor order to preserve which
+    # evidence absorbs a charge and the exclusion reason attached to it.
+    amount_index: dict[int, list[tuple[int, dict[str, Any]]]] = {}
     for row in sorted(report_rows, key=report_row_priority):
         candidate_is_plain_charge = _is_plain_charge_row(row)
         exclusion_reason: str | None = None
-        for existing_row in collapsed_rows:
+        amount = float(row.get("amount", 0.0))
+        bucket = math.floor(amount) if math.isfinite(amount) else None
+        candidates = (
+            sorted(
+                (
+                    entry
+                    for key in (bucket - 1, bucket, bucket + 1)
+                    for entry in amount_index.get(key, [])
+                ),
+                key=lambda entry: entry[0],
+            )
+            if bucket is not None
+            else []
+        )
+        for _, existing_row in candidates:
             if candidate_is_plain_charge and id(existing_row) in absorbed_plain_charge_ids:
                 continue
             reason = report_row_exclusion_reason(existing_row, row)
@@ -576,6 +635,8 @@ def collapse_report_rows_with_exclusions(
                 excluded_rows[row_key] = exclusion_reason
             continue
         collapsed_rows.append(row)
+        if bucket is not None:
+            amount_index.setdefault(bucket, []).append((len(collapsed_rows) - 1, row))
     return collapsed_rows, excluded_rows
 
 
@@ -626,7 +687,13 @@ def _build_price_insights(
         merchant = str(row.get("merchant") or "").strip()
         row_date = row.get("date")
         amount = _observed_import_price(row, metadata)
-        if not description or not merchant or not isinstance(row_date, date) or amount is None or amount <= 0:
+        if (
+            not description
+            or not merchant
+            or not isinstance(row_date, date)
+            or amount is None
+            or amount <= 0
+        ):
             continue
         item_key = _normalized_item_key(merchant, description)
         if not item_key:
@@ -638,7 +705,9 @@ def _build_price_insights(
                 "description": description,
                 "date": row_date,
                 "amount": amount,
-                "identifier": str(metadata.get("ASIN") or metadata.get("UPC") or metadata.get("GTIN") or "").strip(),
+                "identifier": str(
+                    metadata.get("ASIN") or metadata.get("UPC") or metadata.get("GTIN") or ""
+                ).strip(),
                 "measure": package_measure,
             }
         )
@@ -669,9 +738,7 @@ def _build_price_insights(
             continue
         price_change = round(latest["amount"] - previous["amount"], 2)
         price_change_pct = (
-            round((price_change / previous["amount"]) * 100, 1)
-            if previous["amount"] > 0
-            else None
+            round((price_change / previous["amount"]) * 100, 1) if previous["amount"] > 0 else None
         )
         latest_measure = latest.get("measure")
         previous_measure = previous.get("measure")
@@ -699,8 +766,10 @@ def _build_price_insights(
         )
         size_change_pct = (
             round(
-                ((latest_measure.normalized_quantity - previous_measure.normalized_quantity)
-                 / previous_measure.normalized_quantity)
+                (
+                    (latest_measure.normalized_quantity - previous_measure.normalized_quantity)
+                    / previous_measure.normalized_quantity
+                )
                 * 100,
                 1,
             )
@@ -712,10 +781,16 @@ def _build_price_insights(
             and latest_measure.normalized_quantity < previous_measure.normalized_quantity * 0.985
             and latest["amount"] >= previous["amount"] - 0.05
         )
-        if not shrinkflation_flag and abs(price_change) < 0.15 and abs(unit_price_change_pct or 0.0) < 3.0:
+        if (
+            not shrinkflation_flag
+            and abs(price_change) < 0.15
+            and abs(unit_price_change_pct or 0.0) < 3.0
+        ):
             continue
 
-        same_identifier = bool(latest["identifier"] and latest["identifier"] == previous["identifier"])
+        same_identifier = bool(
+            latest["identifier"] and latest["identifier"] == previous["identifier"]
+        )
         confidence = 0.58
         if measures_comparable:
             confidence += 0.18
@@ -727,24 +802,16 @@ def _build_price_insights(
 
         if shrinkflation_flag:
             signal_type = "shrinkflation"
-            recommendation = (
-                "Sticker price held roughly flat while package size shrank. Track unit price first and compare the current pack against Walmart, Target, or another equivalent size before rebuying."
-            )
+            recommendation = "Sticker price held roughly flat while package size shrank. Track unit price first and compare the current pack against Walmart, Target, or another equivalent size before rebuying."
         elif (unit_price_change_pct or 0.0) >= 5.0:
             signal_type = "unit_price_up"
-            recommendation = (
-                "Unit price is up materially versus the prior buy. Compare equivalent pack sizes across Amazon, Walmart, Target, or local stores before reordering."
-            )
+            recommendation = "Unit price is up materially versus the prior buy. Compare equivalent pack sizes across Amazon, Walmart, Target, or local stores before reordering."
         elif price_change > 0:
             signal_type = "price_up"
-            recommendation = (
-                "Ticket price is up versus the prior buy. Compare Amazon against Walmart, Target, or local alternatives before reordering."
-            )
+            recommendation = "Ticket price is up versus the prior buy. Compare Amazon against Walmart, Target, or local alternatives before reordering."
         else:
             signal_type = "price_down"
-            recommendation = (
-                "Price is down versus the prior buy. This is a better re-buy window if you still need it."
-            )
+            recommendation = "Price is down versus the prior buy. This is a better re-buy window if you still need it."
         insights.append(
             HouseholdPriceInsight(
                 merchant=str(latest["merchant"]),
@@ -756,8 +823,12 @@ def _build_price_insights(
                 price_change_pct=price_change_pct,
                 latest_date=latest["date"].isoformat(),
                 previous_date=previous["date"].isoformat(),
-                latest_unit_label=latest_measure.display_label if latest_measure is not None else None,
-                previous_unit_label=previous_measure.display_label if previous_measure is not None else None,
+                latest_unit_label=latest_measure.display_label
+                if latest_measure is not None
+                else None,
+                previous_unit_label=previous_measure.display_label
+                if previous_measure is not None
+                else None,
                 unit_measure=latest_measure.normalized_unit if latest_measure is not None else None,
                 latest_unit_price=latest_unit_price,
                 previous_unit_price=previous_unit_price,
@@ -792,9 +863,7 @@ def build_household_reports(
     today = date.today()
     current_rows = [row for row in report_rows if _is_current_transaction(row, today=today)]
     collapsed_rows = collapse_report_rows(current_rows)
-    analytics_source_rows = [
-        row for row in current_rows if row.get("source_kind") != "import"
-    ]
+    analytics_source_rows = [row for row in current_rows if row.get("source_kind") != "import"]
     analytics_rows = [
         row
         for row in collapse_report_rows(analytics_source_rows)
@@ -838,9 +907,7 @@ def build_household_reports(
     average_month_set = set(average_month_keys)
     average_months = max(len(average_month_keys), 1)
     recent_rows = [
-        row
-        for row in analytics_rows
-        if row["date"].strftime("%Y-%m") in recent_month_set
+        row for row in analytics_rows if row["date"].strftime("%Y-%m") in recent_month_set
     ]
     category_totals: dict[tuple[str, str], float] = {}
     category_average_totals: dict[tuple[str, str], float] = {}
@@ -871,17 +938,19 @@ def build_household_reports(
     total_spend = sum(monthly_totals[month_key] for month_key in recent_month_keys)
     average_basis_spend = sum(monthly_totals[month_key] for month_key in average_month_keys)
     essential_spend = sum(
-        amount for (_, essentiality), amount in category_average_totals.items() if essentiality == "essential"
+        amount
+        for (_, essentiality), amount in category_average_totals.items()
+        if essentiality == "essential"
     )
     discretionary_spend = sum(
-        amount for (_, essentiality), amount in category_average_totals.items() if essentiality == "discretionary"
+        amount
+        for (_, essentiality), amount in category_average_totals.items()
+        if essentiality == "discretionary"
     )
     # Everything that is neither, taken as the remainder rather than as a third
     # sum over a third label: a category carrying some unforeseen essentiality
     # would otherwise vanish from the split instead of showing up as unclassified.
-    mixed_spend = (
-        sum(category_average_totals.values()) - essential_spend - discretionary_spend
-    )
+    mixed_spend = sum(category_average_totals.values()) - essential_spend - discretionary_spend
     recent_30_day_spend = sum(
         _row_signed_amount(row) for row in recent_rows if row["date"].toordinal() >= recent_cutoff
     )
@@ -915,7 +984,9 @@ def build_household_reports(
         HouseholdCategoryBreakdown(
             category=category,
             essentiality=essentiality,
-            monthly_average=round(category_average_totals.get((category, essentiality), 0.0) / average_months, 2),
+            monthly_average=round(
+                category_average_totals.get((category, essentiality), 0.0) / average_months, 2
+            ),
             share_of_spend=round(amount / total_spend if total_spend > 0 else 0.0, 4),
             total_spend=round(amount, 2),
         )
@@ -925,7 +996,9 @@ def build_household_reports(
     ]
 
     merchant_highlights = []
-    for merchant, state in sorted(merchant_totals.items(), key=lambda item: item[1]["amount"], reverse=True)[:6]:
+    for merchant, state in sorted(
+        merchant_totals.items(), key=lambda item: item[1]["amount"], reverse=True
+    )[:6]:
         cadence_data = cadence_for_dates(state["dates"])
         cadence = str(cadence_data["label"]) if cadence_data else "one-off"
         merchant_highlights.append(

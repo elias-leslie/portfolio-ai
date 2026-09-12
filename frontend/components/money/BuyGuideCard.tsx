@@ -41,12 +41,6 @@ function findingVariant(
   return 'secondary'
 }
 
-function confidenceLabel(value: number) {
-  if (value >= 0.8) return 'High'
-  if (value >= 0.6) return 'Medium'
-  return 'Low'
-}
-
 function trendPricePoints(
   item: HouseholdBuyGuideItem,
 ): HouseholdProductPricePoint[] {
@@ -55,6 +49,7 @@ function trendPricePoints(
     merchant: point.merchant,
     totalPrice: point.totalPrice,
     unitPrice: point.unitCost,
+    unitLabel: item.unitLabel,
     source: point.source,
   }))
 }
@@ -102,7 +97,7 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
           <p className="mt-1 text-sm text-text-muted">
             {rows.length > 0
               ? `${data?.totalCandidates ?? rows.length} material size/vendor opportunities found from ${data?.unitCoverageCount ?? 0} products with package-unit data.`
-              : `${data?.unitCoverageCount ?? 0} products have package-unit data. Run price research to add fresh vendor quotes for recurring buys.`}
+              : `${data?.unitCoverageCount ?? 0} products have package-unit data. Confirm package sizes and offers in the staple price check.`}
           </p>
         </div>
         <Button
@@ -119,12 +114,12 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
       {rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/40 bg-surface-muted/10 p-6">
           <p className="text-sm font-semibold text-text">
-            No buy-size gaps yet.
+            No reliable opportunity found.
           </p>
           <p className="mt-2 text-sm text-text-muted">
-            The guide only shows material savings after it has actual unit costs
-            and a cheaper larger-size or vendor quote. Receipts and order
-            history improve this automatically.
+            The guide compares up to 25 repeat purchases with confirmed
+            substitutes and recent offers. Historical prices and unreviewed
+            research are evidence to check, not current savings.
           </p>
         </div>
       ) : (
@@ -150,7 +145,7 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
                     Savings
                   </th>
                   <th className="border-b border-border/40 px-3 py-2">
-                    Confidence
+                    Evidence
                   </th>
                 </tr>
               </thead>
@@ -193,6 +188,11 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
                       </p>
                       <p className="mt-1 text-[11px] text-text-muted">
                         {sourceLabel(row)}
+                        {row.bestValidUntil &&
+                          ` · Valid through ${row.bestValidUntil}`}
+                        {row.bestConditions && (
+                          <span className="block">{row.bestConditions}</span>
+                        )}
                         {row.bestUrl ? (
                           <>
                             {' · '}
@@ -235,22 +235,18 @@ export function BuyGuideCard({ onOpenProduct }: BuyGuideCardProps) {
                       {row.monthsToUse != null && row.monthsToUse > 6 ? (
                         <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-warning-strong">
                           <AlertTriangle className="h-3 w-3" />{' '}
-                          {row.monthsToUse} mo use
+                          {row.monthsToUse} mo at restocking pace
                         </div>
                       ) : row.monthsToUse != null ? (
                         <div className="text-xs text-text-muted">
-                          {row.monthsToUse} mo use
+                          {row.monthsToUse} mo at restocking pace
                         </div>
                       ) : null}
                     </td>
                     <td className="border-b border-border/20 px-3 py-3">
-                      <Badge
-                        variant={
-                          row.confidence >= 0.8 ? 'success' : 'secondary'
-                        }
-                      >
-                        {confidenceLabel(row.confidence)}
-                      </Badge>
+                      <span className="text-xs">
+                        Package and offer conditions confirmed
+                      </span>
                       <p className="mt-1 max-w-[260px] text-xs text-text-muted">
                         {row.recommendation}
                       </p>

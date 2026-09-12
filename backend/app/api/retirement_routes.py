@@ -38,6 +38,7 @@ from app.portfolio.contracts.retirement import (
 from app.services.retirement_allocation_scenarios_service import (
     AllocationScenariosReplaceRequest,
 )
+from app.services.retirement_basis import RetirementBasisService
 from app.services.retirement_planning_service import (
     DEFAULT_LIST_LIMIT,
     DEFAULT_PREVIEW_TRIALS,
@@ -46,6 +47,7 @@ from app.services.retirement_planning_service import (
     MAX_TRIALS,
     RetirementPlanningService,
 )
+from app.services.retirement_preview_coordinator import preview_coordinator as _preview_coordinator
 
 logger = get_logger(__name__)
 
@@ -97,6 +99,8 @@ class RunScenarioRequest(BaseModel):
 
 
 class PreviewRequest(RunScenarioRequest):
+    include_levers: bool = False
+    seed: int | None = 7
     # Interactive preview defaults to fewer trials than persisted scenarios —
     # it reruns on every slider change and latency matters more than tail
     # precision. Explicit ``trials`` still wins, up to MAX_TRIALS.
@@ -215,10 +219,11 @@ async def preview(payload: PreviewRequest) -> dict[str, Any]:
             spouse_gross_annual_income=payload.spouse_gross_annual_income,
             trials=payload.trials,
             seed=payload.seed,
+            include_levers=payload.include_levers,
             as_of_date=payload.as_of_date,
         )
 
-    preview_result = await run_in_threadpool(_execute)
+    preview_result = await _preview_coordinator.get(payload.model_dump_json(), _execute)
     return preview_result.model_dump(mode="json")
 
 
@@ -376,3 +381,21 @@ def _default_scenario_name(inputs: RetirementInputs) -> str:
         f"{inputs.horizon_years}y horizon, "
         f"${inputs.annual_expenses:,.0f}/yr"
     )
+
+
+class ConfirmBasisRequest(BaseModel):
+    fingerprint: str = Field(..., min_length=64, max_length=64)
+    cost_basis: float = Field(..., ge=0, allow_inf_nan=False)
+
+
+@router.put("/basis/{account_id}")
+async def confirm_basis(account_id: str, payload: ConfirmBasisRequest) -> dict[str, Any]:
+    def execute() -> dict[str, Any]:
+        dashboard = _service()._load_money_dashboard()
+        return RetirementBasisService(_storage()).confirm(dashboard, account_id, payload.fingerprint, payload.cost_basis)
+    try:
+        result = await run_in_threadpool(execute)
+        _preview_coordinator.invalidate()
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

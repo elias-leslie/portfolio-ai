@@ -12,6 +12,7 @@ from app.services.household_price_findings_service import (
 
 def _candidate(**overrides: object) -> FindingCandidate:
     base: dict[str, Any] = {
+        "evidence_verified": True,
         "product_id": "p-1",
         "product_name": "GV Edamame",
         "purchase_count": 5,
@@ -44,6 +45,7 @@ def test_material_saving_yields_finding_with_payload() -> None:
     assert draft.kind == "cheaper_elsewhere"
     assert draft.savings_estimate == 5.0
     assert draft.payload == {
+        "evidence_verified": True,
         "product_name": "GV Edamame",
         "household_price": 10.0,
         "vendor_price": 5.0,
@@ -65,15 +67,13 @@ def test_savings_below_absolute_floor_are_noise() -> None:
     assert evaluate_candidates([_candidate(vendor_price=7.01)]) == []
 
 
-def test_savings_below_percent_floor_are_noise() -> None:
-    # $5 saved on a $40 item clears $3 but not 15% ($6).
-    assert evaluate_candidates(
-        [_candidate(household_price=40.0, vendor_price=35.0)]
-    ) == []
-    # $7 saved on the same item clears both.
-    drafts = evaluate_candidates([_candidate(household_price=40.0, vendor_price=33.0)])
-    assert len(drafts) == 1
-    assert drafts[0].savings_estimate == 7.0
+def test_material_dollars_are_not_rejected_by_a_percentage_floor() -> None:
+    drafts = evaluate_candidates([_candidate(household_price=40.0, vendor_price=35.0)])
+    assert len(drafts) == 1 and drafts[0].savings_estimate == 5.0
+
+
+def test_research_confidence_does_not_verify_buying_conditions() -> None:
+    assert evaluate_candidates([_candidate(evidence_verified=False)]) == []
 
 
 def test_single_purchase_products_never_alert() -> None:
@@ -134,6 +134,7 @@ def test_rollup_threshold_boundary() -> None:
     rollup = over[-1]
     assert rollup.savings_estimate == 25.0
     assert rollup.payload == {
+        "evidence_verified": True,
         "finding_count": 2,
         "product_names": ["GV Edamame", "GV Edamame"],
     }

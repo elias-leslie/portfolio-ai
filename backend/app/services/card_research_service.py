@@ -1,16 +1,6 @@
-"""Card-catalog freshness via the Agent Hub research agent (plan §0a item 3).
+"""Research current card terms and stage evidence-backed differences for review.
 
-Card terms drift fast (CSR fee $550→$795 and the Hyatt 4:3 cut both landed
-within months), so the ``credit-card-researcher`` Agent Hub agent re-verifies
-the catalog against issuer pages and reputable points sites — monthly via the
-daily household maintenance task (gated by a run marker), or on demand via
-``POST /api/household/cards/research/refresh``.
-
-The agent runs an agentic web-research tool loop server-side and returns
-structured updates; only whitelisted fields are applied, ``last_verified_at``
-is stamped, new candidate cards land with ``source='research'``, and material
-changes (fee hikes, devaluations, elevated bonuses) are returned for the alert
-path to deliver ([G:2d62382d]: only act-worthy findings interrupt).
+Research never overwrites the live catalog or stamps an agent answer as verified.
 """
 
 from __future__ import annotations
@@ -35,21 +25,9 @@ RESEARCH_MARKER_KEY = "card_catalog_research_last_run"
 # Monthly cadence (user-locked): a research run is due this many days after the last.
 RESEARCH_INTERVAL_DAYS = 30
 
-# Fields the agent may change on an existing row. Anything else is ignored.
-_UPDATABLE_FIELDS = frozenset(
-    {
-        "product_name", "network", "annual_fee", "reward_multipliers", "point_program",
-        "est_point_value_cents", "welcome_bonus_points", "welcome_bonus_cash",
-        "welcome_min_spend", "welcome_window_days", "transfer_partners", "credits",
-        "issuer_rules",
-    }
-)
-_JSONB_FIELDS = frozenset({"reward_multipliers", "transfer_partners", "credits", "issuer_rules"})
-
 _HOUSEHOLD_CONTEXT = (
-    "Household context: ~$6,000-7,000/month total card spend, travel-leaning, hands-off "
-    "(easy-credit valuation), two-player rotation (~2 opens/player/year), keeps Amazon "
-    "Prime Visa permanently."
+    "Maintain the existing household card catalog. Research factual issuer terms, not spending assumptions or application recommendations. "
+    "Do not add speculative new products; new offers enter through household intake."
 )
 
 
@@ -73,7 +51,7 @@ class CardResearchService:
         return (datetime.now(UTC) - last).days >= RESEARCH_INTERVAL_DAYS
 
     def refresh_catalog(self, *, trigger: str) -> dict[str, Any]:
-        """Run the research agent and apply its verified catalog changes."""
+        """Run the research agent and stage its proposed catalog changes."""
         # Lazy: card_management_service pulls the transaction-service stack.
         from app.services.card_management_service import CardManagementService  # noqa: PLC0415
 
@@ -109,7 +87,10 @@ class CardResearchService:
                             text=(
                                 f"{_HOUSEHOLD_CONTEXT}\n\nCurrent catalog:\n{catalog_json}\n\n"
                                 "Verify the catalog against current public sources and respond "
-                                "with the JSON schema from your instructions."
+                                "with the JSON schema from your instructions. For each proposed field, include "
+                                "evidence[field] = {source_url: official issuer HTTPS page, excerpt: supporting terms, "
+                                "effective_from: effective date if stated}. Never estimate terms or invent a fee. "
+                                "Updates are proposals pending review, not verified catalog values."
                             )
                         )
                     ],
@@ -124,8 +105,10 @@ class CardResearchService:
         result = {
             "trigger": trigger,
             "updates_applied": applied["updates"],
+            "pending_review": applied["pending"],
             "candidates_added": applied["candidates"],
-            "material_changes": payload.get("material_changes") or [],
+            "material_changes": [],  # Unapproved research must not send factual fee-change alerts.
+            "proposed_changes": payload.get("material_changes") or [],
             "research_notes": payload.get("research_notes") or "",
         }
         logger.info(
@@ -140,73 +123,10 @@ class CardResearchService:
     # -- internals ---------------------------------------------------------
 
     def _apply(self, payload: dict[str, Any]) -> dict[str, int]:
-        updates = payload.get("updates") or []
-        candidates = payload.get("new_candidates") or []
-        applied_updates = 0
-        added_candidates = 0
-        with get_storage().connection() as conn:
-            for update in updates:
-                slug = update.get("slug")
-                fields = update.get("fields") or {}
-                clean = {k: v for k, v in fields.items() if k in _UPDATABLE_FIELDS}
-                if not slug or not clean:
-                    continue
-                sets = ", ".join(
-                    f"{col} = %s::jsonb" if col in _JSONB_FIELDS else f"{col} = %s" for col in clean
-                )
-                params = [
-                    json.dumps(v) if k in _JSONB_FIELDS else v for k, v in clean.items()
-                ]
-                conn.execute(
-                    f"UPDATE credit_card_products SET {sets}, "
-                    "last_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP "
-                    "WHERE slug = %s",
-                    [*params, slug],
-                )
-                applied_updates += 1
-            for candidate in candidates:
-                if not candidate.get("product_name") or not candidate.get("issuer"):
-                    continue
-                slug = candidate.get("slug") or _slugify(
-                    str(candidate["issuer"]), str(candidate["product_name"])
-                )
-                welcome = candidate.get("welcome") if isinstance(candidate.get("welcome"), dict) else {}
-                conn.execute(
-                    """
-                    INSERT INTO credit_card_products (
-                        id, slug, issuer, network, product_name, card_kind, annual_fee,
-                        reward_multipliers, point_program, est_point_value_cents,
-                        welcome_bonus_points, welcome_bonus_cash, welcome_min_spend,
-                        welcome_window_days, transfer_partners, credits, issuer_rules,
-                        source, last_verified_at
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, 'personal', %s, %s::jsonb, %s, %s, %s, %s, %s, %s,
-                        %s::jsonb, %s::jsonb, %s::jsonb, 'research', CURRENT_TIMESTAMP
-                    )
-                    ON CONFLICT (slug) DO NOTHING
-                    """,
-                    [
-                        str(uuid.uuid4()),
-                        slug,
-                        str(candidate["issuer"]),
-                        candidate.get("network"),
-                        str(candidate["product_name"]),
-                        float(candidate.get("annual_fee") or 0.0),
-                        json.dumps(candidate.get("reward_multipliers") or {"other": 1.0}),
-                        candidate.get("point_program"),
-                        float(candidate.get("est_point_value_cents") or 1.0),
-                        int(welcome.get("bonus_points") or candidate.get("welcome_bonus_points") or 0),
-                        float(welcome.get("bonus_cash") or candidate.get("welcome_bonus_cash") or 0.0),
-                        float(welcome.get("min_spend") or candidate.get("welcome_min_spend") or 0.0),
-                        int(welcome.get("window_days") or candidate.get("welcome_window_days") or 0),
-                        json.dumps(candidate.get("transfer_partners") or []),
-                        json.dumps(candidate.get("credits") or []),
-                        json.dumps(candidate.get("issuer_rules") or {}),
-                    ],
-                )
-                added_candidates += 1
-            conn.commit()
-        return {"updates": applied_updates, "candidates": added_candidates}
+        from app.services.card_terms_review_service import CardTermsReviewService  # noqa: PLC0415
+
+        pending = CardTermsReviewService().stage(payload)
+        return {"updates": 0, "candidates": 0, "pending": pending}
 
     def _stamp_marker(self) -> None:
         with get_storage().connection() as conn:

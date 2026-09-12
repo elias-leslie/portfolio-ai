@@ -50,8 +50,13 @@ export function CapPlanCard({
     detail?: string
   }[] = [
     {
-      label: 'Income anchor',
+      label: 'Income for this plan',
       amount: plan.anchorMonthlyIncome ?? 0,
+      subtract: false,
+    },
+    {
+      label: 'Planned asset draw',
+      amount: plan.plannedAssetDraw ?? 0,
       subtract: false,
     },
     { label: 'less Saving', amount: plan.savingsTarget, subtract: true },
@@ -88,6 +93,12 @@ export function CapPlanCard({
         </Badge>
       }
     >
+      {plan.plannedAssetDraw == null ? (
+        <p className="mb-2 text-sm text-text-muted">
+          Income-only illustration. Agree on any planned asset draw in the
+          monthly review before using these proposed caps.
+        </p>
+      ) : null}
       <p className="text-sm text-text-muted">{plan.detail}</p>
       {plan.driftDetail ? (
         <p

@@ -37,6 +37,7 @@ export interface CreditCardProduct {
 }
 
 export interface HouseholdCreditCard {
+  welcomeEarnedDate?: string | null
   id: string
   productId: string
   householdAccountId?: string | null
@@ -118,6 +119,7 @@ export interface CardRewardEstimate {
   firstYearValue: number
   amortizationYears: number
   steadyStateValue: number
+  multiYearAverageValue?: number
   categoryContributions: CategoryContribution[]
   warnings: string[]
 }
@@ -147,6 +149,15 @@ export interface RotationStepView {
   projectedWelcomeValue: number
   projectedEarnValue: number
   projectedValue: number
+  projectedFees?: number
+  projectedCredits?: number
+  cashEvents?: Array<{
+    date: string
+    player: string
+    productName: string
+    kind: string
+    amount: number
+  }>
   ruleWarnings: string[]
 }
 
@@ -158,6 +169,10 @@ export interface RotationCumulativePoint {
 }
 
 export interface RotationPlanView {
+  asOfDate?: string
+  projectedFees?: number
+  baselineFees?: number
+  lifecycle?: string
   planId?: string | null
   name: string
   objective: string
@@ -187,6 +202,8 @@ export interface RankingRequest {
 }
 
 export interface RotationRequest {
+  closeAfterMonths?: number | null
+  monthlyTotal?: number | null
   objective?: string
   horizonQuarters: number
   valuationStance?: ValuationStance
@@ -197,6 +214,8 @@ export interface RotationRequest {
 }
 
 export interface CreditCardCreate {
+  sourceDocumentId?: string | null
+  offerFingerprint?: string | null
   productId: string
   status?: string
   householdAccountId?: string | null
@@ -208,6 +227,9 @@ export interface CreditCardCreate {
 }
 
 export interface CreditCardUpdate {
+  annualFee?: number | null
+  welcomeMinSpend?: number | null
+  welcomeEarnedDate?: string | null
   status?: string | null
   householdAccountId?: string | null
   player?: string | null
@@ -222,6 +244,7 @@ export interface CreditCardUpdate {
 }
 
 export interface CardIntakeResult {
+  offerFingerprint?: string | null
   documentId: string
   /** extracted | needs_review | failed */
   status: string
@@ -238,6 +261,7 @@ export interface CardMaterialChange {
 }
 
 export interface CatalogResearchResult {
+  pendingReview?: number
   updatesApplied: number
   candidatesAdded: number
   materialChanges: CardMaterialChange[]

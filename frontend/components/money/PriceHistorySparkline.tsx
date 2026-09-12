@@ -19,19 +19,40 @@ interface PriceHistorySparklineProps {
  * first from the products endpoint.
  */
 export function PriceHistorySparkline({
-  points,
+  points: observations,
   width = 120,
   height = 32,
   className,
 }: PriceHistorySparklineProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const unit = [...observations]
+    .reverse()
+    .find((point) => point.unitLabel && point.unitPrice != null)?.unitLabel
+  const points = observations.filter(
+    (
+      point,
+    ): point is HouseholdProductPricePoint & {
+      unitPrice: number
+      unitLabel: string
+    } =>
+      !!unit &&
+      point.unitLabel === unit &&
+      point.unitPrice != null &&
+      Number.isFinite(point.unitPrice) &&
+      point.unitPrice > 0,
+  )
 
   if (points.length === 0) {
-    return <span className="text-xs text-text-muted">No history</span>
+    return (
+      <span className="text-xs text-text-muted">
+        {observations.length
+          ? 'Unit history needs package sizes'
+          : 'No history'}
+      </span>
+    )
   }
 
-  const pointPrice = (point: HouseholdProductPricePoint) =>
-    point.unitPrice ?? point.totalPrice
+  const pointPrice = (point: (typeof points)[number]) => point.unitPrice
   const prices = points.map(pointPrice)
   const minPrice = Math.min(...prices)
   const maxPrice = Math.max(...prices)
@@ -83,10 +104,10 @@ export function PriceHistorySparkline({
         height={height}
         className="overflow-visible"
         role="img"
-        aria-label={`Price history, ${points.length} purchases, latest ${formatCurrency(
+        aria-label={`Comparable price history, ${points.length} of ${observations.length} observations, latest ${formatCurrency(
           prices[prices.length - 1],
           { decimals: 2 },
-        )}${points[points.length - 1]?.unitPrice != null ? ' per unit' : ''}`}
+        )} per ${unit}`}
         onMouseMove={handleMove}
         onMouseLeave={() => setActiveIndex(null)}
       >
@@ -130,7 +151,7 @@ export function PriceHistorySparkline({
               ? ` · qty ${active.quantity}`
               : ''}
             {active.unitPrice != null
-              ? ` · ${formatCurrency(active.unitPrice, { decimals: 2 })}/unit`
+              ? ` · ${formatCurrency(active.unitPrice, { decimals: 3 })}/${active.unitLabel}`
               : ''}
           </p>
         </div>

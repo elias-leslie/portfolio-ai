@@ -12,7 +12,7 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
 from app.models.push_alerts import (
@@ -23,6 +23,7 @@ from app.models.push_alerts import (
     PushSubscriptionView,
     PushTestRequest,
 )
+from app.services.household_identity import request_identity
 
 if TYPE_CHECKING:
     from app.services.push_service import PushService
@@ -42,11 +43,15 @@ async def get_push_config() -> PushConfig:
 
 
 @router.get("/subscriptions", response_model=PushSubscriptionList)
-async def list_push_subscriptions() -> PushSubscriptionList:
+async def list_push_subscriptions(request: Request) -> PushSubscriptionList:
     service = _service()
     config = await run_in_threadpool(service.config)
     recipients = await run_in_threadpool(service.recipients)
     subscriptions = await run_in_threadpool(service.list_subscriptions)
+    identity = request_identity(request)
+    if identity.member_id:
+        recipients = [r for r in recipients if r.id == identity.member_id]
+        subscriptions = [s for s in subscriptions if s.household_member_id == identity.member_id]
     return PushSubscriptionList(
         enabled=config.enabled,
         public_key=config.public_key,
@@ -57,23 +62,34 @@ async def list_push_subscriptions() -> PushSubscriptionList:
 
 @router.post("/subscriptions", response_model=PushSubscriptionView)
 async def register_push_subscription(
+    request: Request,
     payload: PushSubscriptionInput,
 ) -> PushSubscriptionView:
     if not payload.endpoint.strip():
         raise HTTPException(status_code=422, detail="endpoint is required")
-    return await run_in_threadpool(_service().register, payload)
+    identity = request_identity(request)
+    if identity.member_id:
+        payload = payload.model_copy(update={"household_member_id": identity.member_id})
+    try:
+        return await run_in_threadpool(
+            _service().register, payload, enforce_owner=bool(identity.member_id)
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.delete("/subscriptions/{subscription_id}")
-async def delete_push_subscription(subscription_id: str) -> dict[str, bool]:
-    removed = await run_in_threadpool(_service().unregister, subscription_id)
+async def delete_push_subscription(request: Request, subscription_id: str) -> dict[str, bool]:
+    removed = await run_in_threadpool(
+        _service().unregister, subscription_id, member_id=request_identity(request).member_id
+    )
     if not removed:
         raise HTTPException(status_code=404, detail="subscription not found")
     return {"removed": True}
 
 
 @router.post("/unsubscribe")
-async def unsubscribe_push_endpoint(payload: dict[str, str]) -> dict[str, bool]:
+async def unsubscribe_push_endpoint(request: Request, payload: dict[str, str]) -> dict[str, bool]:
     """Turn alerts off from the device that holds the endpoint.
 
     A phone revoking its own permission knows its endpoint but not the row id,
@@ -82,14 +98,17 @@ async def unsubscribe_push_endpoint(payload: dict[str, str]) -> dict[str, bool]:
     endpoint = (payload.get("endpoint") or "").strip()
     if not endpoint:
         raise HTTPException(status_code=422, detail="endpoint is required")
-    removed = await run_in_threadpool(_service().unregister_endpoint, endpoint)
+    removed = await run_in_threadpool(
+        _service().unregister_endpoint, endpoint, member_id=request_identity(request).member_id
+    )
     return {"removed": removed}
 
 
 @router.post("/test", response_model=PushDelivery)
-async def send_test_push(payload: PushTestRequest) -> PushDelivery:
+async def send_test_push(request: Request, payload: PushTestRequest) -> PushDelivery:
     """Prove the round trip on a real device before an alert depends on it."""
     service = _service()
+    identity = request_identity(request)
     if not service.is_configured():
         raise HTTPException(status_code=503, detail="push is not configured")
     return await run_in_threadpool(
@@ -99,5 +118,6 @@ async def send_test_push(payload: PushTestRequest) -> PushDelivery:
             severity="info",
             tag="push-test",
             subscription_id=payload.subscription_id,
+            household_member_ids=[identity.member_id] if identity.member_id else None,
         )
     )

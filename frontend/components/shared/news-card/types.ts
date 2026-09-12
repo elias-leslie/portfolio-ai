@@ -40,6 +40,8 @@ export interface NewsArticle {
   decisionValueScore?: number | null
   decisionValueLabel?: 'high' | 'medium' | 'low' | null
   decisionValueReason?: string | null
+  relationship?: 'direct' | 'peer' | 'market' | 'unverified' | null
+  relationshipReason?: string | null
 }
 
 export interface NewsSentimentDetail {

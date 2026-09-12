@@ -116,3 +116,6 @@ describe('MoneyAssumptionsDrawer', () => {
     )
   })
 })
+vi.mock('../AssumptionChangeHistory', () => ({
+  AssumptionChangeHistory: () => <div>Saved assumption changes</div>,
+}))

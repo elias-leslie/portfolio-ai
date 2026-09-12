@@ -84,7 +84,7 @@ export function RotationTimeline({
     <SectionCard
       variant="surface"
       title="Rotation plan"
-      description="Quarter-by-quarter card opens, alternating players to stay under issuer rules like Chase 5/24."
+      description="Compare scheduled purchases, bonuses, and the costs of all retained cards. Issuer eligibility still needs confirmation."
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -173,6 +173,11 @@ export function RotationTimeline({
               </span>
             </div>
 
+            <p className="text-sm text-text-muted">
+              {plan.lifecycle} Fees over this horizon:{' '}
+              {formatCurrencyWhole(plan.projectedFees ?? 0)} for rotation;{' '}
+              {formatCurrencyWhole(plan.baselineFees ?? 0)} for the baseline.
+            </p>
             <ol className="space-y-3">
               {quarters.map(([quarterLabel, steps]) => (
                 <li
@@ -214,12 +219,26 @@ export function RotationTimeline({
                               Spend {formatCurrencyWhole(step.targetSpend)}
                             </span>
                             <span className="font-medium text-text">
-                              +{formatCurrencyWhole(step.projectedValue)}
+                              {formatCurrencyWhole(step.projectedValue)}
                             </span>
                           </div>
                         </div>
                       )
                     })}
+                    {steps
+                      .flatMap((step) => step.cashEvents ?? [])
+                      .filter((event) => event.amount !== 0)
+                      .map((event) => (
+                        <p
+                          key={`${event.date}-${event.player}-${event.productName}`}
+                          className="text-xs text-text-muted"
+                        >
+                          {event.date} · {playerLabel(event.player)} ·{' '}
+                          {event.productName} ·{' '}
+                          {event.kind.replaceAll('_', ' ')}{' '}
+                          {formatCurrencyWhole(event.amount)}
+                        </p>
+                      ))}
                     {steps.flatMap((step) => step.ruleWarnings).length > 0 ? (
                       <div className="space-y-1 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2">
                         {steps
@@ -237,15 +256,17 @@ export function RotationTimeline({
             </ol>
 
             {plan.assumptions.length > 0 ? (
-              <ul className="list-disc space-y-1 pl-5 text-xs text-text-muted">
-                {plan.assumptions.map((assumption) => (
-                  <li key={assumption}>{assumption}</li>
-                ))}
-              </ul>
+              <details className="text-xs text-text-muted">
+                <summary className="cursor-pointer">
+                  Plan assumptions and limitations
+                </summary>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {plan.assumptions.map((assumption) => (
+                    <li key={assumption}>{assumption}</li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
-            <p className="rounded-xl bg-surface-muted/20 px-3 py-2 text-xs text-text-muted/80">
-              {plan.disclaimer}
-            </p>
           </div>
         )}
       </div>

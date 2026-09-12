@@ -1258,3 +1258,30 @@ def test_status_exposes_structured_partial_sync_state() -> None:
     assert result["last_sync_attempt_at"] == attempted_at.isoformat()
     assert result["last_sync_error_count"] == 1
     assert result["last_sync_errors"] == [sync_error]
+
+
+def test_activity_sync_pages_all_rows_before_claiming_coverage(monkeypatch):
+    monkeypatch.setattr(snaptrade_service, '_SYNC_ACTIVITY_LIMIT', 2)
+    conn=_RecordingConnection()
+    service=SnapTradeService(storage=_RecordingStorage(conn))
+    calls=[]
+    def activities(**kwargs):
+        calls.append(kwargs)
+        return {'data': [{'id':str(i), 'type':'CONTRIBUTION', 'amount':10} for i in ([1,2] if kwargs['offset']==0 else [3])]}
+    client=SimpleNamespace(account_information=SimpleNamespace(get_account_activities=activities))
+    user=SimpleNamespace(user_id='user',user_secret='secret')
+    assert service._sync_activities(client=client,user=user,account_id='account')==3
+    assert [call['offset'] for call in calls]==[0,2]
+    assert calls[0]['end_date'] >= calls[0]['start_date']
+    coverage=next(params for sql,params in conn.calls if 'activity_coverage' in sql)
+    assert coverage is not None and json.loads(str(coverage[0]))['complete'] is True
+
+
+def test_activity_pagination_failure_never_marks_partial_history_complete(monkeypatch):
+    monkeypatch.setattr(snaptrade_service, '_SYNC_ACTIVITY_LIMIT', 1)
+    conn=_RecordingConnection()
+    service=SnapTradeService(storage=_RecordingStorage(conn))
+    client=SimpleNamespace(account_information=SimpleNamespace(get_account_activities=lambda **_: {'data':[{'id':'repeated'}]}))
+    with pytest.raises(SnapTradeIntegrationError,match='duplicate'):
+        service._sync_activities(client=client,user=SimpleNamespace(user_id='user',user_secret='secret'),account_id='account')
+    assert conn.calls==[]

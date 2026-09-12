@@ -127,6 +127,21 @@ export interface PortfolioAnalytics {
   portfolioBeta: number
   portfolioVolatility: number
   sharpeRatio: number | null
+  performance?: {
+    accountCount: number
+    method: string
+    riskFreeRate: number
+    riskFreeSource: string
+    minimumObservations: number
+    observations: number
+    cumulativeReturn: number | null
+    startDate: string | null
+    endDate: string | null
+    benchmarkReturn: number | null
+    benchmarkLabel: string
+    status: string
+    detail: string
+  } | null
   concentration: {
     topHoldingPct: number
     top3Pct: number

@@ -383,6 +383,8 @@ def _tracked_summary_key(account: Any) -> str:
 
 
 def _portfolio_asset_group(account: Any) -> str:
+    if re.search(r"\b529\b", str(getattr(account, "name", None) or getattr(account, "label", "")), re.IGNORECASE):
+        return "education"
     return _PORTFOLIO_ACCOUNT_GROUPS.get(str(getattr(account, "account_type", "")), "other")
 
 

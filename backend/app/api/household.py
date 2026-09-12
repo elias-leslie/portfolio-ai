@@ -92,6 +92,10 @@ async def get_household_net_worth_trend(
 @router.get("/ledger", response_model=HouseholdLedger)
 async def get_household_ledger(
     window: str = "all",
+    month: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    category: str = "all",
+    source: str = "all",
+    inclusion: str = "all",
     kind: str = "all",
     status: str = "all",
     account: str = "all",
@@ -105,6 +109,10 @@ async def get_household_ledger(
     return await run_in_threadpool(
         _service().get_ledger,
         window=window,
+        month=month,
+        category=category,
+        source=source,
+        inclusion=inclusion,
         kind=kind,
         status=status,
         account=account,
@@ -130,6 +138,28 @@ async def get_household_spending(month: str | None = None) -> HouseholdSpendingV
 async def get_household_profile() -> HouseholdProfile:
     """Return the persisted household planning profile."""
     return await run_in_threadpool(_service().get_profile)
+
+
+@router.get("/profile/history")
+async def get_household_profile_history() -> list[dict[str, Any]]:
+    """Read the latest exact saved-assumption changes, including chat edits."""
+
+    def read_history() -> list[dict[str, Any]]:
+        with _service().storage.connection() as conn:
+            rows = conn.execute(
+                "SELECT id, source, changes, changed_at FROM household_profile_changes ORDER BY changed_at DESC, id DESC LIMIT 50"
+            ).fetchall()
+        return [
+            {
+                "id": str(row[0]),
+                "source": row[1],
+                "changes": row[2],
+                "changed_at": row[3].isoformat(),
+            }
+            for row in rows
+        ]
+
+    return await run_in_threadpool(read_history)
 
 
 @router.post("/profile", response_model=HouseholdProfile)
@@ -204,7 +234,9 @@ async def refresh_property_valuation(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Property valuation refresh failed: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Property valuation refresh failed: {exc}"
+        ) from exc
 
 
 @router.get("/documents", response_model=HouseholdDocumentList)
@@ -270,9 +302,7 @@ async def delete_household_account(account_id: str) -> dict[str, bool]:
 
 @lru_cache(maxsize=1)
 def _manual_holdings_service():
-    return import_module(
-        "app.services.household_manual_holdings_service"
-    ).ManualHoldingsService()
+    return import_module("app.services.household_manual_holdings_service").ManualHoldingsService()
 
 
 @router.get("/accounts/{household_account_id}/holdings")
@@ -359,7 +389,12 @@ async def list_confirmed_facts() -> list[HouseholdConfirmedFact]:
 @router.post("/facts", response_model=HouseholdConfirmedFact)
 async def confirm_fact(payload: ConfirmFactRequest) -> HouseholdConfirmedFact:
     """Upsert a confirmed household fact by key."""
-    return await run_in_threadpool(_service().confirm_fact, payload.fact_key, payload.fact_value)
+    try:
+        return await run_in_threadpool(
+            _service().confirm_fact, payload.fact_key, payload.fact_value
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class AskJennyRequest(BaseModel):
@@ -386,9 +421,7 @@ async def dedupe_household_transactions(dry_run: bool = False) -> dict[str, Any]
     dedup_service = import_module(
         "app.services.household_transaction_dedup_service"
     ).HouseholdTransactionDedupService()
-    return await run_in_threadpool(
-        lambda: dedup_service.dedupe_transactions(dry_run=dry_run)
-    )
+    return await run_in_threadpool(lambda: dedup_service.dedupe_transactions(dry_run=dry_run))
 
 
 @router.post("/transactions/{transaction_id}/categorize")
@@ -397,9 +430,13 @@ async def categorize_household_transaction(
     payload: HouseholdTransactionCategoryUpdate,
 ) -> dict[str, bool]:
     """Confirm category and essentiality for a household transaction."""
-    updated = await run_in_threadpool(_service().update_transaction_category, transaction_id, payload)
+    updated = await run_in_threadpool(
+        _service().update_transaction_category, transaction_id, payload
+    )
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Household transaction not found: {transaction_id}"
+        )
     return {"ok": True}
 
 
@@ -411,7 +448,9 @@ async def set_household_transaction_spend_override(
     """Appeal the spend filters on one row, or withdraw an earlier appeal."""
     updated = await run_in_threadpool(_service().update_spend_override, transaction_id, payload)
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Household transaction not found: {transaction_id}"
+        )
     return {"ok": True}
 
 
@@ -423,5 +462,7 @@ async def set_household_transaction_owner(
     """Set a transaction's owner, optionally as a merchant-level owner rule."""
     updated = await run_in_threadpool(_service().update_transaction_owner, transaction_id, payload)
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Household transaction not found: {transaction_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Household transaction not found: {transaction_id}"
+        )
     return {"ok": True}

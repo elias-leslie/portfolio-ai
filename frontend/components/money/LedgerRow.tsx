@@ -188,6 +188,15 @@ export function LedgerRow({
                   ? formatEnumLabel(entry.exclusionReason)
                   : 'Included in canonical spend'}
           </div>
+          {entry.reviewAmount != null && entry.includedInSpend ? (
+            <p className="mt-1 text-xs">
+              {formatCurrency(entry.reviewAmount, { decimals: 2 })} in this
+              review
+              {entry.reviewCategories && entry.reviewCategories.length > 1
+                ? ' (itemized)'
+                : ''}
+            </p>
+          ) : null}
           {onSetSpendOverride && canAppeal ? (
             <Button
               type="button"

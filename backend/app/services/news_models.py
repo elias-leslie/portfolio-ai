@@ -24,6 +24,9 @@ class NewsArticle(BaseModel):
     """Processed and scored news article."""
 
     symbol: str
+    company_name: str | None = None
+    relationship: str | None = None
+    relationship_reason: str | None = None
     headline: str
     url: str | None = None
     summary: str | None = None

@@ -8,6 +8,14 @@ import numpy as np
 
 from app.portfolio.contracts.retirement import RetirementAccountBucket, RetirementInputs
 from app.services._aca_estimator import premium_tax_credit_annual
+from app.services._retirement_ownership import (
+    before_rmd_age,
+    bucket_kind,
+    bucket_owner,
+    contribution_key,
+    owner_age,
+    withdrawal_owner_context,
+)
 from app.services._retirement_simulation import (
     PERCENTILE_KEYS,
     SEQUENCE_OF_RETURNS_HORIZON,
@@ -24,7 +32,6 @@ from app.services._withdrawal_engine import (
 from app.services.retirement_planning_assumptions import (
     _ORDINARY_INCOME_BUCKETS,
     DEFAULT_DRAWDOWN_ORDER,
-    RMD_START_AGE,
     TAXABLE_WITHDRAWAL_GAIN_RATIO,
     FederalTaxContext,
     WithdrawalOutcome,
@@ -32,7 +39,6 @@ from app.services.retirement_planning_assumptions import (
     _aca_year_plans,
     _bucket_balances,
     _carve_bridge_from_balances,
-    _contribution_bucket,
     _early_withdrawal_penalty_rate,
     _effective_gain_ratio,
     _engine_withdrawal_config,
@@ -58,6 +64,11 @@ def _apply_tax_aware_withdrawals(
     tax_context: FederalTaxContext,
     gain_ratio: float = TAXABLE_WITHDRAWAL_GAIN_RATIO,
     external_taxed_income: float = 0.0,
+    calendar_year: int | None = None,
+    primary_birth_year: int | None = None,
+    spouse_birth_year: int | None = None,
+    rmd_balances: dict[str, float] | None = None,
+    owner_retirement_ages: dict[str, int] | None = None,
 ) -> WithdrawalOutcome:
     """Greedy bucket-order withdrawals grossed up for federal tax + penalties.
 
@@ -72,14 +83,36 @@ def _apply_tax_aware_withdrawals(
     the partial-retirement window feeds spouse take-home as the offset, so
     her wage tax already left her paycheck.
     """
-    withdrawals = dict.fromkeys(DEFAULT_DRAWDOWN_ORDER, 0.0)
+    draw_order = sorted(
+        set(DEFAULT_DRAWDOWN_ORDER) | set(balances),
+        key=lambda key: (
+            DEFAULT_DRAWDOWN_ORDER.index(bucket_kind(key))
+            if bucket_kind(key) in DEFAULT_DRAWDOWN_ORDER
+            else 99,
+            _early_withdrawal_penalty_rate(key, owner_age(key, primary_age, spouse_age)),
+            key,
+        ),
+    )
+    withdrawals = dict.fromkeys(draw_order, 0.0)
     income_ordinary = income_components["ordinary"]
     income_social_security = income_components["social_security"]
     income_total = income_components["total"]
     penalty_rates = {
-        bucket: _early_withdrawal_penalty_rate(bucket, primary_age)
-        for bucket in DEFAULT_DRAWDOWN_ORDER
+        bucket: _early_withdrawal_penalty_rate(bucket, owner_age(bucket, primary_age, spouse_age))
+        for bucket in draw_order
     }
+
+    def accessible(bucket: str) -> bool:
+        if bucket_kind(bucket) != "governmental_457b" or owner_retirement_ages is None:
+            return True
+        owner = bucket_owner(bucket)
+        retirement = owner_retirement_ages.get(owner)
+        if retirement is None:
+            return all(
+                (primary_age if member == "primary" else spouse_age or 0) >= age
+                for member, age in owner_retirement_ages.items()
+            )
+        return owner_age(bucket, primary_age, spouse_age) >= retirement
 
     def tax_for_amounts(ordinary_withdrawals: float, taxable_gains: float) -> float:
         return _federal_tax_estimate(
@@ -105,27 +138,31 @@ def _apply_tax_aware_withdrawals(
         )
 
     def settled_bases() -> tuple[float, float, float, float]:
-        ordinary = sum(withdrawals[b] for b in _ORDINARY_INCOME_BUCKETS)
+        ordinary = sum(withdrawals.get(b, 0) for b in _ORDINARY_INCOME_BUCKETS)
         gains = withdrawals["taxable"] * gain_ratio
         penalty = sum(amount * penalty_rates[b] for b, amount in withdrawals.items())
         gross = sum(withdrawals.values())
         return ordinary, gains, penalty, gross
 
-    rmd_amount = _rmd_amount(
-        balances.get("pre_tax", 0.0) + balances.get("governmental_457b", 0.0),
-        primary_age,
-    )
-    if rmd_amount > 0:
-        remaining_rmd = rmd_amount
-        for rmd_bucket in ("pre_tax", "governmental_457b"):
-            if remaining_rmd <= 0:
-                break
-            gross = min(balances.get(rmd_bucket, 0.0), remaining_rmd)
-            if gross <= 0:
-                continue
+    rmd_amount = 0.0
+    prior_balances = rmd_balances if rmd_balances is not None else balances
+    for rmd_bucket in draw_order:
+        if bucket_kind(rmd_bucket) not in {"pre_tax", "governmental_457b"}:
+            continue
+        if bucket_kind(rmd_bucket) == "governmental_457b" and not accessible(rmd_bucket):
+            continue
+        owner = bucket_owner(rmd_bucket)
+        age = owner_age(rmd_bucket, primary_age, spouse_age, rmd=True)
+        birth = spouse_birth_year if owner == "spouse" else primary_birth_year
+        if owner == "unknown" and spouse_birth_year is not None:
+            birth = min(primary_birth_year or spouse_birth_year, spouse_birth_year)
+        rmd_age = calendar_year - birth if calendar_year is not None and birth is not None else age
+        required = _rmd_amount(prior_balances.get(rmd_bucket, 0), rmd_age, birth_year=birth)
+        gross = min(balances.get(rmd_bucket, 0), required)
+        if gross > 0:
             balances[rmd_bucket] -= gross
             withdrawals[rmd_bucket] += gross
-            remaining_rmd -= gross
+            rmd_amount += required
 
     ordinary_base, gains_base, penalty_base, gross_base = settled_bases()
 
@@ -138,8 +175,10 @@ def _apply_tax_aware_withdrawals(
 
     # ``extra = 0`` gives the same surplus for every bucket, so the running
     # deficit is carried across the loop instead of re-probed per bucket.
-    current_surplus = surplus_for(DEFAULT_DRAWDOWN_ORDER[0], 0.0)
-    for bucket in DEFAULT_DRAWDOWN_ORDER:
+    current_surplus = surplus_for(draw_order[0], 0.0)
+    for bucket in draw_order:
+        if not accessible(bucket):
+            continue
         if current_surplus >= 0:
             break
         available = balances.get(bucket, 0.0)
@@ -240,9 +279,10 @@ def _run_tax_aware_monte_carlo(
         if allocation
     }
 
-    cash_return = float(cma.get("asset_classes", {}).get("cash", {}).get("expected_return", 0.02) or 0.02)
+    cash_return = float(
+        cma.get("asset_classes", {}).get("cash", {}).get("expected_return", 0.02) or 0.02
+    )
     starting_balances = _bucket_balances(inputs, buckets)
-    contribution_bucket = _contribution_bucket(starting_balances)
     household_retirement_age = _household_retirement_primary_age(inputs)
     expected_nominal = float(mus @ weights)
     aca_plans = _aca_year_plans(inputs)
@@ -326,18 +366,20 @@ def _run_tax_aware_monte_carlo(
         prev_return_negative = False
         trial_returns = returns_by_trial[trial]
         for year_index in range(inputs.horizon_years):
+            rmd_balances = dict(balances)
             primary_age = inputs.primary_age + year_index
             portfolio_return = trial_returns[year_index]
-            for bucket in list(balances):
-                bucket_weights = bucket_weight_vectors.get(bucket)
-                annual_return = (
-                    float(samples[trial, year_index] @ bucket_weights)
-                    if bucket_weights is not None
-                    else cash_return
-                    if bucket == "cash"
-                    else portfolio_return
-                )
-                balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
+            if year_index > 0:
+                for bucket in list(balances):
+                    bucket_weights = bucket_weight_vectors.get(bucket_kind(bucket))
+                    annual_return = (
+                        float(samples[trial, year_index] @ bucket_weights)
+                        if bucket_weights is not None
+                        else cash_return
+                        if bucket_kind(bucket) == "cash"
+                        else portfolio_return
+                    )
+                    balances[bucket] = max(0.0, balances[bucket] * (1.0 + annual_return))
             if year_index > 0:
                 # The bridge is tracked in real dollars, so a portfolio-grown
                 # bridge converts the sampled nominal return to real.
@@ -346,13 +388,22 @@ def _run_tax_aware_monte_carlo(
                     if bridge_rides_portfolio
                     else cfg.bridge.real_return
                 )
-            if primary_age < household_retirement_age and inputs.annual_contribution > 0:
-                balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+            if (
+                year_index > 0
+                and primary_age < household_retirement_age
+                and inputs.annual_contribution > 0
+            ):
+                contribution_bucket = contribution_key(balances, inputs, year_index)
+                balances[contribution_bucket] = (
+                    balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+                )
 
             inflation_factor, spouse_age, income_components = year_contexts[year_index]
             liquidity_real = liquidity_by_year.get(inputs.as_of_date.year + year_index, 0.0)
             if liquidity_real > 0:
-                balances["taxable"] = balances.get("taxable", 0.0) + liquidity_real * inflation_factor
+                balances["taxable"] = (
+                    balances.get("taxable", 0.0) + liquidity_real * inflation_factor
+                )
             income = income_components["total"]
 
             wy = None
@@ -378,7 +429,11 @@ def _run_tax_aware_monte_carlo(
                     strategy_state=guardrails_state,
                 )
                 bridge_balance = wy.bridge_balance_end
-                spending = wy.portfolio_draw * inflation_factor + income + college_overflow_nominal[year_index]
+                spending = (
+                    wy.portfolio_draw * inflation_factor
+                    + income
+                    + college_overflow_nominal[year_index]
+                )
                 discretionary_paths[trial, year_index] = wy.discretionary_funded
                 if (
                     first_warning_year[trial] < 0
@@ -389,7 +444,7 @@ def _run_tax_aware_monte_carlo(
 
             if (
                 wy is None
-                and primary_age < RMD_START_AGE
+                and before_rmd_age(inputs, year_index)
                 and partial_gap_nominal[year_index] <= 0.0
             ):
                 # Pre-retirement, pre-RMD, no partial-window gap: no spending
@@ -419,6 +474,7 @@ def _run_tax_aware_monte_carlo(
                     inflation_factor=inflation_factor,
                     tax_context=tax_context,
                     gain_ratio=gain_ratio,
+                    **withdrawal_owner_context(inputs, year_index, rmd_balances),
                     external_taxed_income=partial_wages_nominal[year_index],
                 )
                 if aca_plan is not None and pre_seam_balances is not None:
@@ -442,11 +498,21 @@ def _run_tax_aware_monte_carlo(
                             inflation_factor=inflation_factor,
                             tax_context=tax_context,
                             gain_ratio=gain_ratio,
+                            **withdrawal_owner_context(inputs, year_index, rmd_balances),
+                            external_taxed_income=partial_wages_nominal[year_index],
                         )
-                if wy is not None or partial_gap_nominal[year_index] > 0.0:
+                if (
+                    wy is not None
+                    or partial_gap_nominal[year_index] > 0.0
+                    or outcome.rmd_amount > 0
+                ):
                     gross_withdrawal = sum(outcome.withdrawals.values())
                     surplus_net = (
-                        income + gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate - spending
+                        income
+                        + gross_withdrawal
+                        - outcome.tax_estimate
+                        - outcome.penalty_estimate
+                        - spending
                     )
                     if surplus_net > 0.01:
                         balances["taxable"] = balances.get("taxable", 0.0) + surplus_net

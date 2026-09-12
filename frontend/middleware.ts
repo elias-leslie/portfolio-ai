@@ -1,13 +1,6 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { type NextRequest, NextResponse } from 'next/server'
 
 const accessHeader = 'cf-access-jwt-assertion'
-const teamDomain = (
-  process.env.CLOUDFLARE_ACCESS_TEAM_DOMAIN ?? 'summitflow.cloudflareaccess.com'
-).replace(/^https?:\/\//, '')
-const issuer = `https://${teamDomain}`
-const accessKeys = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`))
-
 function isLocalHostname(hostname: string): boolean {
   return (
     hostname === 'localhost' ||
@@ -15,22 +8,6 @@ function isLocalHostname(hostname: string): boolean {
     hostname === '::1' ||
     hostname.endsWith('.localhost')
   )
-}
-
-async function hasValidAccessAssertion(request: NextRequest): Promise<boolean> {
-  const assertion = request.headers.get(accessHeader)?.trim() ?? ''
-  if (assertion.split('.').length !== 3) return false
-
-  try {
-    const audience = process.env.CLOUDFLARE_ACCESS_AUD?.trim()
-    const { payload } = await jwtVerify(assertion, accessKeys, {
-      issuer,
-      ...(audience ? { audience } : {}),
-    })
-    return typeof payload.email === 'string' && payload.email.length > 0
-  } catch {
-    return false
-  }
 }
 
 function requestHostname(request: NextRequest): string {
@@ -41,11 +18,53 @@ function requestHostname(request: NextRequest): string {
 
 /** Fail closed when a non-local request reaches Next without Cloudflare Access. */
 export async function middleware(request: NextRequest) {
-  if (isLocalHostname(requestHostname(request))) {
+  if (
+    isLocalHostname(requestHostname(request)) &&
+    !request.headers.has(accessHeader) &&
+    !request.headers.has('cf-ray')
+  ) {
     return NextResponse.next()
   }
 
-  if (await hasValidAccessAssertion(request)) return NextResponse.next()
+  // Every API request is authorized at the backend, including capture-only roles.
+  if (request.nextUrl.pathname.startsWith('/api/')) return NextResponse.next()
+
+  if (request.headers.get(accessHeader)) {
+    try {
+      const response = await fetch(
+        `${process.env.API_URL || 'http://localhost:8000'}/api/identity`,
+        {
+          headers: { [accessHeader]: request.headers.get(accessHeader) ?? '' },
+          cache: 'no-store',
+        },
+      )
+      if (!response.ok)
+        return new NextResponse(
+          'Household sign-in is unavailable or this member is not registered.',
+          { status: response.status, headers: { 'Cache-Control': 'no-store' } },
+        )
+      const identity: unknown = await response.json()
+      if (
+        typeof identity !== 'object' ||
+        identity === null ||
+        !('access' in identity)
+      )
+        throw new Error('Invalid identity')
+      if (
+        identity.access === 'capture_only' &&
+        !request.nextUrl.pathname.startsWith('/api/') &&
+        request.nextUrl.pathname !== '/capture'
+      ) {
+        return NextResponse.redirect(new URL('/capture', request.url))
+      }
+      return NextResponse.next()
+    } catch {
+      return new NextResponse(
+        'Unable to verify household access. Please retry.',
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+  }
 
   return new NextResponse('Cloudflare Access authentication required.', {
     status: 403,

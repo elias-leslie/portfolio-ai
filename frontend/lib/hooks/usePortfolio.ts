@@ -40,7 +40,7 @@ export function usePortfolio(options?: { enabled?: boolean }) {
  * Hook to fetch portfolio analytics
  * Refreshes on the same short cadence as holdings so concentration and gain stay aligned.
  */
-export function usePortfolioAnalytics() {
+export function usePortfolioAnalytics(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['portfolio', 'analytics'],
     queryFn: fetchAnalytics,
@@ -48,6 +48,7 @@ export function usePortfolioAnalytics() {
     refetchInterval: 1000 * 30,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    enabled: options?.enabled ?? true,
   })
 }
 

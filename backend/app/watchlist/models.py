@@ -130,12 +130,12 @@ class NormalizedSignalInputsDict(TypedDict):
 
 
 class TradingStyleDict(TypedDict):
-    """Trading style classification result dictionary."""
+    """Observed setup pattern; unsupported precision is explicitly absent."""
 
-    style: str  # "Index", "Trend", "Value", "Swing", "Event"
-    confidence: int  # 0-10
-    holding_period: str  # "Hold indefinitely", "Days to weeks", etc.
-    risk_level: str  # "Low", "Medium-Low", "Medium", "High"
+    style: str | None
+    confidence: int | None
+    holding_period: str | None
+    risk_level: str | None
 
 
 class KeyEvent(BaseModel):

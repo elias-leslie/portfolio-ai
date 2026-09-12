@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 
 from app.models.credit_cards import (
     CardRanking,
@@ -57,6 +58,34 @@ async def get_catalog() -> list[CreditCardProduct]:
     return await run_in_threadpool(_service().get_catalog)
 
 
+class CardTermsDecision(BaseModel):
+    fingerprint: str
+    accept: bool
+
+
+@router.get("/terms/review")
+async def pending_card_terms() -> list[dict[str, object]]:
+    service = import_module("app.services.card_terms_review_service").CardTermsReviewService()
+    return await run_in_threadpool(service.list_pending)
+
+
+@router.post("/terms/review/{proposal_id}", status_code=204)
+async def review_card_terms(proposal_id: str, body: CardTermsDecision) -> None:
+    service = import_module("app.services.card_terms_review_service").CardTermsReviewService()
+    try:
+        await run_in_threadpool(service.decide, proposal_id, expected_fingerprint=body.fingerprint, accept=body.accept)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/spend-summary")
+async def get_card_spend_summary() -> dict[str, float | str]:
+    summary = import_module("app.services.card_spend_summary").card_spend_summary
+    return await run_in_threadpool(summary, _service().storage)
+
+
 # -------------------------------------------------------------- owned cards
 
 
@@ -69,6 +98,8 @@ async def list_cards() -> list[HouseholdCreditCard]:
 async def create_card(body: CreditCardCreate) -> HouseholdCreditCard:
     try:
         return await run_in_threadpool(_service().create_owned_card, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -77,6 +108,8 @@ async def create_card(body: CreditCardCreate) -> HouseholdCreditCard:
 async def update_card(card_id: str, body: CreditCardUpdate) -> HouseholdCreditCard:
     try:
         return await run_in_threadpool(_service().update_owned_card, card_id, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -85,6 +118,8 @@ async def update_card(card_id: str, body: CreditCardUpdate) -> HouseholdCreditCa
 async def activate_card(card_id: str) -> HouseholdCreditCard:
     try:
         return await run_in_threadpool(_service().activate_card, card_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -93,6 +128,8 @@ async def activate_card(card_id: str) -> HouseholdCreditCard:
 async def delete_card(card_id: str) -> None:
     try:
         await run_in_threadpool(_service().delete_owned_card, card_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -102,12 +139,18 @@ async def delete_card(card_id: str) -> None:
 
 @router.post("/rankings", response_model=CardRanking)
 async def rank_cards(body: RankingRequest) -> CardRanking:
-    return await run_in_threadpool(_service().build_ranking, body)
+    try:
+        return await run_in_threadpool(_service().build_ranking, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/rotation-plan", response_model=RotationPlanView)
 async def rotation_plan(body: RotationRequest) -> RotationPlanView:
-    return await run_in_threadpool(_service().build_rotation, body)
+    try:
+        return await run_in_threadpool(_service().build_rotation, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/rotation-plans")
@@ -119,6 +162,8 @@ async def list_rotation_plans() -> list[dict]:
 async def get_rotation_plan(plan_id: str) -> RotationPlanView:
     try:
         return await run_in_threadpool(_service().get_rotation_plan, plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -220,6 +265,8 @@ async def match_soft_charge(soft_id: str, plaid_transaction_id: str = Form(...))
         return await run_in_threadpool(
             _soft_service().match_soft_charge, soft_id, plaid_transaction_id
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -228,5 +275,7 @@ async def match_soft_charge(soft_id: str, plaid_transaction_id: str = Form(...))
 async def delete_soft_charge(soft_id: str) -> None:
     try:
         await run_in_threadpool(_soft_service().delete_soft_charge, soft_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

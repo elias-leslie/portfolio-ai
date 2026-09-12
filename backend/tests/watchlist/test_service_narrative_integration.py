@@ -164,14 +164,13 @@ class TestNarrativeGenerationIntegration:
         assert snapshot_dict["recommended_style"] in [
             "Index",
             "Trend",
-            "Value",
+            None,
             "Swing",
             "Event",
         ]
-        assert snapshot_dict["style_confidence"] is not None
-        assert 0 <= snapshot_dict["style_confidence"] <= 10
-        assert snapshot_dict["optimal_holding_period"] is not None
-        assert snapshot_dict["risk_level"] in ["Low", "Medium-Low", "Medium", "High"]
+        assert snapshot_dict["style_confidence"] is None
+        assert snapshot_dict["optimal_holding_period"] is None
+        assert snapshot_dict["risk_level"] is None
 
     def test_refresh_handles_missing_fundamentals_gracefully(
         self, storage: PortfolioStorage

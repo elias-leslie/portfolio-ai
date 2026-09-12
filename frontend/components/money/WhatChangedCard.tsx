@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { Button } from '@/components/ui/button'
 import type { HouseholdSpendVariance } from '@/lib/api/household'
-import { formatCurrencyWhole, formatPercent } from '@/lib/formatters'
+import { formatCurrencyWhole } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 export interface WhatChangedCardProps {
@@ -100,9 +100,6 @@ export function WhatChangedCard({ variance }: WhatChangedCardProps) {
                   )}
                 >
                   {signedCurrency(driver.contribution)}
-                </span>
-                <span className="w-12 text-right text-xs text-text-muted">
-                  {formatPercent(driver.shareOfChange * 100, { decimals: 0 })}
                 </span>
               </span>
             </li>

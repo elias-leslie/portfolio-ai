@@ -5,10 +5,20 @@ from __future__ import annotations
 import uuid
 from functools import lru_cache
 from importlib import import_module
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from fastapi.concurrency import run_in_threadpool
+from starlette.responses import FileResponse
 
 from app.models.household_finance import HouseholdDocument, HouseholdDocumentList
 from app.services.household_document_review_contracts import (
@@ -16,6 +26,8 @@ from app.services.household_document_review_contracts import (
     HouseholdDocumentReviewDecisionRequest,
     HouseholdDocumentReviewDecisionResult,
 )
+from app.services.household_document_storage import resolve_document_upload
+from app.services.household_evidence_source import read_evidence_source
 from app.services.household_upload_validation import (
     HouseholdUploadValidationError,
     validate_household_upload_metadata,
@@ -33,9 +45,55 @@ def _service() -> HouseholdFinanceService:
 
 
 @router.get("/evidence", response_model=HouseholdDocumentList)
-async def list_evidence() -> HouseholdDocumentList:
-    """Return recent evidence intake items."""
-    return await run_in_threadpool(_service().list_documents)
+async def list_evidence(
+    view: Literal["recent", "pending", "history"] = "recent",
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100000),
+) -> HouseholdDocumentList:
+    """Pending decisions are selected across the entire history before paging."""
+    return await run_in_threadpool(_service().list_documents, limit, offset=offset, view=view)
+
+
+@router.get("/evidence/{document_id}", response_model=HouseholdDocument)
+async def get_evidence(document_id: uuid.UUID) -> HouseholdDocument:
+    document = await run_in_threadpool(_service().get_document, str(document_id))
+    if document is None:
+        raise HTTPException(404, "Evidence document not found.")
+    return document
+
+
+@router.get("/evidence/{document_id}/source")
+async def evidence_source(
+    document_id: uuid.UUID,
+    review_id: uuid.UUID | None = None,
+    search: str = Query(default="", max_length=100),
+):
+    return await run_in_threadpool(
+        read_evidence_source,
+        str(document_id),
+        review_id=str(review_id) if review_id else None,
+        search=search,
+    )
+
+
+@router.get("/evidence/{document_id}/file")
+async def evidence_file(document_id: uuid.UUID):
+    service = _service()
+    document = await run_in_threadpool(service.get_document, str(document_id))
+    if document is None:
+        raise HTTPException(404, "Evidence document not found.")
+    path = resolve_document_upload(document.metadata, service._upload_root())
+    if path is None:
+        raise HTTPException(404, "No original uploaded file is available for this record.")
+    return FileResponse(
+        path,
+        media_type=document.content_type or "application/octet-stream",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+        },
+    )
 
 
 @router.delete("/evidence/{document_id}", status_code=204)

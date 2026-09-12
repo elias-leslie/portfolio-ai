@@ -117,3 +117,34 @@ def test_suggested_caps_never_become_the_verdict() -> None:
 
     assert verdict.status == "no_plan"
     assert verdict.cap_total == 0.0
+
+
+def test_partial_month_reports_remaining_cap_without_declaring_success() -> None:
+    verdict = _budget_verdict(
+        [_category("Groceries", spend=250.0, cap=1000.0)],
+        month_label="September 2026", is_month_to_date=True,
+    )
+    assert verdict.status == "in_progress"
+    assert "$750 remaining" in verdict.headline
+    assert "came in" not in verdict.headline
+    assert "month to date" in verdict.headline.lower()
+
+
+def test_partial_month_already_above_cap_remains_a_current_breach() -> None:
+    verdict = _budget_verdict(
+        [_category("Groceries", spend=1200.0, cap=1000.0)],
+        month_label="September 2026", is_month_to_date=True,
+    )
+    assert verdict.status == "over_plan"
+    assert "$200 over" in verdict.headline
+    assert "came in" not in verdict.headline
+
+
+def test_missing_feed_coverage_prevents_a_success_verdict() -> None:
+    verdict = _budget_verdict(
+        [_category("Groceries", spend=250.0, cap=1000.0)],
+        month_label="August 2026", coverage_complete=False,
+    )
+    assert verdict.status == "coverage_incomplete"
+    assert "incomplete" in verdict.headline.lower()
+    assert verdict.variance == -750

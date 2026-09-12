@@ -1,4 +1,5 @@
 from app.services._household_merchants import _canonical_merchant_name
+from app.services._household_report_builder import _merchant_aliases
 from app.services._household_statement_merchants import (
     normalize_statement_merchant,
     same_statement_biller,
@@ -71,3 +72,28 @@ def test_a_long_all_caps_description_is_not_title_cased_into_nonsense():
     assert "12Th" not in _canonical_merchant_name(
         "ZELLE FROM MICHAEL WILEY ON 12/31 REF # BACPC0VVAKEH 12TH MORTGAGE PAY"
     )
+
+
+def test_bank_transport_prefix_cannot_merge_unrelated_merchants():
+    grocery = "DEBIT CARD PURCHASE PUBLIX SUPER MARKETS ANYTOWN FL090326 AUTHID:040132 (Cash)"
+    peer = "DEBIT CARD PURCHASE CASH APP JORDAN DEMO OAKLAND CA090326 AUTHID:652863 (Cash)"
+    assert _canonical_merchant_name(grocery) == "Publix"
+    assert not same_statement_biller(statement_merchant_key(grocery), statement_merchant_key(peer))
+    assert not (_merchant_aliases(grocery) & _merchant_aliases(peer))
+
+
+def test_bank_peer_payments_preserve_distinct_recipients():
+    left = "DEBIT CARD PURCHASE CASH APP JORDAN DEMO 123456 (Cash)"
+    right = "DEBIT CARD PURCHASE CASH APP TAYLOR DEMO 123456 (Cash)"
+    assert _canonical_merchant_name(left) != _canonical_merchant_name(right)
+    assert not (_merchant_aliases(left) & _merchant_aliases(right))
+
+
+def test_shared_nine_characters_are_not_evidence_of_one_business():
+    assert not same_statement_biller("debitcardpurchasepublix", "debitcardpurchasecashapp")
+    assert not same_statement_biller("nationalbank", "nationalbakery")
+
+
+def test_publix_statement_variants_match_card_feed_identity():
+    assert _canonical_merchant_name("DEBIT CARD PURCHASE PUBLIX #1309 FL090326 (Cash)") == "Publix"
+    assert _merchant_aliases("DEBIT CARD PURCHASE PUBLIX #1309 FL090326 (Cash)") & _merchant_aliases("Publix")

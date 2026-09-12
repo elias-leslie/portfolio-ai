@@ -154,6 +154,7 @@ function lastLedgerParams() {
 
 describe('MoneyLedgerPanel', () => {
   beforeEach(() => {
+    window.history.replaceState({}, '', '/money?tab=ledger')
     useHouseholdLedgerMock.mockReset()
     useHouseholdFactsMock.mockReset()
     categorizeMutateAsync.mockReset()

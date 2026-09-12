@@ -39,7 +39,7 @@ type SortKey =
 
 const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'firstYearValue', label: 'First-year net' },
-  { key: 'steadyStateValue', label: 'Steady-state' },
+  { key: 'steadyStateValue', label: 'Ongoing / year' },
   { key: 'welcomeValue', label: 'Welcome bonus' },
   { key: 'annualFee', label: 'Annual fee' },
   { key: 'earnValue', label: 'Est. category earnings' },
@@ -135,6 +135,14 @@ function ExpandedRow({ estimate }: { estimate: CardRewardEstimate }) {
               {estimate.welcomeReachable ? 'yes' : 'no — excluded'}
             </span>
           </div>
+          <p className="text-xs text-text-muted">
+            Average over {estimate.amortizationYears} years, including one
+            welcome bonus:{' '}
+            {formatCurrencyWhole(
+              estimate.multiYearAverageValue ?? estimate.steadyStateValue,
+            )}{' '}
+            per year. Ongoing value excludes that bonus.
+          </p>
           {estimate.warnings.length > 0 ? (
             <ul className="space-y-1">
               {estimate.warnings.map((warning) => (
@@ -150,10 +158,19 @@ function ExpandedRow({ estimate }: { estimate: CardRewardEstimate }) {
   )
 }
 
-export function CardRankingTable() {
-  const [valuationStance, setValuationStance] =
-    useState<ValuationStance>('balanced')
-  const [creditStance, setCreditStance] = useState<CreditStance>('easy_only')
+export function CardRankingTable({
+  monthlyTotal,
+  valuationStance,
+  creditStance,
+  setValuationStance,
+  setCreditStance,
+}: {
+  monthlyTotal: number | null
+  valuationStance: ValuationStance
+  creditStance: CreditStance
+  setValuationStance: (value: ValuationStance) => void
+  setCreditStance: (value: CreditStance) => void
+}) {
   const [amortizationYears, setAmortizationYears] = useState(3)
   const [sortKey, setSortKey] = useState<SortKey>('firstYearValue')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
@@ -165,7 +182,12 @@ export function CardRankingTable() {
     error,
     refetch,
     isFetching,
-  } = useCardRankings({ valuationStance, creditStance, amortizationYears })
+  } = useCardRankings({
+    monthlyTotal,
+    valuationStance,
+    creditStance,
+    amortizationYears,
+  })
 
   const rows = useMemo(() => {
     const estimates = ranking?.byFirstYear ?? []
@@ -188,7 +210,7 @@ export function CardRankingTable() {
     <SectionCard
       variant="surface"
       title="Card value ranking"
-      description="Catalog cards ranked against the household's real spend profile."
+      description="Catalog cards compared using the same eligible spending and valuation assumptions as the rotation below."
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -284,9 +306,13 @@ export function CardRankingTable() {
                       >
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-medium text-text">
+                            <button
+                              type="button"
+                              className="text-left font-medium text-text underline-offset-4 hover:underline"
+                              aria-expanded={expandedSlug === estimate.slug}
+                            >
                               {estimate.productName}
-                            </span>
+                            </button>
                             <span className="text-xs text-text-muted">
                               {estimate.issuer}
                               {estimate.cardKind !== 'personal'
@@ -361,7 +387,10 @@ export function CardRankingTable() {
             </div>
 
             {ranking ? (
-              <div className="space-y-2">
+              <details className="space-y-2 text-xs text-text-muted">
+                <summary className="cursor-pointer">
+                  Spending sources and valuation assumptions
+                </summary>
                 {ranking.assumptions.length > 0 ? (
                   <ul className="list-disc space-y-1 pl-5 text-xs text-text-muted">
                     {ranking.assumptions.map((assumption) => (
@@ -369,10 +398,7 @@ export function CardRankingTable() {
                     ))}
                   </ul>
                 ) : null}
-                <p className="rounded-xl bg-surface-muted/20 px-3 py-2 text-xs text-text-muted/80">
-                  {ranking.disclaimer}
-                </p>
-              </div>
+              </details>
             ) : null}
           </>
         )}

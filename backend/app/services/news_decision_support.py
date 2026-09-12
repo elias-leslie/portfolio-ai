@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 
 from .news_constants import MARKET_SYMBOL
+from .news_entities import identify_news_relationship
 from .plain_language_news import EventCategory, classify_event_category
 
 SOURCE_SUFFIX_PATTERN = re.compile(
@@ -194,6 +195,8 @@ MEDIUM_IMPACT_EVENTS = frozenset(
 class NewsDecisionAssessment:
     """Structured assessment for ranking one article."""
 
+    relationship: str
+    relationship_reason: str
     canonical_headline: str
     event_category: str | None
     market_context_topic: str | None
@@ -286,6 +289,7 @@ def assess_news_article(article: object) -> NewsDecisionAssessment:
     coverage_count = int(getattr(article, "coverage_count", 1) or 1)
     filing_type = getattr(article, "filing_type", None)
 
+    relationship = identify_news_relationship(symbol, headline, summary, getattr(article, "company_name", None))
     clean_headline = canonical_headline(headline)
     text = " ".join(part for part in (clean_headline, summary) if part).lower()
     event_category = classify_event_category(clean_headline, summary, filing_type).value
@@ -360,6 +364,16 @@ def assess_news_article(article: object) -> NewsDecisionAssessment:
     else:
         reason = "Potentially relevant, but not strong enough to drive action alone."
 
+    if relationship.kind == "unverified":
+        score = min(score, 0.2)
+        if not _matches_any(text, NON_FINANCIAL_PATTERNS):
+            reason = relationship.reason
+    else:
+        # Event classification describes the article; entity matching establishes relevance.
+        reason = relationship.reason
+        if relationship.kind == "peer":
+            score = min(score, 0.65)
+
     if score >= 0.75:
         label = "high"
     elif score >= 0.55:
@@ -368,6 +382,8 @@ def assess_news_article(article: object) -> NewsDecisionAssessment:
         label = "low"
 
     return NewsDecisionAssessment(
+        relationship=relationship.kind,
+        relationship_reason=relationship.reason,
         canonical_headline=clean_headline,
         event_category=None if event_category == EventCategory.UNKNOWN.value else event_category,
         market_context_topic=topic,

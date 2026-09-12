@@ -1,22 +1,11 @@
 # Money Workspace Revamp — Plan & Working Doc
 
-**Status:** PHASES 0, 1, 2 AND 3 COMPLETE — Phase 0's and Phase 1's exit tests both
-pass (§7). Phase 0 landed 15 of 16 tasks; 0.13 (the staged receipts) waits on the
-household's approval and on the Costco/Walmart order-page parser in Phase 4.2.
-The review screen now answers the month in one place, and the screens that
-answered it a second time are gone. **Phase 3 is complete**: the income
-anchor (3.1) is in, the caps (3.2), savings state (3.3) and sinking funds (3.4)
-are all priced off it, the cards' standing costs reach the plan (3.5), alerts
-have a transport that reaches a phone (3.6), and the three kinds worth
-interrupting someone for are live (3.7). **Phase 4 is next.**
+**Status (September 11, 2026):** the approved product review has been implemented across Money, Investing, and family capture. Phases 0–3 and receipt parsing 4.1–4.3 are historical completed work. The narrow family capture and comparable-shopping path is now implemented; its usefulness still needs real household use and confirmed outcomes. No realized savings or physical-phone delivery is inferred from automated tests.
 **Owner:** Elias Leslie
 **Started:** 2026-08-22
-**Last updated:** 2026-08-25 (Phase 3 closed: income anchored to the median of
-the last three complete months, $6,067/mo; saving is a declared state; the four
-sinking funds are priced from their own trailing spend; the category caps are
-that anchor minus saving minus the funds, divided by historical shape; the
-cards' standing costs reach the plan; and the alerts now have both a phone to
-land on and three kinds worth landing)
+**Last updated:** 2026-09-11
+
+Current behavior and verification are recorded in [Product review implementation](PRODUCT_REVIEW_IMPLEMENTATION.md). The dated findings and original phase specifications below remain decision history; the current queue takes precedence over their old status claims.
 
 > **Handoff contract:** this file is the single source of truth for the Money
 > revamp. Anyone picking this up cold should read it top to bottom and be able to
@@ -30,14 +19,13 @@ land on and three kinds worth landing)
 > **Read order for a cold start:** §1 goal → §4 diagnosis → §7 the plan → §6
 > decisions (D1–D23) for the *why* behind any phase → §3 findings for evidence.
 >
-> **§5 is empty by design** — every open question is resolved. Do not re-open
-> them; start at Phase 0. **Nothing is waiting on the household.** Do not ask for
-> a decision that §6 already records.
+> Preserve the household decisions in §6. Evidence questions and actual device
+> checks may remain open; use the current application queue rather than old counts.
 >
 > **Pick up here — §2a "Next actions" is the live queue.** It names the next
 > piece of work, in order, with the evidence behind each. Work the top item,
 > update the §8 work log, then re-order the queue. **Phases 0, 1 and 2 are
-> closed — Phase 0's and Phase 1's exit tests pass; Phase 3 is the live work.**
+> closed. Current follow-through is listed in §2a.**
 
 ---
 
@@ -61,7 +49,17 @@ contradicts another number on screen.
 
 ---
 
-## 2a. Next actions (live queue — work top down)
+## 2a. Current follow-through
+
+1. Use Review for the selected month, inspect its coverage, and record one to three agreed changes. Confirm planned asset funding when applicable; do not substitute old income/spending figures from this document.
+2. Resolve only the concrete evidence questions shown in Intake and Accounts. Historical pending-document counts below are not the current inbox.
+3. Verify sign-in, capture/retry, and intended web-push delivery on the actual family phones. One subscription had a successful delivery at the September review; that does not establish readiness on every phone. Automated tests use isolated identities and notification fixtures.
+4. Validate the bounded staple pilot using the stores and goods actually purchased. Confirm package equivalence and current offer conditions. Record known outcomes; missing captures or receipts mean unknown behavior. Expand only after savings are supported by comparable purchases.
+5. Supply missing account basis and original card-offer history as evidence becomes available. Keep uncertainty and scenario sensitivity visible until then.
+
+### Historical August checkpoint — superseded as a work queue
+
+The following notes preserve the original findings and evidence. Dates, counts, phase labels, and financial snapshots here are historical.
 
 **Phases 0, 1 and 2 are complete; Phase 0's and Phase 1's exit tests pass**
 (Phase 0's table is at the end of §7's Phase 0 block; Phase 1's is at the end of
@@ -1517,11 +1515,13 @@ Nadia, Sophia), not a solo tool. "Should I buy this?" is confirmed in scope
 (Phase 5.7) and is the reason anyone opens the camera; the price matrix is the
 byproduct.
 
-**Finding — identity is authenticated and then discarded.**
-`frontend/middleware.ts` verifies a Cloudflare Access JWT and reads
-`payload.email`, then returns `NextResponse.next()` **without forwarding it**. No
-backend endpoint reads `cf-access-jwt-assertion` or any user header. The app
-authenticates individuals and then treats every action as anonymous.
+**Updated 2026-09-11 — identity and capture implementation.**
+The backend verifies the original Cloudflare Access assertion (signature,
+application audience, issuer and expiry), resolves its email to an existing
+household member and enforces capture-only access for dependents. The application
+returns only the member ID, display name and access tier. Personal chat sessions,
+local chat history and phone subscriptions are scoped to that member. Physical
+sign-in and push delivery on each family phone still require using those devices.
 
 **Finding — the owner vocabulary already exists, unpopulated.**
 `household_members` holds all four (Elias 1977 primary · Mariana 1982 spouse ·
@@ -1529,11 +1529,12 @@ Nadia 2012 child/dependent · Sophia 2012 child/dependent, all `confirmed`).
 `frontend/components/money/owner-options.ts` already names them plus Oksana, Cats
 and combinations. Yet attribution runs **91% "Family"** because nothing populates it.
 
-**Consequence — this reorders Phases 4 and 5.** Propagating the authenticated
-identity is a small change that makes **owner attribution a byproduct of capture**
-rather than a separate build: whoever photographs the tag or uploads the receipt
-is recorded automatically. Phase 4.4 (owner attribution) therefore depends on
-Phase 5.0 (identity propagation), not the other way round.
+**Attribution contract, corrected by the approved 2026-09-11 review:**
+Identity establishes **captured_by**, not **purchased_by** or **purchased_for**.
+A child may photograph a parent's purchase; a parent may buy something for a
+child. Buyer and beneficiary remain unknown until independently confirmed.
+Phase 4.4 must preserve those separate facts rather than relabel the capturer as
+the purchase owner.
 
 **Requirement — capture must be a scoped surface.** Nadia and Sophia are 14. They
 need a **capture-only view**: camera + "Should I buy this?" and nothing else — no
@@ -1543,7 +1544,7 @@ by email; the app needs a role check mapping email → `household_members.role`,
 
 **Auth decision (user-confirmed):** all four have Gmail accounts and will
 authenticate through **Cloudflare Access with Google as the IdP**. `payload.email`
-becomes the owner key.
+resolves the contributor identity; it does not establish purchase ownership.
 
 **The four identities.** This repo is **public** — the real Gmail addresses are
 deliberately NOT recorded here, and two of the four belong to minors. The
@@ -1560,7 +1561,7 @@ addresses live outside version control (see below); this table is the shape only
 > `.env.local` → `HOUSEHOLD_MEMBER_EMAILS`, a JSON map of Access `payload.email`
 > → `household_members.display_name`. That file is gitignored (`.gitignore:43-45`),
 > mode 600, and already loaded by `backend/app/config/__init__.py:31-33`, so the
-> value reaches `Settings` with no new plumbing. `.env.example` carries the key
+> value is read as a private Settings field by the implemented identity service. `.env.example` carries the key
 > with placeholder values as documentation.
 >
 > Rules: resolve by `display_name`, failing loudly on a missing or ambiguous
@@ -1570,13 +1571,7 @@ addresses live outside version control (see below); this table is the shape only
 > Once Phase 5.0 lands the `household_members.email` column, **the DB column is
 > authoritative** and the env var is only the seed source.
 
-**Gap to close:** `household_members` has **no email column** (id, display_name,
-role, relationship, birth_year, is_dependent, lives_in_household, notes,
-confirmation_status, provenance, evidence_note, source_document_id, timestamps).
-Needs a migration adding a unique email field. The migration adds the column
-only — the four addresses are seeded at run time from `HOUSEHOLD_MEMBER_EMAILS`
-(see above), never written into the migration file. Then: Access JWT → `payload.email` → `household_members` row →
-`owner_name` on every capture, receipt upload and manual edit.
+**Implemented September 11:** migration `a09112026002` adds the unique email identity and chat ownership records. The private seed assigns only unassigned existing members; database identity then takes precedence. The backend verifies signed Access JWT issuer, audience and expiry, resolves the member, and enforces capture-only access. Captures store contributor identity separately from purchased-by and purchased-for, which remain unknown until confirmed. No address is committed or returned by the identity UI.
 
 **Access policy shape:** one policy admitting all four emails to the capture
 route; a second admitting only Elias + Mariana to the rest of Money. Belt and
@@ -1588,12 +1583,7 @@ the camera directly in iOS Safari — no PWA install needed to capture. Install 
 only required for *push* (D11). Kids open a URL; friction stays near zero, which
 is what adoption depends on.
 
-**New capability — shopping-habit analysis (Phase 6).** Capture + receipt data
-together yield signals no receipt alone can: captured-but-not-bought (considered
-and declined), bought-without-capture (impulse), repeat captures of one item
-(deliberation), store/time-of-day patterns, per-person basket composition,
-recurring overspend shapes. Worth noting: per-person habit reporting on minors is
-a deliberate choice, not a default — decide the granularity before switching it on.
+**Shopping outcomes (Phase 6).** Compare only verified equivalent purchases and confirmed outcomes. A photo without a receipt does not establish that a purchase was declined; a receipt without a photo does not establish impulse buying. Keep captured-by, purchased-by, and purchased-for separate. Unknown outcomes and incomplete coverage remain explicit. Per-person habit reporting on minors is not enabled by this capture workflow.
 
 ---
 
@@ -2198,25 +2188,22 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
     confidently and auto-apply with an itemisation known to be short. A recorded
     `itemization_incomplete_reason` now holds the document on its own, rather
     than the document being held incidentally by an unrelated account question.
-4.4 **Owner attribution** (D2.4) — today 91% "Family". **Depends on Phase 5.0**
-    (identity propagation), which makes attribution a byproduct of who captured or
-    uploaded rather than a dropdown nobody fills in. Manual override stays for
-    corrections and for gift/shared purchases.
+4.4 **Purchase attribution** — preserve contributor, buyer and beneficiary
+    separately. Capture identity is automatic; purchase ownership requires
+    evidence or explicit confirmation. Existing item ownership remains reversible.
 
 ---
 
 ### Phase 5 — Prices subsystem (D10, D15)
 
-5.0 **Identity propagation — do this first; it unblocks 4.4.**
-    Migration: add a unique email column to `household_members`, seeded with the
-    four Gmail addresses. Configure Cloudflare Access with Google as IdP.
-    `middleware.ts` currently verifies `payload.email` and then discards it —
-    forward it as a trusted header; resolve it to a `household_members` row
-    server-side; stamp `owner_name` on every capture, upload and edit.
-    **Scoping:** Access policy admits all four to the capture route, Elias +
-    Mariana only to the rest of Money; enforce the same rule app-side off
-    `household_members.role` so `child` cannot reach net worth, accounts, ledger
-    or retirement.
+5.0 **Identity propagation — implemented 2026-09-11, device checks remain.**
+    Migration adds a unique normalized email identity, with no real addresses in
+    source. Startup seeds unassigned members from private provisioning; existing
+    database assignments take precedence. The original signed Access assertion is
+    verified by the backend; client-provided member headers confer no authority.
+    Dependent members can only upload and read their own captures. The rest of the
+    API and navigation require adult access. Local loopback operation remains a
+    separately labeled operator context, never an invented household identity.
 
 5.1 **Fix package extraction** (U-2) with a confidence gate and manual override.
     Known failures: `Triple Omega 3-6-9 … 150 Ct` → parsed 54 count (2.8× off);
@@ -2232,14 +2219,15 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
 5.5 **Costco item-number → product map** — the shelf tag carries item number, full
     description, package size *and* per-unit price. It is the join key between
     Costco receipts and the price matrix.
-5.6 **Camera capture** for shelf tags — **four people, all phones** (D15).
-    No camera input exists today (only `accept="image/*,.pdf"` on `AddCardDialog`,
-    no `capture` attribute). Use
-    `<input type="file" accept="image/*" capture="environment">`, which opens the
-    camera directly in iOS Safari — **no PWA install needed to capture** (install
-    is only required for push, D11). Kids open a URL. Every capture carries its
-    owner via 5.0. Target OCR fields: Costco item number, full description,
-    package size, shelf per-unit price, store.
+5.6 **Camera capture — foundation implemented 2026-09-11.**
+    `/capture` accepts phone photos and PDF receipts. Per-member IndexedDB drafts
+    survive a lost connection and page closure; uploading is explicit and retries
+    use a stable draft ID. The server checks the draft's member against the signed
+    identity, stores private evidence, and leaves purchase outcome unknown.
+    Adult review can identify buyer and beneficiary independently, or send a
+    receipt into the existing Intake approval process. Shelf tags never create
+    financial transactions. Package/price verification and the bounded staple
+    comparison are the next layer; a reviewed photo alone is not a verified quote.
 5.7 **"Should I buy this?"** in-store screen: your usual unit cost, the other four
     stores after fees and membership, bigger-pack verdict, and how long it lasts at
     observed pace.
@@ -2254,11 +2242,12 @@ Prerequisite for D2.4 owner attribution and for all per-item price work.
 ### Phase 6 — Shopping habits (D15)
 Only possible once 5.0 + 5.6 are collecting attributed captures alongside receipts.
 
-6.1 **Considered-and-declined** — captured but never purchased. The only record of
-    a good decision the household currently has no way to see.
-6.2 **Impulse** — purchased with no prior capture, in categories where capture is
-    the norm.
-6.3 **Deliberation** — the same item captured repeatedly before buying.
+6.1 **Confirmed not purchased** — only an explicit outcome from the person or
+    supporting evidence establishes this. An unmatched capture remains unknown.
+6.2 **Purchases without earlier capture** — report missing capture coverage;
+    do not label these purchases impulsive.
+6.3 **Repeated consideration** — repeated captures can show that an item was
+    considered more than once; they do not establish motive or decision quality.
 6.4 **Pattern surfaces** — store and time-of-day habits, per-person basket
     composition, recurring overspend shapes, "we always overspend at Costco on
     Saturdays" class of finding.
@@ -2282,6 +2271,7 @@ household-level habits and per-person habits are different products.
 
 | Date | Phase | What happened |
 |---|---|---|
+| 2026-09-11 | Approved product review | Corrected merchant identity, MTD/coverage verdicts, card economics, retirement ownership/basis and portfolio returns. Review is the default with exact ledger links and monthly decisions; Today leads with actions. Family capture, confirmed unit-price pilot, precise Intake, contextual investing/news and assumption history are implemented. Managed browser jobs now wait for financial content. Device delivery and realized shopping outcomes remain evidence-dependent. See PRODUCT_REVIEW_IMPLEMENTATION.md. |
 | 2026-08-22 | Audit | Read all 5 target panels + backend spend filters; queried live DB and all 4 spending windows; captured live screenshots of Dashboard/Budget/Levers/Ledger/Purchases. 18 findings recorded (5 P0). No project files changed. |
 | 2026-08-22 | Grill Q1–Q4 | D1–D12 decided. Sub-audits: unit-price engine, receipt sources (Walmart/Costco), cash + sinking funds, prices subsystem, PWA push readiness, missing credit cards. New findings U-1…U-4, P0-20, P2-19. |
 | 2026-08-22 | Receipts | User uploaded 13 PDFs (8 Walmart, 5 Costco). All `status: staged` — **deliberately not ingested**, per "don't change anything until approved". Verified both formats parse and self-reconcile. Costco: $884.23 / 68 items across 5 receipts. |

@@ -14,6 +14,8 @@ from app.models.household_finance import (
 )
 from app.services._household_finance_utils import iso, iso_or_none
 from app.services.household_finance_rows import row_to_question
+from app.services.household_monthly_review import validate_review_fact
+from app.services.retirement_preview_coordinator import preview_coordinator
 
 _Q_COLS = (
     "q.id, q.field_name, q.status, q.priority, q.question, q.rationale, "
@@ -42,6 +44,7 @@ class _HFIntakeMethods:
         ]
 
     def confirm_fact(self, fact_key: str, fact_value: str) -> HouseholdConfirmedFact:
+        fact_value = validate_review_fact(fact_key, fact_value)
         now = datetime.now(UTC)
         with self.storage.connection() as conn:
             conn.execute(
@@ -54,10 +57,10 @@ class _HFIntakeMethods:
                 [fact_key, fact_value, now],
             )
             conn.commit()
+        preview_coordinator.invalidate()
         return HouseholdConfirmedFact(fact_key=fact_key, fact_value=fact_value, confirmed_at=now.isoformat())
 
     def list_questions(self, limit: int = 20) -> HouseholdQuestionList:
-        self._reconcile_open_questions()
         with self.storage.connection() as conn:
             rows = conn.execute(
                 f"""

@@ -36,238 +36,19 @@ import type {
   HouseholdProfileUpdate,
   HouseholdResolvedValue,
 } from '@/lib/api/household'
-import { formatCurrency } from '@/lib/formatters'
 import {
   useConfirmFact,
   useUpdateHouseholdProfile,
 } from '@/lib/hooks/useHousehold'
-
+import { AssumptionChangeHistory } from './AssumptionChangeHistory'
+import {
+  type AssumptionFieldDef,
+  assumptionFields,
+  formatAssumptionValue,
+  parseStoredAssumption,
+  validAssumptionValue,
+} from './assumption-fields'
 import { formatResolvedValue } from './household-profile-utils'
-
-type AssumptionFieldType =
-  | 'currency'
-  | 'integer'
-  | 'number'
-  | 'percent'
-  | 'text'
-
-type AssumptionFieldDef = {
-  fieldName: string
-  profileKey: keyof HouseholdProfileUpdate & keyof HouseholdProfile
-  label: string
-  type: AssumptionFieldType
-  hint: string
-  placeholder?: string
-  acceptsFoundValue?: boolean
-  supportsCadence?: boolean
-  percentStorage?: 'fraction'
-}
-
-const assumptionFields: AssumptionFieldDef[] = [
-  {
-    fieldName: 'adult_count',
-    profileKey: 'adultCount',
-    label: 'Adults in household',
-    type: 'integer',
-    hint: 'Core scope for budgets and planning assumptions.',
-    placeholder: '2',
-  },
-  {
-    fieldName: 'dependent_count',
-    profileKey: 'dependentCount',
-    label: 'Dependents',
-    type: 'integer',
-    hint: 'Used for planning complexity and recurring household needs.',
-    placeholder: '0',
-  },
-  {
-    fieldName: 'monthly_net_income_target',
-    profileKey: 'monthlyNetIncomeTarget',
-    label: 'Take-home income',
-    type: 'currency',
-    hint: 'What the household aims to take home. Caps are priced off the income anchor on the Budget screen — the median of the last three complete months — not off this figure.',
-    placeholder: '12500',
-    supportsCadence: true,
-  },
-  {
-    fieldName: 'monthly_essential_target',
-    profileKey: 'monthlyEssentialTarget',
-    label: 'Essential budget',
-    type: 'currency',
-    hint: 'Housing, food, utilities, insurance, debt minimums.',
-    placeholder: '5200',
-  },
-  {
-    fieldName: 'monthly_discretionary_target',
-    profileKey: 'monthlyDiscretionaryTarget',
-    label: 'Discretionary budget',
-    type: 'currency',
-    hint: 'Optional spending Jenny should treat as the flex lane.',
-    placeholder: '1800',
-  },
-  {
-    fieldName: 'monthly_savings_target',
-    profileKey: 'monthlySavingsTarget',
-    label: 'Savings target',
-    type: 'currency',
-    hint: 'Monthly amount the household wants left over on purpose.',
-    placeholder: '2500',
-  },
-  {
-    fieldName: 'effective_tax_rate',
-    profileKey: 'effectiveTaxRate',
-    label: 'Effective tax rate',
-    type: 'percent',
-    hint: 'Useful for translating gross income or planning values into take-home assumptions.',
-    placeholder: '24',
-  },
-  {
-    fieldName: 'marginal_federal_tax_rate',
-    profileKey: 'marginalFederalTaxRate',
-    label: 'Federal marginal tax rate',
-    type: 'percent',
-    hint: 'Helps Jenny reason about incremental income or retirement tax tradeoffs.',
-    placeholder: '22',
-  },
-  {
-    fieldName: 'marginal_state_tax_rate',
-    profileKey: 'marginalStateTaxRate',
-    label: 'State marginal tax rate',
-    type: 'percent',
-    hint: 'Used when state tax drag matters for decisions or withdrawals.',
-    placeholder: '5',
-  },
-  {
-    fieldName: 'emergency_fund_target_months',
-    profileKey: 'emergencyFundTargetMonths',
-    label: 'Emergency fund target months',
-    type: 'number',
-    hint: 'How much runway cash should cover before Jenny calls it fully funded.',
-    placeholder: '6',
-  },
-  {
-    fieldName: 'emergency_fund_target_amount',
-    profileKey: 'emergencyFundTargetAmount',
-    label: 'Emergency fund target amount',
-    type: 'currency',
-    hint: 'Override the runway target with a hard dollar amount if needed.',
-    placeholder: '25000',
-  },
-  {
-    fieldName: 'filing_status',
-    profileKey: 'filingStatus',
-    label: 'Tax filing status',
-    type: 'text',
-    hint: 'Use plain language if that is clearer than tax-form wording.',
-    placeholder: 'Married filing jointly',
-  },
-  {
-    fieldName: 'state_of_residence',
-    profileKey: 'stateOfResidence',
-    label: 'State of residence',
-    type: 'text',
-    hint: 'Only needed if state taxes or benefits meaningfully change decisions.',
-    placeholder: 'NC',
-  },
-  {
-    fieldName: 'target_retirement_age',
-    profileKey: 'targetRetirementAge',
-    label: 'Your retirement age',
-    type: 'integer',
-    hint: 'The age Jenny should use for preparedness framing.',
-    placeholder: '60',
-  },
-  {
-    fieldName: 'target_spouse_retirement_age',
-    profileKey: 'targetSpouseRetirementAge',
-    label: 'Spouse retirement age',
-    type: 'integer',
-    hint: 'Spouse work-stop age for retirement preview timing.',
-    placeholder: '60',
-  },
-  {
-    fieldName: 'target_retirement_spend',
-    profileKey: 'targetRetirementSpend',
-    label: 'Retirement monthly spend',
-    type: 'currency',
-    hint: 'Expected monthly lifestyle cost once work income stops.',
-    placeholder: '9000',
-  },
-  {
-    fieldName: 'retirement_inflation_rate',
-    profileKey: 'retirementInflationRate',
-    label: 'Retirement inflation rate',
-    type: 'percent',
-    hint: 'Default inflation assumption for retirement previews.',
-    placeholder: '2.5',
-    percentStorage: 'fraction',
-  },
-  {
-    fieldName: 'retirement_horizon_years',
-    profileKey: 'retirementHorizonYears',
-    label: 'Retirement horizon years',
-    type: 'integer',
-    hint: 'How many years the retirement preview should project.',
-    placeholder: '35',
-  },
-  {
-    fieldName: 'primary_social_security_annual_earnings',
-    profileKey: 'primarySocialSecurityAnnualEarnings',
-    label: 'Your Social Security salary',
-    type: 'currency',
-    hint: 'Annual earnings used for the rough Social Security estimate.',
-    placeholder: '120000',
-  },
-  {
-    fieldName: 'primary_social_security_monthly',
-    profileKey: 'primarySocialSecurityMonthly',
-    label: 'Your Social Security monthly',
-    type: 'currency',
-    hint: 'Exact monthly SSA estimate, when known.',
-    placeholder: '2800',
-  },
-  {
-    fieldName: 'primary_social_security_start_age',
-    profileKey: 'primarySocialSecurityStartAge',
-    label: 'Your Social Security age',
-    type: 'integer',
-    hint: 'Age to start Social Security in retirement previews.',
-    placeholder: '67',
-  },
-  {
-    fieldName: 'spouse_social_security_annual_earnings',
-    profileKey: 'spouseSocialSecurityAnnualEarnings',
-    label: 'Spouse Social Security salary',
-    type: 'currency',
-    hint: 'Annual earnings used for the rough spouse Social Security estimate.',
-    placeholder: '90000',
-  },
-  {
-    fieldName: 'spouse_social_security_monthly',
-    profileKey: 'spouseSocialSecurityMonthly',
-    label: 'Spouse Social Security monthly',
-    type: 'currency',
-    hint: 'Exact monthly SSA estimate for spouse, when known.',
-    placeholder: '2200',
-  },
-  {
-    fieldName: 'spouse_social_security_start_age',
-    profileKey: 'spouseSocialSecurityStartAge',
-    label: 'Spouse Social Security age',
-    type: 'integer',
-    hint: 'Spouse age to start Social Security in retirement previews.',
-    placeholder: '67',
-  },
-  {
-    fieldName: 'social_security_payable_ratio',
-    profileKey: 'socialSecurityPayableRatio',
-    label: 'Social Security payable %',
-    type: 'percent',
-    hint: 'Percent of scheduled SSA benefits to model after projected trust fund depletion.',
-    placeholder: '77',
-    percentStorage: 'fraction',
-  },
-]
 
 const cadenceOptions: Array<{ value: IncomeCadence; label: string }> = [
   { value: 'monthly', label: 'Monthly' },
@@ -275,28 +56,12 @@ const cadenceOptions: Array<{ value: IncomeCadence; label: string }> = [
   { value: 'annual', label: 'Annual' },
 ]
 
-function formatCurrentValue(def: AssumptionFieldDef, value: unknown) {
-  if (value == null || value === '') {
-    return '—'
-  }
-  if (def.type === 'currency' && typeof value === 'number') {
-    return formatCurrency(value, { decimals: 0 })
-  }
-  if (def.type === 'percent' && typeof value === 'number') {
-    const displayValue = def.percentStorage === 'fraction' ? value * 100 : value
-    return `${displayValue}%`
-  }
-  if (def.fieldName === 'target_retirement_age' && typeof value === 'number') {
-    return `Age ${value}`
-  }
-  return String(value)
-}
-
 function parseNumericInput(rawValue: string) {
   const normalized = rawValue
     .trim()
     .replace(/[$,%\s]/g, '')
     .replace(/,/g, '')
+  if (!normalized) return null
   const parsed = Number(normalized)
   if (!Number.isFinite(parsed)) {
     return null
@@ -314,40 +79,28 @@ function parseDraftValue(
     return null
   }
   if (def.type === 'text') {
+    if (!validAssumptionValue(def, trimmed))
+      throw new Error(`Enter a valid ${def.label.toLowerCase()}.`)
     return trimmed
   }
   const parsed = parseNumericInput(trimmed)
   if (parsed == null) {
     throw new Error(`Enter a valid value for ${def.label.toLowerCase()}.`)
   }
-  if (def.type === 'integer') {
-    return Math.round(parsed)
-  }
-  if (def.supportsCadence) {
-    return monthlyValueFromCadence(parsed, cadence)
-  }
-  if (def.type === 'percent' && def.percentStorage === 'fraction') {
-    return parsed / 100
-  }
-  return parsed
+  const stored = def.supportsCadence
+    ? monthlyValueFromCadence(parsed, cadence)
+    : def.type === 'percent' && def.percentStorage === 'fraction'
+      ? parsed / 100
+      : parsed
+  if (!validAssumptionValue(def, stored))
+    throw new Error(
+      `Enter a valid ${def.label.toLowerCase()}${def.type === 'integer' ? ' in whole numbers' : ''}.`,
+    )
+  return stored
 }
 
 function rawCadenceValue(rawValue: string) {
   return rawValue.trim() ? parseNumericInput(rawValue) : null
-}
-
-function parseResolvedValue(def: AssumptionFieldDef, value: string | null) {
-  if (!value) {
-    return null
-  }
-  if (def.type === 'text') {
-    return value
-  }
-  const parsed = parseNumericInput(value)
-  if (parsed == null) {
-    return null
-  }
-  return def.type === 'integer' ? Math.round(parsed) : parsed
 }
 
 function statusChipColor(kind: 'found' | 'confirmed') {
@@ -471,7 +224,7 @@ export function MoneyAssumptionsDrawer({
 
   async function acceptFoundValue(def: AssumptionFieldDef) {
     const resolved = resolvedMap.get(def.fieldName)
-    const parsed = parseResolvedValue(def, resolved?.value ?? null)
+    const parsed = parseStoredAssumption(def, resolved?.value ?? null)
     if (parsed == null) {
       toast.error('No found value is available to accept yet.')
       return
@@ -616,6 +369,7 @@ export function MoneyAssumptionsDrawer({
           </div>
         </div>
       </SectionCard>
+      <AssumptionChangeHistory />
 
       <SectionCard
         variant="surface"
@@ -685,6 +439,14 @@ export function MoneyAssumptionsDrawer({
                           Waiting on more evidence
                         </span>
                       )}
+                      {resolved ? (
+                        <p className="mt-1 text-xs text-text-muted">
+                          Source: {resolved.source.replaceAll('_', ' ')}.{' '}
+                          {currentValue != null
+                            ? 'Your confirmed value takes precedence.'
+                            : 'Evidence estimate; not confirmed.'}
+                        </p>
+                      ) : null}
                       {resolved?.rationale ? (
                         <p className="mt-2 text-sm text-text-muted">
                           {resolved.rationale}
@@ -696,7 +458,7 @@ export function MoneyAssumptionsDrawer({
                         <div
                           className={`inline-flex rounded-full border px-3 py-1 text-sm ${statusChipColor('confirmed')}`}
                         >
-                          {formatCurrentValue(def, currentValue)}
+                          {formatAssumptionValue(def, currentValue)}
                         </div>
                       ) : (
                         <span className="text-text-muted">Not confirmed</span>
@@ -710,6 +472,7 @@ export function MoneyAssumptionsDrawer({
                     <td className="border-b border-border/20 px-4 py-3">
                       <div className="space-y-2">
                         <Input
+                          aria-label={def.label}
                           inputMode={
                             def.type === 'text'
                               ? 'text'
@@ -772,7 +535,8 @@ export function MoneyAssumptionsDrawer({
                           variant="outline"
                           onClick={() => void acceptFoundValue(def)}
                           disabled={
-                            resolved?.value == null ||
+                            parseStoredAssumption(def, resolved?.value) ==
+                              null ||
                             updateProfile.isPending ||
                             confirmFact.isPending
                           }

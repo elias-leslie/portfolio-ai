@@ -33,7 +33,7 @@ export function CardAlertSettings({
     <SectionCard
       variant="surface"
       title="Alerts & research"
-      description="Spend-pace, welcome-deadline, rotation-due, and annual-fee alerts push to Telegram via Jenny — nothing to configure here."
+      description="Card alerts use the household’s registered phones, with the shared chat as a fallback when no phone receives an alert. Manage devices in Review → household setup."
     >
       <div className="space-y-5">
         <div className="flex flex-wrap items-end gap-3">
@@ -85,17 +85,15 @@ export function CardAlertSettings({
                 : 'Refresh catalog research'}
             </Button>
             <span className="text-xs text-text-muted">
-              Verifies fees, bonuses, and point valuations against current
-              public sources (also runs monthly).
+              Proposes sourced changes to fees, bonuses, and rewards (also runs
+              monthly). Review them before they change the plan.
             </span>
           </div>
           {researchResult ? (
             <div className="space-y-2 rounded-2xl border border-border/40 bg-surface-muted/10 px-4 py-3 text-sm">
               <p className="text-text">
-                {researchResult.updatesApplied} update
-                {researchResult.updatesApplied === 1 ? '' : 's'} applied ·{' '}
-                {researchResult.candidatesAdded} candidate
-                {researchResult.candidatesAdded === 1 ? '' : 's'} added
+                {researchResult.pendingReview ?? 0} proposed term changes
+                awaiting verification
               </p>
               {researchResult.materialChanges.length > 0 ? (
                 <ul className="list-disc space-y-1 pl-5 text-xs text-warning">

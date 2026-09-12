@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.portfolio.current_facts import calculate_current_position_fact
+from app.services.news_cached_evidence import filter_cached_news
 
 from .models import (
     AlertIndicator,
@@ -94,10 +95,17 @@ def build_signal_section(watchlist: dict[str, Any]) -> SignalSection:
 def build_trading_section(watchlist: dict[str, Any]) -> TradingSection:
     """Build the trading section from watchlist data."""
     return TradingSection(
-        style=watchlist.get("recommended_style"),
-        confidence=watchlist.get("style_confidence"),
-        holding_period=watchlist.get("optimal_holding_period"),
-        risk_level=watchlist.get("risk_level"),
+        # Historical snapshots also contain the old unconditional Value label.
+        # No worked thesis or calibration supported these fallback fields.
+        style=(
+            watchlist.get("recommended_style")
+            if watchlist.get("recommended_style") in {"Index", "Event", "Swing", "Trend"}
+            else None
+        ),
+        confidence=None,
+        holding_period=None,
+        risk_level=None,
+        basis="Uncalibrated setup heuristic; holding period and risk require a worked thesis.",
         entry_price=watchlist.get("entry_price"),
         stop_loss=watchlist.get("stop_loss"),
         profit_target=watchlist.get("profit_target"),
@@ -117,12 +125,13 @@ def build_quote_section(quote: dict[str, Any] | None) -> QuoteSection | None:
 
     price = _finite_float(quote.get("price"))
     cached_at = quote.get("cached_at")
-    if isinstance(cached_at, datetime):
-        if cached_at.tzinfo is None:
-            cached_at = cached_at.replace(tzinfo=UTC)
+    quote_time = quote.get("quote_time")
+    if isinstance(quote_time, datetime):
+        if quote_time.tzinfo is None:
+            quote_time = quote_time.replace(tzinfo=UTC)
         age_seconds = max(
             0.0,
-            (datetime.now(UTC) - cached_at.astimezone(UTC)).total_seconds(),
+            (datetime.now(UTC) - quote_time.astimezone(UTC)).total_seconds(),
         )
     else:
         age_seconds = None
@@ -147,6 +156,7 @@ def build_quote_section(quote: dict[str, Any] | None) -> QuoteSection | None:
         price=price,
         source=quote.get("source"),
         cached_at=cached_at if isinstance(cached_at, datetime) else None,
+        quote_time=quote_time if isinstance(quote_time, datetime) else None,
         session=quote.get("session"),
         freshness_status=status,
         freshness_label=label,
@@ -191,8 +201,17 @@ def build_alerts(watchlist: dict[str, Any]) -> list[AlertIndicator]:
 
 def build_news_section_from_watchlist(watchlist: dict[str, Any]) -> NewsSection | None:
     """Build the news section from watchlist news intelligence."""
-    news_intel = watchlist.get("news_intelligence") or {}
-    recent_news = watchlist.get("recent_news") or {}
+    symbol = str(watchlist.get("symbol") or "")
+    news_intel = (
+        filter_cached_news(
+            symbol, watchlist.get("news_intelligence"), watchlist.get("company_name")
+        )
+        or {}
+    )
+    recent_news = (
+        filter_cached_news(symbol, watchlist.get("recent_news"), watchlist.get("company_name"))
+        or {}
+    )
     recent_news_summary = recent_news.get("summary") if isinstance(recent_news, dict) else {}
     recent_news_articles = recent_news.get("articles") if isinstance(recent_news, dict) else []
 
@@ -237,6 +256,8 @@ def build_news_section_from_watchlist(watchlist: dict[str, Any]) -> NewsSection 
                 url=a.get("url"),
                 source=a.get("source"),
                 published_at=a.get("published_at"),
+                relationship=a.get("relationship"),
+                relationship_reason=a.get("relationship_reason"),
             )
             for a in recent_articles_raw[:5]
             if isinstance(a, dict)
@@ -247,8 +268,9 @@ def build_news_section_from_watchlist(watchlist: dict[str, Any]) -> NewsSection 
 def build_news_section_fallback(news: dict[str, Any]) -> NewsSection:
     """Build a fallback news section from news summary data."""
     return NewsSection(
-        sentiment_score=news.get("sentiment_score"),
+        sentiment_score=None,
         article_count_24h=news.get("article_count") or 0,
+        headline="Historical article count only; source articles were not retained here to verify company relevance.",
     )
 
 
@@ -277,9 +299,7 @@ def build_portfolio_section(
                 gain=current_fact.gain,
                 gain_pct=current_fact.gain_pct,
                 weight_pct=current_fact.weight_pct,
-                concentration_weight_pct=_finite_float(
-                    position.get("concentration_weight_pct")
-                ),
+                concentration_weight_pct=_finite_float(position.get("concentration_weight_pct")),
                 concentration_method=(
                     str(position.get("concentration_method"))
                     if position.get("concentration_method")

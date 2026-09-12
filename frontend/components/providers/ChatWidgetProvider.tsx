@@ -8,7 +8,10 @@ import {
   useState,
 } from 'react'
 
-const STORAGE_KEY = 'portfolio-ai:jenny-chat:widget-enabled'
+import {
+  identityStorageKey,
+  useHouseholdIdentity,
+} from './HouseholdIdentityProvider'
 
 type ChatWidgetContextValue = {
   enabled: boolean
@@ -24,26 +27,31 @@ export function ChatWidgetProvider({
 }: {
   children: React.ReactNode
 }) {
+  const identity = useHouseholdIdentity()
+  const storageKey = identityStorageKey(identity, 'jenny-chat:widget-enabled')
   const [enabled, setEnabledState] = useState(true)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     try {
-      setEnabledState(window.localStorage.getItem(STORAGE_KEY) !== 'false')
+      setEnabledState(window.localStorage.getItem(storageKey) !== 'false')
     } catch {
       // ignore — keep default enabled
     }
     setReady(true)
-  }, [])
+  }, [storageKey])
 
-  const setEnabled = useCallback((next: boolean) => {
-    setEnabledState(next)
-    try {
-      window.localStorage.setItem(STORAGE_KEY, String(next))
-    } catch {
-      // ignore — preference just won't persist
-    }
-  }, [])
+  const setEnabled = useCallback(
+    (next: boolean) => {
+      setEnabledState(next)
+      try {
+        window.localStorage.setItem(storageKey, String(next))
+      } catch {
+        // ignore — preference just won't persist
+      }
+    },
+    [storageKey],
+  )
 
   return (
     <ChatWidgetContext.Provider value={{ enabled, ready, setEnabled }}>

@@ -24,6 +24,7 @@ import {
   useReReviewHouseholdDocument,
 } from '@/lib/hooks/useHousehold'
 import { formatDate } from '@/lib/utils'
+import { EvidenceSource } from './EvidenceSource'
 
 export function DocumentCard({ document }: { document: HouseholdDocument }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -34,6 +35,13 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
     document.metadata && typeof document.metadata === 'object'
       ? document.metadata
       : {}
+  const reviewQuestionsValue =
+    metadata.reviewQuestions ?? metadata.review_questions
+  const reviewQuestions = Array.isArray(reviewQuestionsValue)
+    ? reviewQuestionsValue.filter(
+        (item): item is string => typeof item === 'string',
+      )
+    : []
   const applicationSummaryValue =
     metadata.applicationSummary ?? metadata.application_summary
   const applicationSummary =
@@ -88,10 +96,8 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
   const canApproveProposal = canDecideProposal && proposedChanges.length > 0
   const fileAvailable =
     metadata.fileAvailable === true || metadata.file_available === true
-  const showClassifierBadge =
-    document.classificationConfidence != null &&
-    document.reviewConfidence == null
   const showSourceAvailabilityBadge =
+    (metadata.fileAvailable === false || metadata.file_available === false) &&
     !fileAvailable &&
     document.reviewStatus !== 'complete' &&
     document.status !== 'parsed'
@@ -102,16 +108,14 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
       proposalStatus === 'rejected' ||
       proposalStatus === 'failed' ||
       proposalStatus === 'stale')
-  const classifierPct =
-    document.classificationConfidence != null
-      ? Math.round(document.classificationConfidence * 100)
-      : null
 
   return (
     <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-text">{document.filename}</p>
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+        <div className="min-w-0 w-full flex-1">
+          <p className="break-words text-sm font-semibold text-text">
+            {document.filename}
+          </p>
           <p className="mt-1 text-sm text-text-muted">
             {formatEnumLabel(document.sourceType, 'Source pending')} ·{' '}
             {formatEnumLabel(document.documentType, 'Type pending')}
@@ -120,9 +124,6 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             <Badge variant="secondary">
               {formatEnumLabel(document.status, 'staged')}
             </Badge>
-            {showClassifierBadge ? (
-              <Badge variant="outline">Classifier {classifierPct}%</Badge>
-            ) : null}
             {applicationSummary?.status === 'applied' ? (
               <Badge variant="success">Applied</Badge>
             ) : applicationSummary?.status === 'incomplete' ? (
@@ -207,6 +208,24 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
                   re-run review with clearer evidence.
                 </p>
               )}
+              {reviewQuestions.length > 0 && (
+                <div className="mt-2 text-xs">
+                  <p className="font-medium">
+                    Questions raised in this saved review
+                  </p>
+                  <ul className="mt-1 list-disc space-y-1 pl-4">
+                    {reviewQuestions.map((question, index) => (
+                      <li key={`${index}-${question}`}>{question}</li>
+                    ))}
+                  </ul>
+                  <a
+                    href="#money-clarifications"
+                    className="mt-1 inline-block underline"
+                  >
+                    Check current clarifications
+                  </a>
+                </div>
+              )}
               {proposalPreview ? (
                 <ProposalPreviewDetails preview={proposalPreview} />
               ) : proposalStatus !== 'stale' ? (
@@ -283,8 +302,13 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             ) : null}
           </p>
           <StatementDates document={document} />
+          <EvidenceSource
+            documentId={document.id}
+            reviewId={proposalReviewId}
+            fileAvailable={fileAvailable}
+          />
         </div>
-        <div className="flex flex-col items-end gap-1 text-right text-xs text-text-muted">
+        <div className="flex flex-col items-start gap-1 text-left text-xs text-text-muted sm:items-end sm:text-right">
           <div className="flex items-center gap-1">
             {showReReviewButton ? (
               <Button
@@ -314,12 +338,7 @@ export function DocumentCard({ document }: { document: HouseholdDocument }) {
             </Button>
           </div>
           {document.reviewStatus ? (
-            <p>
-              Jenny: {formatEnumLabel(document.reviewStatus)}
-              {document.reviewConfidence != null
-                ? ` (${Math.round(document.reviewConfidence * 100)}%)`
-                : ''}
-            </p>
+            <p>Review: {formatEnumLabel(document.reviewStatus)}</p>
           ) : null}
           {document.fileSizeBytes > 0 ? (
             <>
@@ -668,9 +687,17 @@ function buildApplicationSummary(summary: Record<string, unknown>): string {
     )
 
   if (parts.length === 0) {
-    return 'Reviewed, but not enough safe structured output applied yet.'
+    const blocker = nullableText(
+      summary.reviewBlocker ?? summary.review_blocker,
+    )
+    return blocker
+      ? `No changes applied. ${blocker}`
+      : summary.status === 'applied'
+        ? 'Review complete; no new changes were required.'
+        : 'No changes applied yet. Review the proposed values and missing evidence.'
   }
-  return `Applied to ${parts.join(', ')}.`
+  const blocker = nullableText(summary.reviewBlocker ?? summary.review_blocker)
+  return `Applied to ${parts.join(', ')}.${blocker ? ` Still needed: ${blocker}` : ''}`
 }
 
 function StatementDates({ document }: { document: HouseholdDocument }) {

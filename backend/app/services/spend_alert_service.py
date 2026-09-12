@@ -30,6 +30,8 @@ from app.services._alert_dispatch import (
     Alert,
     dispatch_alerts,
 )
+from app.services.card_spend_summary import card_spend_summary
+from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -105,36 +107,29 @@ class SpendAlertService:
             rows = conn.execute(
                 """
                 SELECT c.id, c.household_account_id, c.opened_date, c.welcome_deadline,
-                       c.welcome_status, p.welcome_min_spend
+                       c.welcome_status, (c.metadata->'welcome_terms'->>'welcome_min_spend')::numeric
                 FROM household_credit_cards c
                 JOIN credit_card_products p ON p.id = c.product_id
                 WHERE c.status = 'active'
                   AND c.household_account_id IS NOT NULL
                   AND c.opened_date IS NOT NULL
-                  AND COALESCE(p.welcome_min_spend, 0) > 0
-                  AND c.welcome_status IN ('not_started', 'in_progress')
+                  AND COALESCE((c.metadata->'welcome_terms'->>'welcome_min_spend')::numeric, 0) > 0
+                  AND c.welcome_status IN ('not_started', 'in_progress', 'spend_met')
                 """,
             ).fetchall()
             today = datetime.now(UTC).date()
             for card_id, account_id, opened, deadline, _status, raw_min_spend in rows:
-                spend_row = conn.execute(
-                    """
-                    SELECT COALESCE(SUM(amount), 0)
-                    FROM household_transactions
-                    WHERE household_account_id = %s
-                      AND flow_type = 'expense' AND removed = FALSE
-                      AND transaction_date >= %s
-                      AND NOT (COALESCE(category, '') ILIKE 'bank fees%%')
-                      AND NOT (COALESCE(description, '') ILIKE %s)
-                      AND NOT (COALESCE(description, '') ILIKE %s)
-                    """,
-                    [account_id, opened, "%annual%fee%", "%interest charge%"],
-                ).fetchone()
-                progress = float((spend_row[0] if spend_row else 0) or 0.0)
+                service = HouseholdTransactionService(storage=self._storage)
+                rows_for_card = service._spend_rows_between(start_date=opened, end_date=min(today, deadline) if isinstance(deadline, date) else today)
+                progress = round(max(0, sum(float(row.get("signed_amount", row["amount"])) for row in rows_for_card
+                    if row.get("household_account_id") == str(account_id) and not row.get("pending")
+                    and not str(row.get("category", "")).lower().startswith("bank fees")
+                    and "annual fee" not in str(row.get("description", "")).lower()
+                    and "interest charge" not in str(row.get("description", "")).lower())), 2)
                 min_spend = float(raw_min_spend or 0.0)
                 deadline_date = deadline if isinstance(deadline, date) else None
                 if progress >= min_spend:
-                    status = "earned"
+                    status = "spend_met"
                 elif deadline_date is not None and today > deadline_date:
                     status = "missed"
                 else:
@@ -313,7 +308,7 @@ class SpendAlertService:
                 SELECT c.id, c.status, c.is_primary_active, c.player, c.role,
                        c.opened_date, c.annual_fee_due_date, c.welcome_progress_amount,
                        c.welcome_deadline, c.welcome_status,
-                       p.product_name, p.annual_fee, p.welcome_min_spend
+                       p.product_name, p.annual_fee, (c.metadata->'welcome_terms'->>'welcome_min_spend')::numeric
                 FROM household_credit_cards c
                 JOIN credit_card_products p ON p.id = c.product_id
                 """,
@@ -326,16 +321,7 @@ class SpendAlertService:
         return [dict(zip(keys, row, strict=True)) for row in rows]
 
     def _month_to_date_spend(self) -> float:
-        with self._storage.connection() as conn:
-            row = conn.execute(
-                """
-                SELECT COALESCE(SUM(amount), 0)
-                FROM household_transactions
-                WHERE flow_type = 'expense' AND removed = FALSE
-                  AND transaction_date >= date_trunc('month', CURRENT_DATE)
-                """,
-            ).fetchone()
-        return float((row[0] if row else 0) or 0.0)
+        return float(card_spend_summary(self._storage)["total"])
 
     def _monthly_cap(self, cards: list[dict[str, Any]]) -> float:
         """Per-card cap fact for the primary active card, else the default fact,

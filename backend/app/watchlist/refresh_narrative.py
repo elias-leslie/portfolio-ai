@@ -209,10 +209,10 @@ def create_default_narrative_result(symbol: str) -> NarrativeResultDict:
         style_result=cast(
             TradingStyleDict,
             {
-                "style": "Value",
-                "confidence": 5,
-                "holding_period": "Unknown",
-                "risk_level": "Medium",
+                "style": None,
+                "confidence": None,
+                "holding_period": None,
+                "risk_level": None,
             },
         ),
         entry_price=None,

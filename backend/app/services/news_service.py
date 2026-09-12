@@ -49,9 +49,14 @@ def _empty_news_bundle(symbol: str) -> NewsBundle:
     return NewsBundle(
         symbol=symbol,
         summary=NewsSummary(
-            symbol=symbol, score=None, score_change=None,
-            positive_count=0, negative_count=0, neutral_count=0,
-            article_count=0, latest_published_at=None,
+            symbol=symbol,
+            score=None,
+            score_change=None,
+            positive_count=0,
+            negative_count=0,
+            neutral_count=0,
+            article_count=0,
+            latest_published_at=None,
         ),
         articles=[],
     )
@@ -107,13 +112,19 @@ class NewsService:
         self.quality_scorer = NewsQualityScorer()
         self.ai_features = NewsAIFeatures()
         self.cache_refresher = NewsCacheRefresher(
-            storage=storage, cache_manager=self.cache_manager,
-            vendor_manager=self.vendor_manager, processor=self.processor,
-            quality_scorer=self.quality_scorer, ai_features=self.ai_features,
-            ttl=self.ttl, selection_overfetch=self.selection_overfetch,
+            storage=storage,
+            cache_manager=self.cache_manager,
+            vendor_manager=self.vendor_manager,
+            processor=self.processor,
+            quality_scorer=self.quality_scorer,
+            ai_features=self.ai_features,
+            ttl=self.ttl,
+            selection_overfetch=self.selection_overfetch,
         )
         self.health_metrics = NewsHealthMetrics(
-            storage=storage, vendor_manager=self.vendor_manager, ttl=self.ttl,
+            storage=storage,
+            vendor_manager=self.vendor_manager,
+            ttl=self.ttl,
         )
         self.multi_source_fetcher = self.vendor_manager.multi_source_fetcher
         self.vendor_sources = self.vendor_manager.vendor_sources
@@ -163,12 +174,16 @@ class NewsService:
         """
         if symbol is None:
             return self._get_bundle(
-                symbol=MARKET_SYMBOL, query="stock market",
-                max_articles=max_articles, force_refresh=force_refresh,
+                symbol=MARKET_SYMBOL,
+                query="stock market",
+                max_articles=max_articles,
+                force_refresh=force_refresh,
             )
         return self._get_bundle(
-            symbol=symbol.upper(), query=f"{symbol} stock",
-            max_articles=max_articles, force_refresh=force_refresh,
+            symbol=symbol.upper(),
+            query=f"{symbol} stock",
+            max_articles=max_articles,
+            force_refresh=force_refresh,
         )
 
     def get_watchlist_news(
@@ -184,7 +199,9 @@ class NewsService:
             return {}
 
         def fetch_single(sym: str) -> tuple[str, NewsBundle]:
-            return sym, self.get_news_intelligence(sym, max_articles=max_articles, force_refresh=force_refresh)
+            return sym, self.get_news_intelligence(
+                sym, max_articles=max_articles, force_refresh=force_refresh
+            )
 
         bundles: dict[str, NewsBundle] = {}
         max_workers = min(MAX_PARALLEL_SYMBOLS, len(symbol_list))
@@ -195,10 +212,14 @@ class NewsService:
                     sym, bundle = future.result()
                     bundles[sym] = bundle
                 except Exception as exc:
-                    logger.warning("parallel_news_fetch_failed", symbol=futures[future], error=str(exc))
+                    logger.warning(
+                        "parallel_news_fetch_failed", symbol=futures[future], error=str(exc)
+                    )
         return bundles
 
-    def get_custom_news(self, query: str, *, max_articles: int = DEFAULT_MAX_ARTICLES) -> NewsBundle:
+    def get_custom_news(
+        self, query: str, *, max_articles: int = DEFAULT_MAX_ARTICLES
+    ) -> NewsBundle:
         """Fetch and score news for an arbitrary query without caching results."""
         if os.getenv("PYTEST_RUNNING"):
             return _empty_news_bundle(query)
@@ -207,21 +228,31 @@ class NewsService:
             logger.warning("get_custom_news_no_sources", query=query)
             return _empty_news_bundle(query)
         request = DatasetRequest(
-            dataset=DATASET_NEWS, profile=None, symbols=[query],
-            start=now - self.ttl, end=now, timezone="UTC",
+            dataset=DATASET_NEWS,
+            profile=None,
+            symbols=[query],
+            start=now - self.ttl,
+            end=now,
+            timezone="UTC",
         )
         dataframe, _ = self.multi_source_fetcher.fetch_with_fallback(request, verbose=False)
         raw_entries = [] if (dataframe is None or len(dataframe) == 0) else dataframe.to_dicts()
         articles = self.processor.score_entries(symbol=query, entries=raw_entries, now=now)
         summary = self.processor.build_summary(
-            symbol=query, articles=articles, previous_articles=[], as_of=now, ttl=self.ttl,
+            symbol=query,
+            articles=articles,
+            previous_articles=[],
+            as_of=now,
+            ttl=self.ttl,
         )
         return NewsBundle(symbol=query, summary=summary, articles=articles)
 
     # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
-    def _get_bundle(self, *, symbol: str, query: str, max_articles: int, force_refresh: bool) -> NewsBundle:
+    def _get_bundle(
+        self, *, symbol: str, query: str, max_articles: int, force_refresh: bool
+    ) -> NewsBundle:
         now = datetime.now(UTC)
         summary_limit = max(200, max_articles)
 
@@ -240,25 +271,45 @@ class NewsService:
                 cached = self.cache_manager.load_cached_articles(symbol, limit=summary_limit)
 
         all_recent = self.processor.select_recent_articles(
-            cached.articles, now, max_articles=summary_limit, ttl=self.ttl,
+            cached.articles,
+            now,
+            max_articles=summary_limit,
+            ttl=self.ttl,
         )
         previous = self.cache_manager.load_articles_in_window(
-            symbol=symbol, start=now - (self.ttl * 2), end=now - self.ttl, limit=summary_limit,
+            symbol=symbol,
+            start=now - (self.ttl * 2),
+            end=now - self.ttl,
+            limit=summary_limit,
         )
 
+        company_name = None
         if symbol != MARKET_SYMBOL:
-            all_recent = filter_symbol_relevant_articles(symbol, all_recent)
-            previous = filter_symbol_relevant_articles(symbol, previous)
+            with self.storage.connection() as conn:
+                row = conn.execute(
+                    "SELECT company_name FROM symbols WHERE symbol = %s", [symbol]
+                ).fetchone()
+            company_name = str(row[0]) if row and row[0] else None
+        all_recent = filter_symbol_relevant_articles(symbol, all_recent, company_name=company_name)
+        previous = filter_symbol_relevant_articles(symbol, previous, company_name=company_name)
 
         summary = self.processor.build_summary(
-            symbol=symbol, articles=all_recent, previous_articles=previous, as_of=now, ttl=self.ttl,
+            symbol=symbol,
+            articles=all_recent,
+            previous_articles=previous,
+            as_of=now,
+            ttl=self.ttl,
         )
         return NewsBundle(symbol=symbol, summary=summary, articles=all_recent[:max_articles])
 
-    def _try_refresh_cache(self, *, symbol: str, query: str, max_articles: int, now: datetime) -> None:
+    def _try_refresh_cache(
+        self, *, symbol: str, query: str, max_articles: int, now: datetime
+    ) -> None:
         """Attempt a cache refresh, logging on failure."""
         try:
-            self.cache_refresher.refresh_cache(symbol=symbol, query=query, max_articles=max_articles, now=now)
+            self.cache_refresher.refresh_cache(
+                symbol=symbol, query=query, max_articles=max_articles, now=now
+            )
         except Exception as exc:  # pragma: no cover - network/API failure
             logger.warning("news_refresh_failed", symbol=symbol, error=str(exc))
 
@@ -375,12 +426,16 @@ class NewsService:
             "fallback_rate_24h": round(fm["fallback_rate"], 4),
             "fallback_avg_latency_ms_24h": round(avg_ms, 2) if avg_ms is not None else None,
             "fallback_p95_latency_ms_24h": round(p95_ms, 2) if p95_ms is not None else None,
-            "fallback_last_event_at": to_iso(fm["last_fallback_at"]) if fm["last_fallback_at"] else None,
+            "fallback_last_event_at": to_iso(fm["last_fallback_at"])
+            if fm["last_fallback_at"]
+            else None,
             "sentiment_rescored_24h": sentiment_rescored_24h,
             "article_mix": {
                 "total_pre_dedupe": mx["total_pre"],
                 "total_post_dedupe": mx["total_post"],
-                "dedupe_ratio": round(mx["total_post"] / mx["total_pre"], 4) if mx["total_pre"] else None,
+                "dedupe_ratio": round(mx["total_post"] / mx["total_pre"], 4)
+                if mx["total_pre"]
+                else None,
                 "per_vendor_pre_dedupe": {k: int(v) for k, v in mx["vendor_pre"].items()},
                 "per_vendor_post_dedupe": {k: int(v) for k, v in mx["vendor_post"].items()},
                 "last_updated_at": to_iso(mx["last_timestamp"]),

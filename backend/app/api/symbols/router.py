@@ -7,7 +7,7 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
@@ -95,12 +95,15 @@ async def transition_symbol_workflow(
 ) -> SymbolWorkflow:
     """Advance or reset a symbol inside the investing workflow loop."""
     workflow_service = _workflow_service()
-    result = await run_in_threadpool(
-        workflow_service.transition,
-        symbol,
-        payload.stage,
-        payload.note,
-    )
+    try:
+        result = await run_in_threadpool(
+            workflow_service.transition,
+            symbol,
+            payload.stage,
+            payload.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     _invalidate_symbol_read_cache(symbol)
     return SymbolWorkflow.model_validate(result)
 
@@ -112,14 +115,17 @@ async def record_symbol_workflow_outcome(
 ) -> SymbolWorkflow:
     """Capture a live position decision with linked Jenny context."""
     workflow_service = _workflow_service()
-    result = await run_in_threadpool(
-        lambda: workflow_service.record_outcome(
-            symbol,
-            payload.action,
-            payload.note,
-            jenny_verdict=payload.jenny_verdict,
-            management_action=payload.management_action,
+    try:
+        result = await run_in_threadpool(
+            lambda: workflow_service.record_outcome(
+                symbol,
+                payload.action,
+                payload.note,
+                jenny_verdict=payload.jenny_verdict,
+                management_action=payload.management_action,
+            )
         )
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     _invalidate_symbol_read_cache(symbol)
     return SymbolWorkflow.model_validate(result)

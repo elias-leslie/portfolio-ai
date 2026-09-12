@@ -306,6 +306,8 @@ class HouseholdQuestionReconciler:
         cleaned = answer_text.strip()
         if not cleaned or question.field_name not in FIELD_LABELS:
             return
+        if question_family(question.question, question.field_name) in {"core_spending", "shopping_channel"}:
+            return
         column = question.field_name
         allowed_columns = set(FIELD_LABELS.keys())
         if column not in allowed_columns:

@@ -21,6 +21,7 @@ vi.mock('@/lib/hooks/useSymbolIntelligence', () => ({
         notes: 'Review position sizing.',
         nextReviewAt: '2026-03-12T12:00:00Z',
         availableTransitions: ['live', 'exited'],
+        availableActions: ['hold', 'trim', 'exit', 'invalidate'],
         position: {
           shares: 10,
           costBasis: 100,
@@ -65,16 +66,25 @@ describe('SymbolWorkflowPanel', () => {
       />,
     )
 
+    expect(screen.getByRole('button', { name: /record trim/i })).toBeDisabled()
+    await user.type(
+      screen.getByLabelText('Decision rationale (required)'),
+      'Reducing concentration after earnings.',
+    )
     await user.click(screen.getByRole('button', { name: /move to live/i }))
     await user.click(screen.getByRole('button', { name: /record trim/i }))
 
-    expect(transitionMutate).toHaveBeenCalledWith({ stage: 'live' })
-    expect(outcomeMutate).toHaveBeenCalledWith({
-      action: 'trim',
-      note: 'Recorded trim decision from symbol workspace.',
-      jennyVerdict: 'trim',
-      managementAction: 'reduce size',
-    })
+    expect(transitionMutate).toHaveBeenCalledWith(
+      { stage: 'live', note: 'Reducing concentration after earnings.' },
+      expect.any(Object),
+    )
+    expect(outcomeMutate).toHaveBeenCalledWith(
+      {
+        action: 'trim',
+        note: 'Reducing concentration after earnings.',
+      },
+      expect.any(Object),
+    )
   })
 
   it('shows notes and an empty transition state when no moves are available', () => {
@@ -88,6 +98,7 @@ describe('SymbolWorkflowPanel', () => {
         notes: 'No action until earnings.',
         nextReviewAt: null,
         availableTransitions: [],
+        availableActions: ['watch', 'pass'],
         position: null,
         latestOutcome: null,
         history: [],
@@ -99,6 +110,13 @@ describe('SymbolWorkflowPanel', () => {
     render(<SymbolWorkflowPanel symbol="VTI" latestReview={null} />)
 
     expect(screen.getByText(/no action until earnings/i)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /record (hold|trim|exit)/i }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /record pass/i })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /record watch/i }),
+    ).toBeInTheDocument()
     expect(
       screen.getByText(/no stage transitions are available right now/i),
     ).toBeInTheDocument()

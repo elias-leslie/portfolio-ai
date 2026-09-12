@@ -70,7 +70,7 @@ export function BudgetStatRow({
       </div>
       <div className="rounded-2xl border border-border/35 bg-surface-muted/20 p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
-          Connected MTD spend
+          Connected spending in this period
         </p>
         <p className="mt-3 text-2xl font-semibold text-text">
           {formatCurrencyWhole(connectedMonthToDateSpend ?? monthToDateSpend)}
@@ -83,7 +83,7 @@ export function BudgetStatRow({
         </p>
         {Math.abs(evidenceMonthToDateSpend) >= 1 ? (
           <p className="mt-1 text-xs text-text-muted/80">
-            Receipt/order evidence excluded here:{' '}
+            Other included evidence:{' '}
             {formatCurrencyWhole(evidenceMonthToDateSpend)}.
           </p>
         ) : null}
@@ -91,8 +91,7 @@ export function BudgetStatRow({
         connectedMonthToDateSpend != null &&
         Math.abs(monthToDateSpend - connectedMonthToDateSpend) >= 1 ? (
           <p className="mt-1 text-xs text-text-muted/80">
-            All-source MTD before evidence exclusion:{' '}
-            {formatCurrencyWhole(monthToDateSpend)}.
+            All sources in this period: {formatCurrencyWhole(monthToDateSpend)}.
           </p>
         ) : null}
       </div>

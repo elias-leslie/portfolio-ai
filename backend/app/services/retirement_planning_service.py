@@ -42,6 +42,17 @@ from app.services._aca_estimator import (
     household_premium_monthly,
     premium_tax_credit_annual,
 )
+from app.services._retirement_ownership import (
+    account_owner,
+    bucket_kind,
+    contribution_key,
+    is_education_account,
+    member_role,
+    source_account_owners,
+    totals_by_bucket,
+    totals_by_owner,
+    withdrawal_owner_context,
+)
 from app.services._retirement_simulation import (
     SimulationOutputs,
 )
@@ -54,6 +65,7 @@ from app.services._withdrawal_engine import (
 from app.services.aca_marketplace_ingest_service import (
     DEFAULT_COUNTIES as DEFAULT_ACA_COUNTIES,
 )
+from app.services.retirement_basis import RetirementBasisService
 from app.services.retirement_plan_simulation import (
     _apply_tax_aware_withdrawals,
     _run_tax_aware_monte_carlo,
@@ -90,7 +102,6 @@ from app.services.retirement_planning_assumptions import (
     _cash_yield,
     _cma_with_cash_yield,
     _coerce_json,
-    _contribution_bucket,
     _early_withdrawal_penalty_rate,
     _effective_gain_ratio,
     _engine_withdrawal_config,
@@ -157,6 +168,7 @@ __all__ = [
     "_yield_freshness",
 ]
 
+
 class RetirementPlanningService:
     """High-level F5 surface used by the router, CLI, and Jenny.
 
@@ -193,6 +205,7 @@ class RetirementPlanningService:
         partial_retirement_monthly_spend: float | None = None,
         spouse_gross_annual_income: float | None = None,
         as_of_date: date | None = None,
+        _dashboard: Any | None = None,
     ) -> RetirementInputs:
         """Pull inputs from household_planning + portfolio totals.
 
@@ -204,6 +217,11 @@ class RetirementPlanningService:
         anchor = as_of_date or date.today()
         members = self._load_members()
         inferred_primary, inferred_spouse = _split_members(members, anchor)
+        birth_years = {
+            member_role(member): member.get("birth_year")
+            for member in members
+            if member_role(member)
+        }
         primary = primary_age if primary_age is not None else inferred_primary
         spouse = spouse_age if spouse_age is not None else inferred_spouse
         income_sources = self._load_retirement_income_sources()
@@ -220,10 +238,22 @@ class RetirementPlanningService:
         if spouse_retirement_age is None and spouse is not None:
             spouse_retirement_age = spouse + max(0, target_retirement_age - primary)
 
-        return RetirementInputs(
+        inputs = RetirementInputs(
             household_id=household_id,
             primary_age=primary,
             spouse_age=spouse,
+            primary_birth_year=(
+                int(birth_years["primary"])
+                if birth_years.get("primary") and primary == inferred_primary
+                else anchor.year - primary
+            ),
+            spouse_birth_year=(
+                int(birth_years["spouse"])
+                if birth_years.get("spouse") and spouse == inferred_spouse
+                else anchor.year - spouse
+                if spouse is not None
+                else None
+            ),
             retirement_age=target_retirement_age,
             spouse_retirement_age=spouse_retirement_age,
             horizon_years=horizon_years or DEFAULT_HORIZON_YEARS,
@@ -238,13 +268,25 @@ class RetirementPlanningService:
                 if inflation_rate is not None
                 else float(self._cma.get("inflation_rate", 0.025))
             ),
-            social_security_payable_ratio=_social_security_payable_ratio(social_security_payable_ratio),
+            social_security_payable_ratio=_social_security_payable_ratio(
+                social_security_payable_ratio
+            ),
             social_security_depletion_year=DEFAULT_SOCIAL_SECURITY_DEPLETION_YEAR,
             spouse_net_monthly_income=spouse_net_monthly_income,
             partial_retirement_monthly_spend=partial_retirement_monthly_spend,
             spouse_gross_annual_income=spouse_gross_annual_income,
             as_of_date=anchor,
         )
+
+        dashboard = _dashboard if _dashboard is not None else self._load_money_dashboard()
+        account_buckets = self._account_buckets_from_dashboard(dashboard)
+        if account_buckets:
+            updates: dict[str, Any] = {"account_buckets": account_buckets,
+                "portfolio_value": sum(bucket.current_value for bucket in account_buckets)}
+            if _dashboard is None:
+                updates["taxable_gain_ratio"] = RetirementBasisService(self.storage).coverage(dashboard)["gain_ratio"]
+            inputs = inputs.model_copy(update=updates)
+        return inputs
 
     def run_simulation(
         self,
@@ -258,9 +300,9 @@ class RetirementPlanningService:
     ) -> SimulationOutputs:
         """Run the Monte Carlo without persisting; pure compute.
 
-        Single unified path: with no explicit buckets the tax-aware
-        engine synthesizes one taxable bucket from ``portfolio_value``
-        (see ``_bucket_balances``).
+        Account ownership and tax buckets come from the saved input snapshot.
+        Standalone hypothetical inputs without account data retain the explicit
+        synthetic taxable-portfolio convention.
         """
         trials = max(1, min(trials, MAX_TRIALS))
         tax_context = tax_context or _tax_context_from_profile(None, inputs)
@@ -309,6 +351,7 @@ class RetirementPlanningService:
         spouse_gross_annual_income: float | None = None,
         trials: int = DEFAULT_PREVIEW_TRIALS,
         seed: int | None = 7,
+        include_levers: bool = True,
         as_of_date: date | None = None,
     ) -> RetirementPreview:
         """Build the interactive Money retirement planner preview."""
@@ -330,9 +373,13 @@ class RetirementPlanningService:
         if inflation_rate is None and profile is not None:
             inflation_rate = getattr(profile, "retirement_inflation_rate", None)
         if primary_social_security_monthly is None and profile is not None:
-            primary_social_security_monthly = getattr(profile, "primary_social_security_monthly", None)
+            primary_social_security_monthly = getattr(
+                profile, "primary_social_security_monthly", None
+            )
         if spouse_social_security_monthly is None and profile is not None:
-            spouse_social_security_monthly = getattr(profile, "spouse_social_security_monthly", None)
+            spouse_social_security_monthly = getattr(
+                profile, "spouse_social_security_monthly", None
+            )
         if primary_social_security_annual_earnings is None and profile is not None:
             primary_social_security_annual_earnings = getattr(
                 profile, "primary_social_security_annual_earnings", None
@@ -351,7 +398,9 @@ class RetirementPlanningService:
             )
         if social_security_payable_ratio is None and profile is not None:
             social_security_payable_ratio = getattr(profile, "social_security_payable_ratio", None)
-        social_security_payable_ratio = _social_security_payable_ratio(social_security_payable_ratio)
+        social_security_payable_ratio = _social_security_payable_ratio(
+            social_security_payable_ratio
+        )
         if spouse_net_monthly_income is None and profile is not None:
             spouse_net_monthly_income = getattr(profile, "spouse_net_monthly_income", None)
         if partial_retirement_monthly_spend is None and profile is not None:
@@ -363,6 +412,7 @@ class RetirementPlanningService:
 
         inputs = self.build_inputs(
             household_id,
+            _dashboard=dashboard,
             annual_expenses=annual_expenses,
             annual_contribution=annual_contribution,
             asset_allocation=asset_allocation,
@@ -424,21 +474,8 @@ class RetirementPlanningService:
                 ),
             )
 
-        taxable_account_ids = [
-            str(linked_id)
-            for account in getattr(dashboard, "accounts", []) or []
-            if _bucket_type(
-                str(getattr(account, "asset_group", "") or "").lower(),
-                str(getattr(account, "account_type", "") or "other"),
-            )
-            == "taxable"
-            and (linked_id := getattr(account, "linked_portfolio_account_id", None))
-        ]
-        gain_ratio_result = self._taxable_embedded_gain_ratio(taxable_account_ids)
-        gain_ratio_meta: dict[str, Any] | None = None
-        if gain_ratio_result is not None:
-            gain_ratio_value, gain_ratio_meta = gain_ratio_result
-            inputs = inputs.model_copy(update={"taxable_gain_ratio": gain_ratio_value})
+        gain_ratio_meta = RetirementBasisService(self.storage).coverage(dashboard)
+        inputs = inputs.model_copy(update={"taxable_gain_ratio": gain_ratio_meta["gain_ratio"], "account_buckets": buckets})
 
         return_allocation_holdings = allocation_holdings
         if (
@@ -465,7 +502,9 @@ class RetirementPlanningService:
         if withdrawal is not None and not withdrawal.healthcare_schedule:
             # Requests that omit healthcare points inherit the persisted
             # schedule; an explicit list (even edited) wins.
-            base_config = base_config.model_copy(update={"healthcare_schedule": healthcare_schedule})
+            base_config = base_config.model_copy(
+                update={"healthcare_schedule": healthcare_schedule}
+            )
         inputs = inputs.model_copy(
             update={"withdrawal": _withdrawal_config_from_inputs(inputs, profile, base_config)}
         )
@@ -482,7 +521,7 @@ class RetirementPlanningService:
             sum(
                 float(getattr(account, "current_value", 0.0) or 0.0)
                 for account in getattr(dashboard, "accounts", []) or []
-                if str(getattr(account, "asset_group", "") or "").lower() == "education"
+                if is_education_account(account)
                 and float(getattr(account, "current_value", 0.0) or 0.0) > 0
             ),
             2,
@@ -528,6 +567,27 @@ class RetirementPlanningService:
             tax_context=tax_context,
             bucket_return_allocations=bucket_return_allocations,
         )
+        basis_sensitivity = []
+        if gain_ratio_meta["coverage"] < 0.999:
+            for label, ratio in (
+                ("No gain on uncovered assets", gain_ratio_meta["gain_ratio_low"]),
+                ("All proceeds are gain on uncovered assets", gain_ratio_meta["gain_ratio_high"]),
+            ):
+                alternate = self._drawdown_schedule(
+                    inputs.model_copy(update={"taxable_gain_ratio": ratio}),
+                    buckets=buckets,
+                    tax_context=tax_context,
+                    bucket_return_allocations=bucket_return_allocations,
+                )
+                basis_sensitivity.append(
+                    {
+                        "label": label,
+                        "gain_ratio": ratio,
+                        "ending_balance": alternate[-1].ending_balance,
+                        "total_tax": round(sum(row.tax_estimate for row in alternate), 2),
+                    }
+                )
+        gain_ratio_meta["sensitivity"] = basis_sensitivity
         bucket_strategy = self._bucket_strategy_from_dashboard(
             dashboard,
             inputs,
@@ -574,8 +634,10 @@ class RetirementPlanningService:
                 tax_context=tax_context,
                 buckets=buckets,
                 bucket_return_allocations=bucket_return_allocations,
+            ) if include_levers else (),
+            first_depletion_age=_first_depletion_age(
+                drawdown, _household_retirement_primary_age(inputs)
             ),
-            first_depletion_age=_first_depletion_age(drawdown, _household_retirement_primary_age(inputs)),
             median_discretionary_path=tuple(sim.median_discretionary_path),
             failure_age_distribution=_failure_age_distribution(sim, inputs),
             outcome_framing=(
@@ -693,9 +755,7 @@ class RetirementPlanningService:
         results_payload = _coerce_json(row[3]) or {}
         results = ScenarioResults.model_validate(results_payload)
         if not detail:
-            return results.model_copy(
-                update={"ending_balance_paths": None, "cma_snapshot": None}
-            )
+            return results.model_copy(update={"ending_balance_paths": None, "cma_snapshot": None})
         return results
 
     def compare_scenarios(self, scenario_ids: list[str]) -> list[ScenarioSummary]:
@@ -826,9 +886,7 @@ class RetirementPlanningService:
         and the FPL household entirely (e.g. kids on FL KidCare —
         mirrors the accepted size-tracks-coverage simplification).
         """
-        until_age = (
-            22 if dependents_covered_until_age is None else dependents_covered_until_age
-        )
+        until_age = 22 if dependents_covered_until_age is None else dependents_covered_until_age
         persons: list[RetirementACAPerson] = []
         for member in self._load_members():
             birth_year = member.get("birth_year")
@@ -841,9 +899,7 @@ class RetirementPlanningService:
             else:
                 covered_until = None
             persons.append(
-                RetirementACAPerson(
-                    birth_year=int(birth_year), covered_until_year=covered_until
-                )
+                RetirementACAPerson(birth_year=int(birth_year), covered_until_year=covered_until)
             )
         return tuple(persons)
 
@@ -860,9 +916,7 @@ class RetirementPlanningService:
             tier=tier,
             premium_age21_monthly_override=float(override_raw) if override_raw else None,
             oop_monthly=float(oop_raw) if oop_raw else 0.0,
-            medicare_monthly_per_person=(
-                float(medicare_raw) if medicare_raw is not None else None
-            ),
+            medicare_monthly_per_person=(float(medicare_raw) if medicare_raw is not None else None),
             persons=persons,
         )
 
@@ -1015,18 +1069,20 @@ class RetirementPlanningService:
             "benchmark_premium_monthly": round(benchmark_monthly, 2),
             "gross_premium_monthly": round(gross_monthly, 2),
             "subsidy_monthly": round(credit.credit / 12.0, 2),
-            "net_premium_monthly": round(
-                max(0.0, gross_monthly * 12.0 - credit.credit) / 12.0, 2
-            ),
+            "net_premium_monthly": round(max(0.0, gross_monthly * 12.0 - credit.credit) / 12.0, 2),
         }
 
-    def _account_buckets_from_dashboard(self, dashboard: Any) -> tuple[RetirementAccountBucket, ...]:
+    def _account_buckets_from_dashboard(
+        self, dashboard: Any
+    ) -> tuple[RetirementAccountBucket, ...]:
         buckets: list[RetirementAccountBucket] = []
+        members = self._load_members()
+        source_owners = source_account_owners(self.storage)
         for account in getattr(dashboard, "accounts", []) or []:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
             # Education (529) accounts are earmarked for college and modeled
             # as a separate sleeve, never as spendable retirement money.
-            if asset_group in {"credit", "debt", "education"}:
+            if asset_group in {"credit", "debt"} or is_education_account(account):
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -1054,6 +1110,10 @@ class RetirementPlanningService:
             buckets.append(
                 RetirementAccountBucket(
                     bucket_type=bucket_type,
+                    owner=(account_owner(getattr(account, "owner_name", None), members)
+                        if getattr(account, "owner_name", None) else source_owners.get(str(getattr(account,"household_account_id", "")), "unknown")),
+                    owner_name=getattr(account, "owner_name", None),
+                    household_account_id=getattr(account, "household_account_id", None),
                     label=label or BUCKET_LABELS[bucket_type],
                     account_type=account_type,
                     tax_treatment=BUCKET_TAX_TREATMENTS[bucket_type],
@@ -1069,7 +1129,7 @@ class RetirementPlanningService:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
             # Education (529) accounts are earmarked for college and modeled
             # as a separate sleeve, never as spendable retirement money.
-            if asset_group in {"credit", "debt", "education"}:
+            if asset_group in {"credit", "debt"} or is_education_account(account):
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -1098,16 +1158,16 @@ class RetirementPlanningService:
                 if value <= 0:
                     continue
             household_account_id = getattr(account, "household_account_id", None)
-            linked_portfolio_id = str(
-                getattr(account, "linked_portfolio_account_id", "") or ""
-            )
+            linked_portfolio_id = str(getattr(account, "linked_portfolio_account_id", "") or "")
             manual_editable = bool(household_account_id) and not linked_portfolio_id.startswith(
                 "snaptrade:"
             )
             priced_count = int(getattr(account, "priced_position_count", 0) or 0)
             holdings_value = getattr(account, "holdings_value", None)
             if priced_count > 0:
-                exact_value = min(value, float(holdings_value if holdings_value is not None else value))
+                exact_value = min(
+                    value, float(holdings_value if holdings_value is not None else value)
+                )
                 inferred_value = max(value - exact_value, 0.0)
                 status = "partial_holdings" if inferred_value > 0.01 else "exact_holdings"
                 rows.append(
@@ -1122,7 +1182,9 @@ class RetirementPlanningService:
                         inferred_value=round(inferred_value, 2),
                         priced_position_count=priced_count,
                         coverage_status=status,
-                        coverage_label="Partial holdings" if status == "partial_holdings" else "Exact holdings",
+                        coverage_label="Partial holdings"
+                        if status == "partial_holdings"
+                        else "Exact holdings",
                         detail=(
                             f"{priced_count} priced position"
                             f"{'s' if priced_count != 1 else ''} linked to this account."
@@ -1165,7 +1227,7 @@ class RetirementPlanningService:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
             # Education (529) accounts are earmarked for college and modeled
             # as a separate sleeve, never as spendable retirement money.
-            if asset_group in {"credit", "debt", "education"}:
+            if asset_group in {"credit", "debt"} or is_education_account(account):
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -1270,7 +1332,7 @@ class RetirementPlanningService:
         rows: list[RetirementBucketStrategyHolding] = []
         for account in getattr(dashboard, "accounts", []) or []:
             asset_group = str(getattr(account, "asset_group", "") or "").lower()
-            if asset_group in {"credit", "debt", "education"}:
+            if asset_group in {"credit", "debt"} or is_education_account(account):
                 continue
             value = float(getattr(account, "current_value", 0.0) or 0.0)
             if value <= 0:
@@ -1462,7 +1524,6 @@ class RetirementPlanningService:
         gain_ratio = _effective_gain_ratio(inputs)
         household_retirement_age = _household_retirement_primary_age(inputs)
         balances = _bucket_balances(inputs, buckets)
-        contribution_bucket = _contribution_bucket(balances)
         aca_plans = _aca_year_plans(inputs)
         cfg = _engine_withdrawal_config(inputs, r_real=r_real, aca_plans=aca_plans)
         bridge_balance = _carve_bridge_from_balances(
@@ -1482,13 +1543,14 @@ class RetirementPlanningService:
             )
         rows: list[RetirementDrawdownYear] = []
         for year_index in range(inputs.horizon_years):
+            rmd_balances = dict(balances)
             primary_age = inputs.primary_age + year_index
             calendar_year = inputs.as_of_date.year + year_index
             if year_index > 0:
                 for bucket in list(balances):
                     bucket_return = bucket_expected_returns.get(
-                        bucket,
-                        cash_return if bucket == "cash" else annual_return,
+                        bucket_kind(bucket),
+                        cash_return if bucket_kind(bucket) == "cash" else annual_return,
                     )
                     balances[bucket] = max(0.0, balances[bucket] * (1.0 + bucket_return))
                 bridge_balance *= 1.0 + (
@@ -1496,12 +1558,17 @@ class RetirementPlanningService:
                 )
                 college_balance *= 1.0 + inputs.college_529_real_return
                 if primary_age < household_retirement_age and inputs.annual_contribution > 0:
-                    balances[contribution_bucket] = balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+                    contribution_bucket = contribution_key(balances, inputs, year_index)
+                    balances[contribution_bucket] = (
+                        balances.get(contribution_bucket, 0.0) + inputs.annual_contribution
+                    )
 
             inflation_factor = (1.0 + inputs.inflation_rate) ** year_index
             liquidity_real = liquidity_by_year.get(calendar_year, 0.0)
             if liquidity_real > 0:
-                balances["taxable"] = balances.get("taxable", 0.0) + liquidity_real * inflation_factor
+                balances["taxable"] = (
+                    balances.get("taxable", 0.0) + liquidity_real * inflation_factor
+                )
             spouse_age = inputs.spouse_age + year_index if inputs.spouse_age is not None else None
             income_components = _income_components_for_age(
                 inputs.income_sources,
@@ -1590,6 +1657,7 @@ class RetirementPlanningService:
                 inflation_factor=inflation_factor,
                 tax_context=tax_context,
                 gain_ratio=gain_ratio,
+                **withdrawal_owner_context(inputs, year_index, rmd_balances),
                 external_taxed_income=partial_wages_nominal,
             )
             aca_subsidy = aca_plan.planning_subsidy if aca_plan is not None else 0.0
@@ -1618,15 +1686,21 @@ class RetirementPlanningService:
                         inflation_factor=inflation_factor,
                         tax_context=tax_context,
                         gain_ratio=gain_ratio,
+                        **withdrawal_owner_context(inputs, year_index, rmd_balances),
+                        external_taxed_income=partial_wages_nominal,
                     )
             withdrawals = outcome.withdrawals
             gross_withdrawal = round(sum(withdrawals.values()), 2)
-            if wy is not None or partial_gap_nominal > 0.0:
+            if wy is not None or partial_gap_nominal > 0.0 or outcome.rmd_amount > 0:
                 # R1: an RMD forced beyond the plan leaves post-tax surplus —
                 # reinvest it in taxable so the household only consumes the
                 # spending target.
                 surplus_net = (
-                    income + gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate - spending
+                    income
+                    + gross_withdrawal
+                    - outcome.tax_estimate
+                    - outcome.penalty_estimate
+                    - spending
                 )
                 if surplus_net > 0.01:
                     balances["taxable"] = balances.get("taxable", 0.0) + surplus_net
@@ -1636,7 +1710,7 @@ class RetirementPlanningService:
             # _first_depletion_age can fire while the bridge still holds money.
             bridge_nominal = bridge_balance * inflation_factor
             ending_balance = round(sum(balances.values()) + bridge_nominal, 2)
-            balances_by_bucket = {k: round(v, 2) for k, v in balances.items()}
+            balances_by_bucket = totals_by_bucket(balances)
             if bridge_nominal > 0.005:
                 balances_by_bucket["bridge"] = round(bridge_nominal, 2)
             rows.append(
@@ -1654,17 +1728,23 @@ class RetirementPlanningService:
                     tax_estimate=round(outcome.tax_estimate, 2),
                     penalty_estimate=round(outcome.penalty_estimate, 2),
                     net_withdrawal=round(
-                        max(0.0, gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate),
+                        max(
+                            0.0, gross_withdrawal - outcome.tax_estimate - outcome.penalty_estimate
+                        ),
                         2,
                     ),
                     ending_balance=ending_balance,
                     rmd_amount=round(outcome.rmd_amount, 2),
                     rmd_applied=outcome.rmd_amount > 0,
-                    withdrawals_by_bucket={k: round(v, 2) for k, v in withdrawals.items()},
+                    withdrawals_by_bucket=totals_by_bucket(withdrawals),
+                    withdrawals_by_owner=totals_by_owner(withdrawals),
+                    balances_by_owner=totals_by_owner(balances),
                     balances_by_bucket=balances_by_bucket,
                     spending_target=round(wy.spending_target, 2) if wy is not None else 0.0,
                     floor_amount=round(wy.floor, 2) if wy is not None else 0.0,
-                    discretionary_target=round(wy.discretionary_target, 2) if wy is not None else 0.0,
+                    discretionary_target=round(wy.discretionary_target, 2)
+                    if wy is not None
+                    else 0.0,
                     spending_reduction=round(wy.spending_reduction, 2) if wy is not None else 0.0,
                     guaranteed_income=round(wy.guaranteed_income, 2) if wy is not None else 0.0,
                     bridge_draw=round(wy.bridge_draw, 2) if wy is not None else 0.0,
@@ -1697,7 +1777,9 @@ class RetirementPlanningService:
             )
         return rows
 
-    def _expected_return(self, allocation: dict[str, float], cash_yield: float | None = None) -> float:
+    def _expected_return(
+        self, allocation: dict[str, float], cash_yield: float | None = None
+    ) -> float:
         asset_classes = _cma_with_cash_yield(self._cma, cash_yield).get("asset_classes", {})
         weighted = 0.0
         total_weight = 0.0
@@ -1893,7 +1975,9 @@ class RetirementPlanningService:
         scenarios = [
             (
                 "retire_later",
-                "Both retire 2 years later" if inputs.spouse_retirement_age is not None else "Retire 2 years later",
+                "Both retire 2 years later"
+                if inputs.spouse_retirement_age is not None
+                else "Retire 2 years later",
                 f"Your age {later_update['retirement_age']}",
                 inputs.model_copy(update=later_update),
             ),
@@ -1927,7 +2011,9 @@ class RetirementPlanningService:
                 "save_more",
                 "Save $500/mo more",
                 f"${(inputs.annual_contribution + 6_000) / 12:,.0f}/mo",
-                inputs.model_copy(update={"annual_contribution": inputs.annual_contribution + 6_000}),
+                inputs.model_copy(
+                    update={"annual_contribution": inputs.annual_contribution + 6_000}
+                ),
             ),
         ]
         out: list[RetirementLeverImpact] = []
@@ -1949,9 +2035,7 @@ class RetirementPlanningService:
                     value=value,
                     success_probability=sim.success_probability,
                     delta_success_probability=round(delta, 6),
-                    detail=(
-                        f"{delta * 100:+.1f} percentage points versus the current preview."
-                    ),
+                    detail=(f"{delta * 100:+.1f} percentage points versus the current preview."),
                 )
             )
         return tuple(out)
@@ -1971,8 +2055,7 @@ class RetirementPlanningService:
         if not holdings:
             return 0.0, {}
         bucketed = classifier.classify_value(
-            ac_mod.HoldingValue(symbol=h["symbol"], value=h["current_value"])
-            for h in holdings
+            ac_mod.HoldingValue(symbol=h["symbol"], value=h["current_value"]) for h in holdings
         )
         total = float(bucketed.total_value or 0.0)
         if total <= 0:
@@ -1987,7 +2070,9 @@ class RetirementPlanningService:
             weights[klass] = round(value_f / total, 6)
         return round(total, 2), weights
 
-    def _allocation_from_holding_weights(self, holdings: list[Any] | tuple[Any, ...]) -> dict[str, float]:
+    def _allocation_from_holding_weights(
+        self, holdings: list[Any] | tuple[Any, ...]
+    ) -> dict[str, float]:
         ac_mod = import_module("app.portfolio.asset_classification")
         classifier = ac_mod.AssetClassifier(self.storage)
         weighted_holdings = []
@@ -2038,8 +2123,7 @@ class RetirementPlanningService:
         """
         with self.storage.connection() as conn:
             sums = conn.execute(
-                "SELECT COALESCE(SUM(COALESCE(monthly_payment,0)), 0)"
-                " FROM household_housing_costs"
+                "SELECT COALESCE(SUM(COALESCE(monthly_payment,0)), 0) FROM household_housing_costs"
             ).fetchone()
             monthly_housing = float(sums[0] or 0.0) if sums else 0.0
             sums = conn.execute(

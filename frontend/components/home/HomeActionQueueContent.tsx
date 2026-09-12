@@ -6,6 +6,7 @@ import { useHomeActionQueueState } from '@/components/providers/HomeActionQueueP
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
+import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import { cn } from '@/lib/utils'
 import { quickActionLabel, quickActionTitle } from './quickActionHelpers'
 
@@ -34,6 +35,7 @@ export function HomeActionQueueContent({
   onNavigate?: () => void
 }) {
   const {
+    data,
     visibleActions,
     isLoading,
     isFetching,
@@ -42,6 +44,7 @@ export function HomeActionQueueContent({
     refetchActions,
     executeAction,
   } = useHomeActionQueueState()
+  useUsableContentTiming('today', Boolean(data) && !isLoading && !error)
   const displayedActions = limit
     ? visibleActions.slice(0, limit)
     : visibleActions

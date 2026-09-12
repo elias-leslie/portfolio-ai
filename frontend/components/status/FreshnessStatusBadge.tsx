@@ -47,21 +47,21 @@ function statusTone(status: string | undefined) {
   switch (status) {
     case 'success':
       return {
-        label: 'Live',
+        label: 'Market data current',
         variant: 'success' as const,
         icon: CheckCircle2,
         dot: 'bg-gain',
       }
     case 'critical':
       return {
-        label: 'Overdue',
+        label: 'Market data overdue',
         variant: 'error' as const,
         icon: AlertTriangle,
         dot: 'bg-loss',
       }
     case 'warning':
       return {
-        label: 'Aging',
+        label: 'Market data aging',
         variant: 'warning' as const,
         icon: AlertTriangle,
         dot: 'bg-warning',

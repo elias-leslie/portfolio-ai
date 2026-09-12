@@ -172,10 +172,12 @@ def dispatch_alerts(
             url=ALERT_CLICK_URL,
             tag=alert.marker_key,
         )
-        if delivery.delivered == 0:
-            # No phone took it — registered devices are how this reaches a
-            # person, so the shared chat stays the sink until one has.
-            notifier.send(title=alert.title, body=alert.body, severity=alert.severity)
+        delivered = delivery.delivered > 0
+        if not delivered:
+            delivered = notifier.send(title=alert.title, body=alert.body, severity=alert.severity)
+        if not delivered:
+            logger.warning("alert_delivery_failed", marker_key=alert.marker_key)
+            continue  # Keep the crossing eligible for retry; the inbox remains deduped.
         mark_sent(alert.marker_key, marker_prefix=marker_prefix)
         dispatched.append(alert)
     if dispatched:

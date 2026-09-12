@@ -52,6 +52,8 @@ class NewsArticleResponse(BaseModel):
     decision_value_score: float | None = None
     decision_value_label: str | None = None
     decision_value_reason: str | None = None
+    relationship: str | None = None
+    relationship_reason: str | None = None
 
 
 class NewsSummaryResponse(BaseModel):
@@ -131,6 +133,8 @@ def serialize_article(article: object) -> NewsArticleResponse:
         decision_value_score=assessment.decision_value_score,
         decision_value_label=assessment.decision_value_label,
         decision_value_reason=assessment.decision_value_reason,
+        relationship=assessment.relationship,
+        relationship_reason=assessment.relationship_reason,
     )
 
 

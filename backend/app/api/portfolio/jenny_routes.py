@@ -6,8 +6,11 @@ from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
+
+from app.services.household_identity import request_identity
+from app.storage import get_storage
 
 from .models import (
     JennyChatRequest,
@@ -79,13 +82,47 @@ async def run_jenny_routine(payload: JennyRunRequest) -> JennyRunResponseModel:
     return await run_in_threadpool(_run_jenny_routine_payload, payload)
 
 
-@router.post("/jenny/notifications/{notification_id}/acknowledge", response_model=JennyNotificationResponse)
+@router.post(
+    "/jenny/notifications/{notification_id}/acknowledge", response_model=JennyNotificationResponse
+)
 async def acknowledge_jenny_notification(notification_id: str) -> JennyNotificationResponse:
     """Acknowledge an open Jenny notification."""
     return await run_in_threadpool(_acknowledge_jenny_notification_payload, notification_id)
 
 
 @router.post("/jenny/chat", response_model=JennyChatResponseModel)
-async def chat_with_jenny(payload: JennyChatRequest) -> JennyChatResponseModel:
+async def chat_with_jenny(request: Request, payload: JennyChatRequest) -> JennyChatResponseModel:
     """Chat with Jenny using portfolio-wide context."""
-    return await run_in_threadpool(_chat_with_jenny_payload, payload)
+    member_id = request_identity(request).member_id
+    if member_id and payload.session_id:
+
+        def owns_session() -> bool:
+            with get_storage().connection() as conn:
+                return bool(
+                    conn.execute(
+                        "SELECT 1 FROM household_chat_sessions WHERE session_id=%s AND member_id=%s",
+                        [payload.session_id, member_id],
+                    ).fetchone()
+                )
+
+        if not await run_in_threadpool(owns_session):
+            raise HTTPException(403, "Start a new conversation for this signed-in member.")
+    result = await run_in_threadpool(_chat_with_jenny_payload, payload)
+    if member_id and result.session_id:
+
+        def remember_session() -> None:
+            with get_storage().connection() as conn:
+                row = conn.execute(
+                    """INSERT INTO household_chat_sessions (session_id, member_id) VALUES (%s,%s)
+                    ON CONFLICT (session_id) DO UPDATE SET member_id=household_chat_sessions.member_id
+                    RETURNING member_id""",
+                    [result.session_id, member_id],
+                ).fetchone()
+                if not row or str(row[0]) != member_id:
+                    raise HTTPException(
+                        403, "Conversation identity did not match. Start a new conversation."
+                    )
+                conn.commit()
+
+        await run_in_threadpool(remember_session)
+    return result

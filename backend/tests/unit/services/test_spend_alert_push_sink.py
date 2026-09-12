@@ -264,3 +264,20 @@ def test_two_alerts_of_one_kind_are_two_inbox_rows(monkeypatch) -> None:
         # A month-wide finding has nothing to disambiguate, so it stays one row.
         "budget_month_over_plan",
     ]
+
+
+def test_failed_phone_and_fallback_delivery_leave_crossing_retryable(monkeypatch):
+    from app.services._alert_dispatch import Alert, dispatch_alerts
+    marked = []
+    monkeypatch.setattr('app.services._alert_dispatch.already_sent', lambda *_a, **_k: False)
+    monkeypatch.setattr('app.services._alert_dispatch._ensure_routine_row', _noop)
+    monkeypatch.setattr('app.services._alert_dispatch.upsert_notification', _noop)
+    monkeypatch.setattr('app.services._alert_dispatch._StorageShim', object)
+    monkeypatch.setattr('app.services._alert_dispatch.PushService', lambda: _FakePush(PushDelivery(delivered=0)))
+    notifier = _FakeNotifier()
+    monkeypatch.setattr(notifier, 'send', lambda **_k: False)
+    monkeypatch.setattr('app.services._alert_dispatch.get_notifier', lambda: notifier)
+    monkeypatch.setattr('app.services._alert_dispatch.mark_sent', lambda *a, **_k: marked.append(a))
+    sent = dispatch_alerts([Alert(kind='cap',severity='warning',title='Cap',body='Above cap',marker_key='cap')],
+        routine_id='test',routine_type='test',marker_prefix='test',trigger='test')
+    assert sent == [] and marked == []

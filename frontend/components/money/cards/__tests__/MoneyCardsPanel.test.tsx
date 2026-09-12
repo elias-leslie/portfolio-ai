@@ -1,9 +1,22 @@
 'use client'
 
-import { render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render as renderUI, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MoneyCardsPanel } from '../MoneyCardsPanel'
+
+function render(ui: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { enabled: false, retry: false } },
+  })
+  return renderUI(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
+}
 
 const useOwnedCardsMock = vi.fn()
 const useHouseholdFactsMock = vi.fn()
@@ -35,6 +48,7 @@ vi.mock('@/lib/hooks/useHousehold', () => ({
 
 // Chart/table/dialog children pull their own hooks or Recharts — out of scope here.
 vi.mock('../AddCardDialog', () => ({ AddCardDialog: () => null }))
+vi.mock('../CardTermsReview', () => ({ CardTermsReview: () => null }))
 vi.mock('../AddSoftChargeDialog', () => ({
   AddSoftChargeDialog: () => null,
   SoftChargesSection: () => null,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -221,12 +222,17 @@ def row_to_question(
         }
 
     field_name = str(row[1]) if row[1] is not None else None
-    return HouseholdQuestion(
+    question_text = str(row[4])
+    legacy_merchant = re.fullmatch(r"Should Jenny treat (.+) orders like this as part of regular household spending\?", question_text)
+    if legacy_merchant:
+        metadata = {**metadata, "original_question": question_text}
+        question_text = f"Is {legacy_merchant.group(1)} a recurring household shopping channel?"
+    question = HouseholdQuestion(
         id=str(row[0]),
         field_name=field_name,
         status=str(row[2]),
         priority=str(row[3]),
-        question=str(row[4]),
+        question=question_text,
         rationale=str(row[5]) if row[5] is not None else None,
         recommendation=question_recommendation(
             field_name=field_name,
@@ -242,6 +248,11 @@ def row_to_question(
         created_at=iso(row[12]),
         answered_at=iso_or_none(row[13]),
     )
+    if legacy_merchant or "recurring household shopping channel" in question_text.lower():
+        question.rationale = "This records merchant frequency only. Each purchase keeps its own category and essential/discretionary treatment."
+        question.recommendation = "Answer yes if you expect to shop here again. This does not classify every purchase at this store as essential."
+    return question
+
 
 
 def row_to_document(

@@ -348,7 +348,7 @@ class HouseholdPurchaseItemService:
                 measure.get("normalized_quantity"),
                 str(measure.get("normalized_unit") or "").strip() or None,
                 observation_source,
-                json.dumps({"dataset_type": dataset_type}),
+                json.dumps({"dataset_type": dataset_type, "package_measure": measure}),
                 now,
                 now,
             ],

@@ -336,6 +336,11 @@ function macroTopicForArticle(article: SentimentArticle) {
 }
 
 function shouldSurfaceSymbolArticle(article: SentimentArticle) {
+  if (
+    article.relationship === 'unverified' ||
+    article.relationship === 'market'
+  )
+    return false
   const decisionScore = articleDecisionScore(article)
   if (decisionScore !== null) {
     return decisionScore >= 0.55
@@ -351,6 +356,7 @@ function shouldSurfaceSymbolArticle(article: SentimentArticle) {
 }
 
 function shouldSurfaceMacroArticle(article: SentimentArticle) {
+  if (article.relationship && article.relationship !== 'market') return false
   const decisionScore = articleDecisionScore(article)
   if (decisionScore !== null) {
     return (
@@ -574,7 +580,7 @@ function buildHeadlineGroups({
       id: 'holdings',
       title: 'Holdings',
       description:
-        'Only new developments tied directly to positions you already own.',
+        'Company developments and named business connections to your holdings.',
       items: heldItems,
     },
     {

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import date
 from pathlib import Path
-from threading import Lock
-from time import monotonic
 from typing import Any
 
 from app.config import settings
@@ -41,6 +40,9 @@ from app.services._household_dashboard_builders import (
     build_savings_plan,
     build_sinking_funds,
 )
+from app.services._household_dashboard_profile_inference import (
+    infer_profile_from_transactions,
+)
 from app.services._household_dashboard_queries import (
     fetch_inferred_value_rows,
     fetch_sinking_fund_overrides,
@@ -55,6 +57,7 @@ from app.services.household_document_review import HouseholdDocumentReviewServic
 from app.services.household_evidence_service import HouseholdEvidenceService
 from app.services.household_finance_rows import FIELD_LABELS
 from app.services.household_ledger_service import HouseholdLedgerService
+from app.services.household_monthly_review import build_review_plan, review_record
 from app.services.household_net_worth_trend_service import build_net_worth_trend
 from app.services.household_planning_service import HouseholdPlanningService
 from app.services.household_portfolio_position_sync_service import (
@@ -70,14 +73,15 @@ from app.services.household_purchase_item_service import HouseholdPurchaseItemSe
 from app.services.household_question_command_service import HouseholdQuestionCommandService
 from app.services.household_question_reconciler import HouseholdQuestionReconciler
 from app.services.household_review_agent_service import HouseholdReviewAgentService
+from app.services.household_review_coverage import review_coverage
 from app.services.household_sinking_fund_service import HouseholdSinkingFundService
 from app.services.household_tracked_account_service import HouseholdTrackedAccountService
 from app.services.household_transaction_audit_service import HouseholdTransactionAuditService
 from app.services.household_transaction_rule_service import HouseholdTransactionRuleService
 from app.services.household_transaction_service import HouseholdTransactionService
+from app.services.retirement_preview_coordinator import preview_coordinator
 from app.storage import get_storage
 
-_DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS = 30.0
 _CATEGORY_BUDGET_PREFIX = "category_budget:"
 
 
@@ -152,6 +156,8 @@ def _budget_verdict(
     categories: list[HouseholdSpendingCategory],
     *,
     month_label: str,
+    is_month_to_date: bool = False,
+    coverage_complete: bool = True,
 ) -> HouseholdBudgetVerdict:
     """Did the month come in under the household's own caps, and by what?
 
@@ -232,10 +238,22 @@ def _budget_verdict(
             f"categor{'y' if uncapped_count == 1 else 'ies'}. Of what is capped: "
             + _netting_sentence()
         )
+    elif not coverage_complete:
+        status = "coverage_incomplete"
+        headline = f"{month_label}: spending coverage is incomplete."
+        detail = "Recorded spending only; missing activity may change the verdict. " + _netting_sentence()
     elif variance_total > 0:
         status = "over_plan"
-        headline = f"{month_label} came in {_money(variance_total)} over your caps."
+        period = "month to date is" if is_month_to_date else "came in"
+        headline = f"{month_label} {period} {_money(variance_total)} over your caps."
         detail = _netting_sentence()
+    elif is_month_to_date:
+        status = "in_progress"
+        headline = (
+            f"{month_label} month to date: {_money(capped_actual)} spent; "
+            f"{_money(-variance_total)} remaining in monthly caps."
+        )
+        detail = "The month is still in progress; remaining caps are not a month-end forecast. " + _netting_sentence()
     else:
         status = "under_plan"
         headline = f"{month_label} came in {_money(-variance_total)} under your caps."
@@ -346,7 +364,12 @@ def _with_budget_rollup(
             )
         )
 
-    verdict = _budget_verdict(categories, month_label=view.summary.month_label)
+    verdict = _budget_verdict(
+        categories,
+        month_label=view.summary.month_label,
+        is_month_to_date=view.summary.is_month_to_date,
+        coverage_complete=view.summary.coverage_status == "current",
+    )
     summary = view.summary.model_copy(
         update={
             "found_budget_total": round(found_budget_total, 2),
@@ -372,9 +395,6 @@ def _with_budget_rollup(
 
 class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     """Build household-finance views and persist intake metadata."""
-
-    _dashboard_registry_sync_lock = Lock()
-    _last_dashboard_registry_sync_monotonic = 0.0
 
     def __init__(self) -> None:
         self.storage = get_storage()
@@ -406,22 +426,24 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self.card_service = CardManagementService()
 
     def get_dashboard(self) -> HouseholdFinanceDashboard:
-        self._ensure_dashboard_registry_sync(limit=1000)
         return self.dashboard_composer.build_dashboard(self)
 
-    def _ensure_dashboard_registry_sync(self, *, limit: int, force: bool = False) -> None:
-        now = monotonic()
-        last_sync = type(self)._last_dashboard_registry_sync_monotonic
-        if not force and now - last_sync < _DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS:
-            return
+    def refresh_derived_values(self) -> None:
+        """Refresh inferred planning values after committed imports or maintenance.
 
-        with type(self)._dashboard_registry_sync_lock:
-            now = monotonic()
-            last_sync = type(self)._last_dashboard_registry_sync_monotonic
-            if not force and now - last_sync < _DASHBOARD_REGISTRY_SYNC_INTERVAL_SECONDS:
-                return
-            self.account_registry_service.sync_registry(self, limit=limit)
-            type(self)._last_dashboard_registry_sync_monotonic = monotonic()
+        Read routes never invoke this command. User-confirmed values remain
+        protected by the transaction-inference upsert contract.
+        """
+
+
+        infer_profile_from_transactions(
+            self.storage, profile=self.get_profile(),
+            reports=self.transaction_service.build_reports(),
+            existing_inferences=fetch_inferred_value_rows(self.storage),
+        )
+        self.planning_service.refresh_document_requirements(self)
+        self._reconcile_open_questions()
+        preview_coordinator.invalidate()
 
     def get_profile(self) -> HouseholdProfile:
         return self.profile_service.get_profile(self)
@@ -430,6 +452,10 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         self,
         *,
         window: str = "all",
+        month: str | None = None,
+        category: str = "all",
+        source: str = "all",
+        inclusion: str = "all",
         kind: str = "all",
         status: str = "all",
         account: str = "all",
@@ -442,6 +468,10 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
         return self.ledger_service.get_ledger(
             self,
             window=window,
+            month=month,
+            category=category,
+            source=source,
+            inclusion=inclusion,
             kind=kind,
             status=status,
             account=account,
@@ -454,8 +484,14 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
     def get_spending(self, *, month: str | None = None) -> HouseholdSpendingView:
         view = self.transaction_service.build_spending_view(month=month)
+        coverage = review_coverage(
+            self.storage, end_date=date.fromisoformat(view.summary.end_date or date.today().isoformat())
+        )
+        view = view.model_copy(update={"summary": view.summary.model_copy(update=coverage)})
         facts = self.list_confirmed_facts()
-        return _with_budget_rollup(view, facts, cap_plan=self._build_cap_plan(view, facts))
+        view = _with_budget_rollup(view, facts, cap_plan=self._build_cap_plan(view, facts))
+        view.review_plan = build_review_plan(view, facts)
+        return view
 
     def _build_cap_plan(
         self, view: HouseholdSpendingView, facts: list[HouseholdConfirmedFact]
@@ -472,7 +508,10 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
             profile=profile,
             monthly_income=self.transaction_service.income_totals_by_month(),
         )
+        record, _ = review_record(facts, view.summary.month)
         return build_cap_plan(
+            planned_asset_draw=record.planned_asset_draw,
+            expected_income=record.expected_income,
             categories=view.categories,
             anchor=anchor,
             savings_plan=build_savings_plan(profile=profile, anchor=anchor),
@@ -492,8 +531,8 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
     def get_net_worth_trend(self, *, days: int = 180) -> HouseholdNetWorthTrend:
         return build_net_worth_trend(self, days=days)
 
-    def update_profile(self, payload: HouseholdProfileUpdate) -> HouseholdProfile:
-        return self.profile_service.update_profile(self, payload)
+    def update_profile(self, payload: HouseholdProfileUpdate, *, source: str = "saved_assumptions") -> HouseholdProfile:
+        return self.profile_service.update_profile(self, payload, source=source)
 
     def update_sinking_fund(
         self, *, fund_key: str, payload: HouseholdSinkingFundUpdate

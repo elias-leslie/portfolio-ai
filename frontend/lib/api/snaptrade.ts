@@ -25,6 +25,7 @@ export interface SnapTradeAccount {
 }
 
 export interface SnapTradeOrder {
+  sourceCopyCount?: number
   accountId: string
   accountName: string | null
   institutionName: string | null

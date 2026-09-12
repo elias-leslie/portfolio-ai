@@ -74,7 +74,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
   return (
     <nav className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/60">
       <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex min-h-16 flex-wrap items-center justify-between gap-2 py-2">
           {/* Logo */}
           <div className="flex items-center">
             <Link
@@ -86,7 +86,7 @@ function NavigationContent({ pathname }: { pathname: string }) {
           </div>
 
           {/* Main Navigation - Centered */}
-          <div className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 lg:flex">
+          <div className="hidden shrink-0 lg:flex">
             <div className="flex items-center gap-1 rounded-full border border-border/50 bg-surface-muted/50 p-1 shadow-sm backdrop-blur-sm">
               {PRIMARY_PRODUCT_ROUTES.map((link) => {
                 const Icon = routeIcons[link.href]

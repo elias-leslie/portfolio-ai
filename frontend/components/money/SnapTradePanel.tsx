@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import {
+  DataServiceReadState,
   formatDataServiceTime,
   MoneyDataServiceConfigForm,
   MoneyDataServicePanel,
@@ -89,11 +90,11 @@ function orderValue(order: SnapTradeOrder) {
 
 function signedOrderCashFlow(order: SnapTradeOrder) {
   const value = orderValue(order)
-  if (value === null) return 0
+  if (value === null || !Number.isFinite(value)) return null
   const action = order.action?.toUpperCase()
   if (action?.includes('BUY')) return -value
   if (action?.includes('SELL')) return value
-  return 0
+  return null
 }
 
 function orderStatusVariant(status?: string | null): BadgeProps['variant'] {
@@ -112,7 +113,12 @@ function orderTimestamp(order: SnapTradeOrder) {
 }
 
 export function SnapTradePanel() {
-  const { data: status, isLoading } = useSnapTradeStatus()
+  const {
+    data: status,
+    isLoading,
+    error: statusError,
+    refetch: refetchStatus,
+  } = useSnapTradeStatus()
   const configureSnapTrade = useConfigureSnapTrade()
   const createPortal = useCreateSnapTradeConnectionPortal()
   const syncSnapTrade = useSyncSnapTrade()
@@ -385,6 +391,15 @@ export function SnapTradePanel() {
     </MoneyDataServiceConfigForm>
   )
 
+  if (!status)
+    return (
+      <DataServiceReadState
+        title="SnapTrade"
+        loading={isLoading}
+        onRetry={() => void refetchStatus()}
+      />
+    )
+
   return (
     <MoneyDataServicePanel
       title="SnapTrade"
@@ -397,7 +412,22 @@ export function SnapTradePanel() {
       statusTiles={statusTiles}
       metricTiles={metricTiles}
       metricColumns={4}
-      alerts={[portalError, status?.lastError]}
+      alerts={[
+        statusError ? (
+          <span key="status-error">
+            Showing the last loaded SnapTrade status.{' '}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => void refetchStatus()}
+            >
+              Retry status
+            </button>
+          </span>
+        ) : null,
+        portalError,
+        status?.lastError,
+      ]}
       syncAction={{
         label: 'Sync',
         icon: <RefreshCw className="h-4 w-4" />,
@@ -490,10 +520,18 @@ function SnapTradeOrdersTimeline({
   )
   const latestOrder = orders[0]
   const latestTimestamp = latestOrder ? orderTimestamp(latestOrder) : null
-  const netCashFlow = executedOrders.reduce(
-    (total, order) => total + signedOrderCashFlow(order),
-    0,
-  )
+  const flows = executedOrders.map(signedOrderCashFlow)
+  const currencies = new Set(executedOrders.map((order) => order.currency))
+  const complete =
+    !loading &&
+    !error &&
+    executedOrders.length > 0 &&
+    flows.every((value) => value !== null) &&
+    currencies.size === 1 &&
+    !currencies.has(null)
+  const netCashFlow = complete
+    ? flows.reduce<number>((total, value) => total + (value ?? 0), 0)
+    : null
   const displayCurrency =
     orders.find((order) => order.currency)?.currency ??
     accounts.find((account) => account.currency)?.currency ??
@@ -509,7 +547,7 @@ function SnapTradeOrdersTimeline({
             <p className="text-xs text-text-muted">
               {loading
                 ? 'Loading orders'
-                : `${orders.length} recent order${orders.length === 1 ? '' : 's'}`}
+                : `${orders.length} recent order${orders.length === 1 ? '' : 's'} shown`}
             </p>
           </div>
         </div>
@@ -534,23 +572,29 @@ function SnapTradeOrdersTimeline({
 
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         <div className="rounded-md border border-border/25 bg-surface/45 px-3 py-2">
-          <p className="text-xs uppercase text-text-muted">Executed</p>
+          <p className="text-xs uppercase text-text-muted">
+            Executed in this list
+          </p>
           <p className="mt-1 text-sm font-semibold text-text">
-            {executedOrders.length}
+            {loading || error ? '—' : executedOrders.length}
           </p>
         </div>
         <div className="rounded-md border border-border/25 bg-surface/45 px-3 py-2">
-          <p className="text-xs uppercase text-text-muted">Net Flow</p>
+          <p className="text-xs uppercase text-text-muted">
+            Net trade value (shown)
+          </p>
           <p
             className={
-              netCashFlow > 0
+              netCashFlow !== null && netCashFlow > 0
                 ? 'mt-1 text-sm font-semibold text-gain'
-                : netCashFlow < 0
+                : netCashFlow !== null && netCashFlow < 0
                   ? 'mt-1 text-sm font-semibold text-loss'
                   : 'mt-1 text-sm font-semibold text-text'
             }
           >
-            {formatCurrencyWithCents(netCashFlow, displayCurrency)}
+            {netCashFlow === null
+              ? 'Unavailable'
+              : formatCurrencyWithCents(netCashFlow, displayCurrency)}
           </p>
         </div>
         <div className="rounded-md border border-border/25 bg-surface/45 px-3 py-2">
@@ -561,6 +605,16 @@ function SnapTradeOrdersTimeline({
         </div>
       </div>
 
+      <p className="mt-3 text-xs text-text-muted">
+        Sales minus purchases in this recent list, before fees. This is not
+        account funding or total investment performance. Identical broker IDs
+        are shown once only when the canonical account and fill details match.
+      </p>
+      {!loading && !error && !complete && executedOrders.length > 0 ? (
+        <p className="mt-2 text-xs text-text-muted">
+          Trade total withheld: a fill, action or common currency is missing.
+        </p>
+      ) : null}
       {error ? (
         <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error instanceof Error
@@ -597,6 +651,18 @@ function SnapTradeOrdersTimeline({
                   <p className="truncate text-xs text-text-muted">
                     {orderAccountLabel(order)}
                   </p>
+                  {(order.sourceCopyCount ?? 1) > 1 ? (
+                    <p className="mt-1 text-xs text-text-muted">
+                      Same broker order in {order.sourceCopyCount} linked
+                      sources; shown once.
+                    </p>
+                  ) : null}
+                  <details className="mt-1 text-xs text-text-muted">
+                    <summary className="cursor-pointer">
+                      Source order ID
+                    </summary>
+                    <p className="mt-1 break-all">{order.brokerageOrderId}</p>
+                  </details>
                 </div>
               </div>
 

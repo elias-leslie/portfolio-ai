@@ -41,6 +41,7 @@ from app.services.household_price_findings_service import (
     HouseholdPriceFindingsService,
 )
 from app.services.household_purchase_item_service import HouseholdPurchaseItemService
+from app.services.household_shopping_pilot import _actual_rows, _basis
 from app.storage import get_storage
 
 logger = get_logger(__name__)
@@ -410,26 +411,13 @@ class HouseholdPriceCheckService:
                 SELECT id AS product_id FROM household_products WHERE watched IS TRUE
             ),
             last_paid AS (
-                SELECT DISTINCT ON (product_id)
-                       product_id,
-                       total_price / NULLIF(package_normalized_quantity, 0)
-                           AS comparison_unit_price,
-                       package_display_label,
-                       package_normalized_quantity,
-                       package_normalized_unit,
-                       observed_date
+                SELECT product_id, MAX(observed_date) AS observed_date
                 FROM household_product_price_observations
-                WHERE source <> 'vendor_quote'
-                  AND package_normalized_quantity IS NOT NULL
-                  AND package_normalized_quantity > 0
-                  AND package_normalized_unit IS NOT NULL
-                ORDER BY product_id, observed_date DESC, created_at DESC
+                WHERE source IN ('receipt','order_history') AND observed_date<=CURRENT_DATE
+                GROUP BY product_id
             )
             SELECT p.id::text, p.canonical_name, p.brand, p.package_display_label,
-                   COALESCE(i.purchase_count, 0), lp.comparison_unit_price,
-                   lp.package_display_label AS baseline_package_label,
-                   lp.package_normalized_quantity AS baseline_package_quantity,
-                   lp.package_normalized_unit AS baseline_package_unit
+                   COALESCE(i.purchase_count, 0)
             FROM eligible_products ep
             JOIN household_products p ON p.id = ep.product_id
             LEFT JOIN items i ON i.product_id = p.id
@@ -444,20 +432,25 @@ class HouseholdPriceCheckService:
             """,
             [product_ids or [], shopping_list_id, shopping_list_id, limit],
         ).fetchall()
-        return [
-            {
-                "id": str(row[0]),
-                "name": str(row[1] or ""),
-                "brand": str(row[2]) if row[2] else None,
-                "package": str(row[3]) if row[3] else None,
-                "purchase_count": int(row[4] or 0),
-                "last_paid": to_float(row[5]),
-                "baseline_package_label": str(row[6]) if row[6] else None,
-                "baseline_package_quantity": to_float(row[7]),
-                "baseline_package_unit": str(row[8]) if row[8] else None,
-            }
-            for row in rows
-        ]
+        actual = _actual_rows(conn, [str(row[0]) for row in rows])
+        products = []
+        for row in rows:
+            latest = next((r for r in actual if r["product_id"] == str(row[0])), None)
+            basis = _basis(latest) if latest else None
+            products.append(
+                {
+                    "id": str(row[0]),
+                    "name": str(row[1] or ""),
+                    "brand": str(row[2]) if row[2] else None,
+                    "package": basis.package_label if basis else None,
+                    "purchase_count": int(row[4] or 0),
+                    "last_paid": basis.unit_price if basis else None,
+                    "baseline_package_label": basis.package_label if basis else None,
+                    "baseline_package_quantity": basis.package_quantity if basis else None,
+                    "baseline_package_unit": basis.unit if basis else None,
+                }
+            )
+        return products
 
     @staticmethod
     def _enabled_vendors(conn: Any) -> list[VendorAdapter]:
@@ -506,9 +499,7 @@ class HouseholdPriceCheckService:
         repo.store_message(agent_run_id, "user", prompt)
         try:
             response = client.complete_messages(
-                messages=[
-                    MessageInput(role="user", content=[TextContent(text=prompt)])
-                ],
+                messages=[MessageInput(role="user", content=[TextContent(text=prompt)])],
                 execute_tools=True,
                 max_turns=10,
                 purpose=f"household_price_check:{adapter.vendor_key}",
@@ -693,9 +684,7 @@ def _run_vendor_checks(
         try:
             results[adapter.vendor_key] = check(adapter)
         except Exception as exc:
-            logger.warning(
-                "price_check_vendor_failed", vendor=adapter.vendor_key, error=str(exc)
-            )
+            logger.warning("price_check_vendor_failed", vendor=adapter.vendor_key, error=str(exc))
             results[adapter.vendor_key] = VendorResult(
                 vendor_key=adapter.vendor_key, status="error", error=str(exc)[:500]
             )

@@ -10,9 +10,11 @@ WORKFLOW_STAGES = (
     "review_due",
     "invalidated",
     "exited",
+    "passed",
 )
 
 WORKFLOW_SUMMARIES = {
+    "passed": "Entry declined for now; the saved rationale explains what would change the decision.",
     "discover": "The symbol is on the radar but still needs a worked thesis.",
     "thesis_ready": "The thesis is ready and the symbol can move into active tracking.",
     "tracked": "The symbol is being tracked deliberately before capital is committed.",
@@ -23,6 +25,7 @@ WORKFLOW_SUMMARIES = {
 }
 
 WORKFLOW_TRANSITIONS = {
+    "passed": ["discover", "thesis_ready", "tracked"],
     "discover": ["thesis_ready", "tracked", "invalidated"],
     "thesis_ready": ["tracked", "live", "review_due", "invalidated"],
     "tracked": ["thesis_ready", "live", "review_due", "invalidated"],
@@ -33,6 +36,8 @@ WORKFLOW_TRANSITIONS = {
 }
 
 OUTCOME_ACTION_STAGE_MAP = {
+    "watch": "tracked",
+    "pass": "passed",
     "hold": "live",
     "trim": "review_due",
     "exit": "exited",
@@ -65,3 +70,7 @@ def stage_for_outcome_action(action: str) -> str:
     if normalized not in OUTCOME_ACTION_STAGE_MAP:
         raise ValueError(f"Unsupported outcome action: {action}")
     return OUTCOME_ACTION_STAGE_MAP[normalized]
+
+
+def actions_for_position(held: bool) -> list[str]:
+    return ["hold", "trim", "exit", "invalidate"] if held else ["watch", "pass"]

@@ -28,6 +28,7 @@ export interface SymbolSignalSection {
 }
 
 export interface SymbolTradingSection {
+  basis?: string | null
   style: string | null
   confidence: number | null
   holdingPeriod: string | null
@@ -43,6 +44,7 @@ export interface SymbolQuoteSection {
   price: number | null
   source?: string | null
   cachedAt?: string | null
+  quoteTime?: string | null
   session?: string | null
   freshnessStatus: string
   freshnessLabel: string
@@ -82,6 +84,10 @@ export interface SymbolRecommendationSection {
 }
 
 export interface SymbolDecisionSection {
+  drivers?: string[]
+  missingEvidence?: string[]
+  reviewTriggers?: string[]
+  portfolioRelevance?: string | null
   action: string
   headline: string
   summary: string
@@ -103,6 +109,8 @@ export interface SymbolNewsSection {
     timeAgo: string
   }>
   recentArticles: Array<{
+    relationship?: string | null
+    relationshipReason?: string | null
     headline: string
     url?: string | null
     source?: string | null
@@ -177,6 +185,7 @@ export interface SymbolWorkflowPositionContext {
 }
 
 export interface SymbolWorkflowOutcomeSnapshot {
+  evidenceSnapshot?: Record<string, unknown> | null
   action: string
   stage: string
   note: string
@@ -195,6 +204,7 @@ export interface SymbolWorkflow {
   notes?: string | null
   nextReviewAt?: string | null
   availableTransitions: string[]
+  availableActions?: string[]
   position: SymbolWorkflowPositionContext | null
   latestOutcome: SymbolWorkflowOutcomeSnapshot | null
   history: SymbolWorkflowEvent[]

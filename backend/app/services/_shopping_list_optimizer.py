@@ -2,7 +2,7 @@
 
 Given open list items, fresh vendor quotes, and user-configured vendor profiles,
 compute per-vendor basket totals plus a split-basket recommendation only when
-it clears the material savings threshold: max($8, 10%).
+it clears the material savings threshold: $8.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from itertools import combinations
 from typing import Any
 
 SPLIT_MIN_SAVINGS_ABS = 8.0
-SPLIT_MIN_SAVINGS_PCT = 0.10
 DEFAULT_MAX_LOCAL_STORES = 2
 DELIVERY_VENDOR_KEYS = {"amazon"}
 
@@ -71,9 +70,10 @@ def _basket_total(
     *,
     cart_subtotal: float | None = None,
     membership_required: bool = False,
+    price_includes_fees: bool = False,
 ) -> dict[str, float]:
     fee_basis = subtotal if cart_subtotal is None else cart_subtotal
-    fees = _profile_fee(profile, fee_basis, membership_required=membership_required)
+    fees = 0.0 if price_includes_fees else _profile_fee(profile, fee_basis, membership_required=membership_required)
     cart = subtotal if cart_subtotal is None else cart_subtotal
     return {
         "subtotal": _money(subtotal),
@@ -143,6 +143,7 @@ def optimize_shopping_list(
             subtotal,
             cart_subtotal=cart_subtotal,
             membership_required=membership_required,
+            price_includes_fees=all(line.get("price_includes_fees") is True for line in lines),
         )
         baskets.append(
             {
@@ -175,8 +176,8 @@ def optimize_shopping_list(
         "best_single_vendor": best_single,
         "split_recommendation": split,
         "strategy_notes": [
-            "Prices and savings use normalized unit basis when package quantity is known.",
-            "Sticker price is retained per line so larger bulk packages do not hide cash outlay.",
+            "Basket estimates use confirmed offers for matching package sizes and whole-package quantities.",
+            "Confirmed offer prices include their stated fees and coupon; other package sizes can be compared in Capture.",
         ],
     }
 
@@ -233,12 +234,13 @@ def _split_recommendation(
     best_total = float(best_single.get("total") or 0.0) if best_single else 0.0
     best_uncovered = int(best_single.get("uncovered_count") or 0) if best_single else len(open_items)
     savings = _money(best_total - float(candidate["total"])) if best_total else 0.0
-    threshold = _money(max(SPLIT_MIN_SAVINGS_ABS, SPLIT_MIN_SAVINGS_PCT * best_total)) if best_total else 0.0
+    threshold = _money(SPLIT_MIN_SAVINGS_ABS) if best_total else 0.0
     candidate["savings"] = savings
     candidate["threshold"] = threshold
     candidate["recommended"] = bool(
         best_single
-        and candidate["uncovered_count"] <= best_uncovered
+        and best_uncovered == 0
+        and candidate["uncovered_count"] == 0
         and savings >= threshold
     )
     return candidate
@@ -286,6 +288,8 @@ def _split_candidate_for_vendors(
 
     split_fees = 0.0
     for vendor_key in subtotals:
+        if all(line.get("price_includes_fees") is True for line in assignments if line["vendor_key"] == vendor_key):
+            continue
         split_fees += _profile_fee(
             profiles_by_vendor[vendor_key],
             cart_subtotals[vendor_key],
@@ -335,6 +339,7 @@ def _assignment_line(
         "unit_label": quote.get("unit_label"),
         "package_label": quote.get("package_label"),
         "membership_required": bool(quote.get("membership_required")),
+        "price_includes_fees": quote.get("price_includes_fees") is True,
         "substitution_flag": (item.get("match_confidence") or 1.0) < 0.8,
     }
     if include_vendor:

@@ -46,6 +46,9 @@ def _normalize_barcode(value: Any) -> str | None:
 
 def _extract_identifiers(metadata: dict[str, Any]) -> dict[str, str]:
     identifiers: dict[str, str] = {}
+    costco_code = str(metadata.get("Costco Item Number") or "").strip()
+    if costco_code.isdigit() and 3 <= len(costco_code) <= 8:
+        identifiers["costco_item_number"] = costco_code
     asin = str(metadata.get("ASIN") or "").strip()
     if asin:
         identifiers["asin"] = asin
@@ -67,6 +70,9 @@ def _package_measure_payload(description: str, metadata: dict[str, Any]) -> dict
         "normalized_unit": measure.normalized_unit,
         "raw_quantity": measure.raw_quantity,
         "raw_unit": measure.raw_unit,
+        "evidence_text": measure.evidence_text,
+        "parser_version": measure.parser_version,
+        "source": "description",
     }
 
 
@@ -75,6 +81,7 @@ def _open_food_facts_package_measure(product: dict[str, Any]) -> dict[str, Any] 
     if quantity_text:
         payload = _package_measure_payload(quantity_text, {"Product Name": quantity_text})
         if payload is not None:
+            payload["source"] = "open_food_facts"
             return payload
     quantity_value = product.get("product_quantity")
     quantity_unit = str(product.get("product_quantity_unit") or "").strip()
@@ -84,6 +91,7 @@ def _open_food_facts_package_measure(product: dict[str, Any]) -> dict[str, Any] 
             {"Product Name": f"{quantity_value} {quantity_unit}"},
         )
         if payload is not None:
+            payload["source"] = "open_food_facts"
             return payload
     return None
 
@@ -194,7 +202,7 @@ class HouseholdProductEnrichmentService:
                     summary["external_misses"] += 1
 
             enrichment = {
-                "version": 1,
+                "version": 2,
                 "dataset_type": str(row_dataset_type or ""),
                 "merchant": str(merchant or ""),
                 "item_name": item_name,

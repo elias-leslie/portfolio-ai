@@ -14,6 +14,21 @@ from app.api.symbols.data_fetchers import (
 from app.portfolio.models import PriceData
 
 
+def test_normal_symbol_read_does_not_call_quote_vendors(monkeypatch) -> None:
+    fetcher = Mock()
+    fetcher.fetch_cached_price_data.return_value = {
+        "AAPL": PriceData(
+            symbol="AAPL", price=123, quote_time=datetime(2026, 9, 10, 20, tzinfo=UTC)
+        )
+    }
+    monkeypatch.setattr("app.api.symbols.data_fetchers.PriceDataFetcher", lambda _: fetcher)
+    result = get_quote_data("aapl", object())
+    assert result["price"] == 123
+    assert result["quote_time"] == datetime(2026, 9, 10, 20, tzinfo=UTC)
+    fetcher.fetch_price_data.assert_not_called()
+    fetcher.fetch_cached_price_data.assert_called_once_with(["AAPL"], max_age_minutes=None)
+
+
 def test_get_watchlist_data_uses_watchlist_items_without_decision_enrichment(mocker) -> None:
     """Symbol intelligence should not request recursive watchlist decisions."""
     watchlist_service = Mock()
@@ -25,7 +40,9 @@ def test_get_watchlist_data_uses_watchlist_items_without_decision_enrichment(moc
 
     result = get_watchlist_data("nvda", watchlist_service)
 
-    watchlist_service.get_items_with_scores.assert_called_once_with(include_decision=False)
+    watchlist_service.get_items_with_scores.assert_called_once_with(
+        include_decision=False, symbol="NVDA"
+    )
     build_mock.assert_called_once_with({"symbol": "NVDA"})
     assert result == {"symbol": "NVDA", "signal_type": "BUY"}
 
@@ -119,7 +136,7 @@ def test_get_quote_data_reads_canonical_price_with_short_ttl(monkeypatch) -> Non
 
     assert result["price"] == 122.04
     assert result["source"] == "yfinance"
-    assert result["session"] == "pre_market"
+    assert result["session"] is None  # Cache-write time does not establish the quote's session.
     assert calls == [
         {
             "symbols": ["VGT"],

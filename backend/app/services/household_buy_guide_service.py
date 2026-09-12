@@ -17,11 +17,13 @@ from app.models.household_finance_types import (
     HouseholdBuyGuideTrendPoint,
 )
 from app.services._household_finance_utils import to_float
+from app.services._household_price_location import shopping_today
 from app.services._household_report_builder import _coerce_metadata
+from app.services.household_shopping_pilot import HouseholdShoppingPilot
+from app.services.household_unit_prices import offer_is_ready, unit_price_basis
 from app.storage import get_storage
 
 MIN_ACTUAL_OBSERVATIONS = 2
-MIN_UNIT_SAVINGS_PCT = 0.10
 MIN_PACKAGE_SAVINGS = 2.0
 MIN_MONTHLY_SAVINGS = 1.0
 BULK_SIZE_MULTIPLE = 1.2
@@ -29,8 +31,8 @@ BULK_TRAP_MONTHS = 6.0
 FRESH_QUOTE_DAYS = 14
 MIN_VENDOR_QUOTE_CONFIDENCE = 0.7
 RECENT_USAGE_DAYS = 365
-ACTIVE_BASELINE_DAYS = 548
-ACTUAL_CANDIDATE_MAX_AGE_DAYS = 730
+ACTIVE_BASELINE_DAYS = 180
+ACTUAL_CANDIDATE_MAX_AGE_DAYS = 14
 TREND_POINT_CAP = 8
 DEFAULT_LIMIT = 12
 MAX_LIMIT = 50
@@ -55,6 +57,7 @@ class _Observation:
     package_unit: str
     source: str
     metadata: dict[str, Any]
+    package_count: float = 1.0
 
     @property
     def unit_cost(self) -> float:
@@ -78,24 +81,37 @@ def _observation(row: Any) -> _Observation | None:
     if not isinstance(observed_date, date):
         return None
     total_price = to_float(row[5])
-    package_quantity = to_float(row[8])
-    package_unit = str(row[9] or "").strip()
     if total_price is None or total_price <= 0:
         return None
-    if package_quantity is None or package_quantity <= 0 or not package_unit:
+    basis = unit_price_basis(
+        description=str(row[13] or row[1]),
+        metadata=_coerce_metadata(row[14]),
+        line_total=total_price,
+        packages=row[12],
+        source=str(row[10]),
+        quote_package_label=str(row[7] or ""),
+    )
+    if basis is None:
         return None
     return _Observation(
         product_id=str(row[0]),
         product_name=str(row[1] or ""),
         brand=str(row[2]) if row[2] else None,
-        merchant=str(row[3]) if row[3] else None,
+        merchant=str(
+            row[3]
+            or _coerce_metadata(row[11]).get("store")
+            or _coerce_metadata(row[11]).get("vendor_key")
+            or ""
+        )
+        or None,
         observed_date=observed_date,
-        total_price=round(total_price, 2),
-        package_label=str(row[7]) if row[7] else None,
-        package_quantity=package_quantity,
-        package_unit=package_unit,
+        total_price=round(basis.package_price, 2),
+        package_label=basis.package_label,
+        package_quantity=basis.package_quantity,
+        package_unit=basis.unit,
         source=str(row[10] or ""),
         metadata=_coerce_metadata(row[11]),
+        package_count=basis.package_count,
     )
 
 
@@ -118,7 +134,7 @@ def _quote_confidence(observation: _Observation) -> float | None:
 
 
 def _is_actual(observation: _Observation) -> bool:
-    return observation.source != "vendor_quote"
+    return observation.source in {"receipt", "order_history"}
 
 
 def _days_old(observation: _Observation, *, today: date) -> int:
@@ -133,8 +149,14 @@ def _monthly_units(actual: list[_Observation], *, today: date) -> float | None:
         return None
     first = min(row.observed_date for row in rows)
     last = max(row.observed_date for row in rows)
-    days = max(30, (last - first).days + 1)
-    total_units = sum(row.package_quantity for row in rows)
+    days = (last - first).days
+    if days < 14:
+        return None
+    # Purchases at the last observation have not yet been consumed. Including
+    # them over the preceding interval doubles a two-purchase frequency estimate.
+    total_units = sum(
+        row.package_quantity * row.package_count for row in rows if row.observed_date < last
+    )
     monthly = total_units * 30.437 / days
     return round(monthly, 2) if monthly > 0 else None
 
@@ -165,26 +187,21 @@ def _best_candidate(
     today: date,
 ) -> _Observation | None:
     candidates = []
-    for candidate in observations:
+    latest = {}
+    for row in sorted(observations, key=lambda item: item.observed_date):
+        if row.source == "vendor_quote":
+            latest[(row.merchant, row.metadata.get("title"), row.package_label)] = row
+    for candidate in latest.values():
         if candidate is baseline:
             continue
         if candidate.package_unit != baseline.package_unit:
             continue
-        if candidate.unit_cost >= baseline.unit_cost * (1 - MIN_UNIT_SAVINGS_PCT):
+        if candidate.unit_cost >= baseline.unit_cost:
             continue
-        larger_package = candidate.package_quantity >= baseline.package_quantity * BULK_SIZE_MULTIPLE
-        different_merchant = (candidate.merchant or "") != (baseline.merchant or "")
-        if not larger_package and not different_merchant:
-            continue
-        candidate_age = _days_old(candidate, today=today)
-        if candidate.source == "vendor_quote" and candidate_age > FRESH_QUOTE_DAYS * 4:
-            continue
-        if (
-            candidate.source == "vendor_quote"
-            and (_quote_confidence(candidate) or 0.0) < MIN_VENDOR_QUOTE_CONFIDENCE
+        # Receipts describe a past purchase, not stock or the price today.
+        if candidate.source != "vendor_quote" or not offer_is_ready(
+            candidate.metadata, candidate.observed_date, today=today
         ):
-            continue
-        if candidate.source != "vendor_quote" and candidate_age > ACTUAL_CANDIDATE_MAX_AGE_DAYS:
             continue
         candidates.append(candidate)
     return min(candidates, key=_candidate_score) if candidates else None
@@ -198,35 +215,15 @@ def _confidence(
     months_to_use: float | None,
     today: date,
 ) -> tuple[float, list[str]]:
-    score = 0.52
-    reasons = [f"{actual_count} actual purchase observations"]
-    if actual_count >= 4:
-        score += 0.1
-        reasons.append("repeat buy pattern")
-    if baseline.source == "receipt":
-        score += 0.08
-        reasons.append("baseline is itemized receipt data")
-    else:
-        reasons.append("baseline is order-history data")
-    if candidate.source == "vendor_quote":
-        quote_age = _days_old(candidate, today=today)
-        quote_confidence = _quote_confidence(candidate)
-        score += 0.04
-        if quote_age <= FRESH_QUOTE_DAYS:
-            score += 0.08
-            reasons.append("fresh vendor quote")
-        else:
-            reasons.append(f"vendor quote is {quote_age} days old")
-        if quote_confidence is not None and quote_confidence >= 0.8:
-            score += 0.06
-            reasons.append("high product-match confidence")
-    else:
-        score += 0.12
-        reasons.append("candidate came from actual purchase history")
+    reasons = [
+        f"{actual_count} purchase observations; latest {baseline.observed_date.isoformat()}",
+        f"Package equivalence and buying conditions confirmed; price checked {_days_old(candidate, today=today)} days ago",
+        "Monthly differences assume the current price and observed restocking pace continue; they are not realized savings.",
+    ]
     if months_to_use is not None and months_to_use > BULK_TRAP_MONTHS:
-        score -= 0.12
-        reasons.append("large package may outlast normal usage")
-    return round(max(0.2, min(score, 0.95)), 2), reasons
+        reasons.append("The package exceeds six months of observed purchases.")
+    # Compatibility field only: no calibrated probability is available.
+    return 0.0, reasons
 
 
 def _finding_kind(
@@ -243,7 +240,7 @@ def _finding_kind(
         return "buy_bigger_same_store"
     if larger_package:
         return "buy_bigger_elsewhere"
-    return "switch_vendor"
+    return "lower_price_same_store" if same_merchant else "switch_vendor"
 
 
 def _recommendation(
@@ -264,7 +261,7 @@ def _recommendation(
         lead = f"Check {candidate_name} before rebuying."
     tail = f" It is {savings_pct:.0f}% lower per {unit_label} than the latest buy."
     if months_to_use is not None:
-        tail += f" At your observed pace, that package lasts about {months_to_use:.1f} months."
+        tail += f" If your observed restocking pace continues, this is about {months_to_use:.1f} months of purchases; actual use may differ."
     return lead + tail
 
 
@@ -274,7 +271,11 @@ def _guide_item(
     observations: list[_Observation],
     today: date,
 ) -> HouseholdBuyGuideItem | None:
-    actual = [row for row in observations if _is_actual(row)]
+    actual = [
+        row
+        for row in observations
+        if _is_actual(row) and row.product_id == product_id and row.observed_date <= today
+    ]
     if len(actual) < MIN_ACTUAL_OBSERVATIONS:
         return None
     by_unit: dict[str, list[_Observation]] = {}
@@ -282,7 +283,11 @@ def _guide_item(
         by_unit.setdefault(row.package_unit, []).append(row)
     best_item: HouseholdBuyGuideItem | None = None
     for unit, unit_rows in by_unit.items():
-        unit_actual = [row for row in unit_rows if _is_actual(row)]
+        unit_actual = [
+            row
+            for row in unit_rows
+            if _is_actual(row) and row.product_id == product_id and row.observed_date <= today
+        ]
         if len(unit_actual) < MIN_ACTUAL_OBSERVATIONS:
             continue
         baseline = max(unit_actual, key=lambda row: (row.observed_date, -row.source_rank))
@@ -295,7 +300,9 @@ def _guide_item(
         savings_pct = round((savings_per_unit / baseline.unit_cost) * 100, 1)
         monthly_units = _monthly_units(unit_actual, today=today)
         estimated_monthly_savings = (
-            round(savings_per_unit * monthly_units, 2) if monthly_units is not None else None
+            round(savings_per_unit * monthly_units, 2)
+            if monthly_units is not None and not candidate.metadata.get("coupon")
+            else None
         )
         package_savings = savings_per_unit * candidate.package_quantity
         if package_savings < MIN_PACKAGE_SAVINGS and (
@@ -333,6 +340,8 @@ def _guide_item(
             best_observed_date=candidate.observed_date.isoformat(),
             best_url=_quote_url(candidate),
             best_title=_quote_title(candidate),
+            best_valid_until=str(candidate.metadata.get("valid_until") or "") or None,
+            best_conditions=str(candidate.metadata.get("conditions") or "") or None,
             savings_per_unit=savings_per_unit,
             savings_pct=savings_pct,
             estimated_monthly_savings=estimated_monthly_savings,
@@ -370,30 +379,44 @@ class HouseholdBuyGuideService:
 
     def get_buy_guide(self, *, limit: int = DEFAULT_LIMIT) -> HouseholdBuyGuide:
         limit = max(1, min(int(limit or DEFAULT_LIMIT), MAX_LIMIT))
-        today = datetime.now(UTC).date()
+        today = shopping_today()
         with self.storage.connection() as conn:
+            pilot_ids = [p.id for p in HouseholdShoppingPilot().products(conn)]
+            families = dict(
+                conn.execute(
+                    "SELECT id::text, metadata->'comparison_family'->>'id' FROM household_products"
+                ).fetchall()
+            )
+            comparison_ids = list(
+                set(pilot_ids)
+                | {
+                    pid
+                    for pid, family in families.items()
+                    if family and family in {families.get(p) for p in pilot_ids}
+                }
+            )
             rows = conn.execute(
                 """
                 SELECT o.product_id::text, p.canonical_name, p.brand,
                        COALESCE(m.canonical_name, m.display_name, ''),
                        o.observed_date,
-                       CAST(COALESCE(i.allocated_amount, o.total_price) AS DOUBLE PRECISION),
+                       CAST(o.total_price AS DOUBLE PRECISION),
                        CAST(o.total_price AS DOUBLE PRECISION),
                        o.package_display_label,
                        CAST(o.package_normalized_quantity AS DOUBLE PRECISION),
                        o.package_normalized_unit,
                        o.source,
-                       o.metadata
+                       o.metadata, o.quantity, COALESCE(i.description, p.canonical_name), COALESCE(ir.row_metadata,'{}'::jsonb) || o.metadata
                 FROM household_product_price_observations o
                 JOIN household_products p ON p.id = o.product_id
                 LEFT JOIN household_purchase_items i ON i.id = o.purchase_item_id
+                LEFT JOIN household_import_rows ir ON ir.id = i.import_row_id
                 LEFT JOIN household_merchants m ON m.id = o.merchant_id
-                WHERE o.package_normalized_quantity IS NOT NULL
-                  AND o.package_normalized_unit IS NOT NULL
-                  AND o.total_price > 0
+                WHERE o.product_id=ANY(%s::uuid[]) AND o.total_price > 0 AND o.observed_date<=CURRENT_DATE
                   AND (i.id IS NULL OR i.removed IS NOT TRUE)
                 ORDER BY o.product_id, o.observed_date ASC, o.created_at ASC
-                """
+                """,
+                [comparison_ids],
             ).fetchall()
         by_product: dict[str, list[_Observation]] = {}
         unit_coverage_products: set[str] = set()
@@ -407,7 +430,20 @@ class HouseholdBuyGuideService:
 
         items = [
             item
-            for product_id, observations in by_product.items()
+            for product_id in pilot_ids
+            for observations in [
+                [
+                    row
+                    for pid, points in by_product.items()
+                    for row in points
+                    if pid == product_id
+                    or (
+                        row.source == "vendor_quote"
+                        and families.get(product_id)
+                        and families.get(pid) == families.get(product_id)
+                    )
+                ]
+            ]
             if (item := _guide_item(product_id=product_id, observations=observations, today=today))
             is not None
         ]

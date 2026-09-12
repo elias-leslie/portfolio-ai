@@ -23,12 +23,12 @@ import {
   useRefreshSymbolIntelligence,
   useSymbolIntelligence,
 } from '@/lib/hooks/useSymbolIntelligence'
+import { useUsableContentTiming } from '@/lib/hooks/useUsableContentTiming'
 import { cn, formatDate } from '@/lib/utils'
 import {
   compareNotifications,
   formatCountLabel,
   formatEvidenceSummary,
-  formatIfNotHeldReasoning,
   formatNewsSentimentSummary,
   formatPortfolioWeight,
   formatShareCount,
@@ -53,6 +53,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
   const uppercaseSymbol = symbol.toUpperCase()
   const { data, isLoading, error, isFetching } =
     useSymbolIntelligence(uppercaseSymbol)
+  useUsableContentTiming(
+    'symbol-decision',
+    Boolean(data?.decision) && Boolean(data?.portfolio),
+    uppercaseSymbol,
+  )
   const refreshSymbol = useRefreshSymbolIntelligence(uppercaseSymbol)
   const { data: jennyDashboard, error: jennyError } = useJennyDashboard()
   const { data: preferences } = usePreferences()
@@ -123,13 +128,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
       : null,
     formatPortfolioWeight(heldPosition?.weightPct),
   ].filter((part): part is string => Boolean(part))
-  const positionSummary = data?.portfolio?.held
-    ? heldPositionSummary.join(' · ') || 'Live position details unavailable.'
-    : data?.recommendation?.ifNotHeld?.reasoning
-      ? formatIfNotHeldReasoning(data.recommendation.ifNotHeld.reasoning)
-      : error || data?.error
-        ? 'Position status is temporarily unavailable from symbol intelligence.'
-        : 'Jenny does not see a live portfolio position.'
+  const positionSummary = !data?.portfolio
+    ? isLoading
+      ? 'Loading account exposure…'
+      : 'Account exposure is unavailable.'
+    : data.portfolio.held
+      ? heldPositionSummary.join(' · ') || 'Position details unavailable.'
+      : 'No position in the current account scope.'
+
   const decisionUsesLiveModel =
     currentDecision?.sourceKind === 'live_signal_model'
   const entrySignalAction =
@@ -251,7 +257,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
         </span>
         {quote?.cachedAt ? (
           <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
-            Quote <RelativeTime value={quote.cachedAt} />
+            {quote.quoteTime ? 'Quote' : 'Cached'}{' '}
+            <RelativeTime value={quote.quoteTime ?? quote.cachedAt} />
           </span>
         ) : null}
         <span className="rounded-full border border-border/40 bg-surface-muted/20 px-3 py-1">
@@ -327,7 +334,8 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
               </p>
               {quote?.cachedAt ? (
                 <p className="mt-2 text-xs uppercase tracking-[0.16em] text-text-muted">
-                  As of <RelativeTime value={quote.cachedAt} />
+                  {quote.quoteTime ? 'As of' : 'Cached'}{' '}
+                  <RelativeTime value={quote.quoteTime ?? quote.cachedAt} />
                 </p>
               ) : null}
               {quote?.error ? (
@@ -378,7 +386,7 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
           ) : (
             <>
               <p className="font-display italic text-2xl tabular-nums text-text">
-                {monolithUnavailable ? 'Unavailable' : 'Not held'}
+                Exposure unavailable
               </p>
               <p className="mt-2 text-sm text-text-muted">{positionSummary}</p>
             </>
@@ -460,7 +468,14 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
             value: 'decision',
             label: 'Decision',
             badge: decisionBadge,
-            content: (
+            content: monolithPending ? (
+              <div
+                role="status"
+                className="rounded-2xl border border-border/40 p-6 text-sm text-text-muted"
+              >
+                Loading decision evidence…
+              </div>
+            ) : (
               <SymbolDecisionPanel
                 symbol={uppercaseSymbol}
                 data={data}
@@ -614,6 +629,11 @@ export function SymbolWorkspace({ symbol }: { symbol: string }) {
                                   </p>
                                 )}
                                 <p className="mt-1 text-xs text-text-muted">
+                                  {article.relationshipReason ? (
+                                    <span className="block mb-2">
+                                      {article.relationshipReason}
+                                    </span>
+                                  ) : null}
                                   {article.source ?? 'Unknown source'}
                                   {article.publishedAt
                                     ? ` · ${new Date(

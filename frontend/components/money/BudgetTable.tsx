@@ -52,6 +52,8 @@ function statusScore(entry: BudgetRowEntry) {
 }
 
 export interface BudgetTableProps {
+  month?: string
+  isProvisional?: boolean
   isLoading: boolean
   hasData: boolean
   activeRowCount: number
@@ -81,6 +83,8 @@ export interface BudgetTableProps {
 }
 
 export function BudgetTable({
+  month,
+  isProvisional = false,
   isLoading,
   hasData,
   activeRowCount,
@@ -280,8 +284,10 @@ export function BudgetTable({
             ) : (
               displayRows.map((entry) => (
                 <BudgetRow
+                  month={month}
                   key={entry.row.category}
                   entry={entry}
+                  isProvisional={isProvisional}
                   isExpanded={expandedCategory === entry.row.category}
                   categoryTransactions={categoryTransactionsFor(
                     entry.row.category,
@@ -319,13 +325,21 @@ export function BudgetTable({
                   <span
                     className={cn(
                       'text-sm font-semibold',
-                      verdict.variance > 0 ? 'text-loss' : 'text-gain',
+                      verdict.variance > 0
+                        ? 'text-loss'
+                        : isProvisional
+                          ? 'text-text'
+                          : 'text-gain',
                     )}
                   >
                     {formatCurrency(Math.abs(verdict.variance), {
                       decimals: 0,
                     })}{' '}
-                    {verdict.variance > 0 ? 'over' : 'under'} overall
+                    {verdict.variance > 0
+                      ? 'over caps'
+                      : isProvisional
+                        ? 'remaining in caps'
+                        : 'under overall'}
                   </span>
                   <span className="ml-2 text-xs text-text-muted">
                     {formatCurrency(verdict.overTotal, { decimals: 0 })} over in{' '}

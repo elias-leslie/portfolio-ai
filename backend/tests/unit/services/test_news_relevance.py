@@ -72,7 +72,7 @@ def test_filter_symbol_relevant_articles_drops_incidental_multi_ticker_mentions(
     assert [article.headline for article in filtered] == [direct.headline]
 
 
-def test_filter_symbol_relevant_articles_keeps_alias_mentions_after_learning_symbol_alias() -> None:
+def test_filter_symbol_relevant_articles_keeps_explicit_company_event_in_summary() -> None:
     direct = _article(
         symbol="TSLA",
         headline="Tesla rolls out robotaxis in Dallas and Houston",

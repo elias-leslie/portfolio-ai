@@ -1,34 +1,58 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { apiRequest } from '@/lib/api/client'
 import type {
   HouseholdDocument,
+  HouseholdDocumentList,
   HouseholdTransactionDateIssue,
   ImportCenter,
 } from '@/lib/api/household'
 import { formatCurrencyWhole } from '@/lib/formatters'
 import { DocumentCard } from './DocumentCard'
+import { useMoneyQuery } from './useMoneyQuery'
 
 export function ImportCenterSidebar({
-  documents,
   importCenter,
   dateQualityIssues = [],
   focusedReview = false,
 }: {
-  documents: HouseholdDocument[]
   importCenter?: ImportCenter
   dateQualityIssues?: HouseholdTransactionDateIssue[]
   focusedReview?: boolean
 }) {
-  const [showAllDocuments, setShowAllDocuments] = useState(false)
-  const visibleDocuments = useMemo(
-    () => (showAllDocuments ? documents : documents.slice(0, 8)),
-    [documents, showAllDocuments],
-  )
-  const hiddenDocumentCount = Math.max(
-    documents.length - visibleDocuments.length,
-    0,
-  )
+  const [view, setView] = useMoneyQuery('intakeView', 'pending')
+  const [documentId, setDocumentId] = useMoneyQuery('document', '')
+  const selected = useQuery({
+    queryKey: ['household', 'documents', 'detail', documentId],
+    enabled: !!documentId,
+    queryFn: () =>
+      apiRequest<HouseholdDocument>(
+        `/api/intake/evidence/${encodeURIComponent(documentId)}`,
+      ),
+  })
+  const evidence = useInfiniteQuery({
+    queryKey: ['household', 'documents', 'queue', view],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
+      apiRequest<HouseholdDocumentList>(
+        `/api/intake/evidence?view=${view === 'history' ? 'history' : 'pending'}&limit=8&offset=${pageParam}`,
+        { signal },
+      ),
+    getNextPageParam: (last) =>
+      last.offset + last.items.length < last.totalCount
+        ? last.offset + last.items.length
+        : undefined,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+  const pages = evidence.data?.pages
+  const visibleDocuments =
+    pages
+      ?.flatMap((page) => page.items)
+      .filter((item) => item.id !== documentId) ?? []
+  const count = pages?.[0]?.pendingCount
 
   useEffect(() => {
     if (!focusedReview) {
@@ -45,37 +69,99 @@ export function ImportCenterSidebar({
 
   return (
     <div className="space-y-3">
-      {importCenter ? <IntakeSummaryCard importCenter={importCenter} /> : null}
+      {documentId && (
+        <section
+          className="space-y-3 rounded-lg border border-primary/50 p-3"
+          aria-label="Selected evidence"
+        >
+          <div className="flex justify-between">
+            <h3 className="font-medium">Selected evidence</h3>
+            <Button variant="ghost" size="sm" onClick={() => setDocumentId('')}>
+              Clear selection
+            </Button>
+          </div>
+          {selected.isPending && <p role="status">Loading evidence…</p>}
+          {selected.isError && (
+            <p role="alert">
+              This evidence could not be loaded.{' '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => void selected.refetch()}
+              >
+                Retry
+              </button>
+            </p>
+          )}
+          {selected.data && <DocumentCard document={selected.data} />}
+        </section>
+      )}
+      <div className="flex gap-2" aria-label="Evidence view">
+        <Button
+          variant={view === 'pending' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setView('pending')}
+        >
+          Pending decisions{count == null ? '' : ` (${count})`}
+        </Button>
+        <Button
+          variant={view === 'history' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setView('history')}
+        >
+          History
+        </Button>
+      </div>
+      {view === 'history' && importCenter ? (
+        <IntakeSummaryCard importCenter={importCenter} />
+      ) : null}
       {dateQualityIssues.length > 0 ? (
         <DateQualityIssuesCard
           issues={dateQualityIssues}
           focusedReview={focusedReview}
         />
       ) : null}
-      {documents.length === 0 ? (
-        <div className="rounded-2xl border border-border/50 bg-surface-muted/20 p-5 text-sm text-text-muted">
-          No money evidence on file yet.
-        </div>
+      {evidence.isPending ? (
+        <p role="status">Loading pending decisions…</p>
+      ) : evidence.isError && !pages ? (
+        <p role="alert">
+          Evidence could not be loaded.{' '}
+          <Button variant="outline" onClick={() => void evidence.refetch()}>
+            Retry evidence
+          </Button>
+        </p>
+      ) : visibleDocuments.length === 0 ? (
+        <p className="rounded-xl border p-4 text-sm text-text-muted">
+          {documentId &&
+          pages?.some((page) =>
+            page.items.some((item) => item.id === documentId),
+          )
+            ? 'The matching evidence is shown above.'
+            : view === 'history'
+              ? 'No money evidence on file yet.'
+              : 'No pending document decisions.'}
+        </p>
       ) : (
-        <>
-          {visibleDocuments.map((document) => (
-            <DocumentCard key={document.id} document={document} />
-          ))}
-          {documents.length > 8 ? (
-            <div className="flex justify-center pt-1">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setShowAllDocuments((current) => !current)}
-              >
-                {showAllDocuments
-                  ? 'Show recent only'
-                  : `Show ${hiddenDocumentCount} older file${hiddenDocumentCount === 1 ? '' : 's'}`}
-              </Button>
-            </div>
-          ) : null}
-        </>
+        visibleDocuments.map((document) => (
+          <DocumentCard key={document.id} document={document} />
+        ))
+      )}
+      {evidence.hasNextPage && (
+        <Button
+          variant="outline"
+          disabled={evidence.isFetchingNextPage}
+          onClick={() => void evidence.fetchNextPage()}
+        >
+          {evidence.isFetchingNextPage ? 'Loading…' : 'Show more evidence'}
+        </Button>
+      )}
+      {evidence.isError && pages && (
+        <p role="alert">
+          The evidence list could not be refreshed.{' '}
+          <Button variant="outline" onClick={() => void evidence.refetch()}>
+            Retry evidence
+          </Button>
+        </p>
       )}
     </div>
   )
@@ -182,8 +268,7 @@ function IntakeSummaryCard({ importCenter }: { importCenter: ImportCenter }) {
     <div className="rounded-2xl border border-border/40 bg-surface-muted/20 p-4">
       <p className="text-sm font-semibold text-text">Recent intake</p>
       <p className="mt-1 text-sm text-text-muted">
-        One intake rail. Latest files first. Older evidence stays available
-        without taking over the page.
+        Completed and pending evidence, newest first.
       </p>
       <div className="mt-3">
         <div className="rounded-2xl border border-border/40 bg-surface/60 p-3">

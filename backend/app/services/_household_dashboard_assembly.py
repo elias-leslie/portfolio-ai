@@ -40,13 +40,9 @@ from app.services._household_dashboard_builders import (
     build_savings_plan,
     build_sinking_funds,
 )
-from app.services._household_dashboard_profile_inference import (
-    infer_profile_from_transactions,
-)
 from app.services._household_dashboard_queries import (
     fetch_current_month_essential_spend,
     fetch_current_month_spend,
-    fetch_inferred_value_rows,
     fetch_monthly_retirement_contributions,
     fetch_primary_adult_age,
     fetch_retirement_activity_visible,
@@ -595,15 +591,9 @@ def build_jenny_brief(profile: Any, reports: Any, resolved_values: list[Househol
 # ---------------------------------------------------------------------------
 
 def gather_service_data(service: Any) -> dict[str, Any]:
-    registry_service = getattr(service, "account_registry_service", None)
-    sync_gate = getattr(service, "_ensure_dashboard_registry_sync", None)
-    if callable(sync_gate):
-        sync_gate(limit=1000)
-    elif registry_service is not None:
-        registry_service.sync_registry(service, limit=1000)
     profile = service.get_profile()
     planning = service.get_planning_snapshot()
-    documents = service.list_documents(limit=100).items
+    documents = service.list_documents(limit=100, refresh_application_state=False).items
     questions = service.list_questions(limit=25).items
     closed_household_account_ids = fetch_closed_household_account_ids(service.storage)
     hidden_household_account_ids = fetch_hidden_household_account_ids(service.storage)
@@ -631,9 +621,9 @@ def gather_service_data(service: Any) -> dict[str, Any]:
     account_ids = {a.id for a in accounts}
     live_positions = [p for p in positions if p.account_id in account_ids]
     symbols = sorted({p.symbol for p in live_positions})
-    # cache + on-miss vendor fetch with smart TTL (2/5/30 min based on market state).
-    # The household holdings cron keeps the cache hot during market hours.
-    price_data = cast(dict[str, object], service.price_fetcher.fetch_price_data(symbols)) if symbols else {}
+    # Scheduled holdings refresh owns vendor calls. Read paths use the last
+    # cached quote and expose its timestamp/coverage in the account summaries.
+    price_data = cast(dict[str, object], service.price_fetcher.fetch_cached_price_data(symbols, max_age_minutes=None)) if symbols else {}
     account_valuations = calculate_account_valuations(accounts, live_positions, cast(dict[str, Any], price_data))
     holdings_by_account: dict[str, float] = {
         account_id: valuation.priced_positions_value
@@ -662,7 +652,6 @@ def gather_service_data(service: Any) -> dict[str, Any]:
 
 
 def resolve_dashboard_values(service: Any, *, profile: Any, reports: Any, questions: list[Any]) -> tuple[list[Any], list[Any]]:
-    infer_profile_from_transactions(service.storage, profile=profile, reports=reports, existing_inferences=fetch_inferred_value_rows(service.storage))
     resolved_values = service.get_resolved_values(profile=profile, questions=questions)
     non_inferable_fields = {"target_retirement_age", "target_retirement_spend"}
     inferred_fields = fields_with_confident_inferences(resolved_values, threshold=0.7)

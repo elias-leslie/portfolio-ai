@@ -8,9 +8,11 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from app.api import (
     cards,
@@ -31,13 +33,20 @@ from app.api import (
     thesis,
     watchlist,
 )
+from app.api.captures import router as captures_router
 from app.api.catalyst_routes import router as catalyst_router
+from app.api.identity import router as identity_router
 from app.api.macro_routes import router as macro_router
 from app.api.market import router as market_router
 from app.api.retirement_routes import router as retirement_router
 from app.config import settings
 from app.config.cors import build_cors_origins
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
+from app.services.household_identity import (
+    capture_path_allowed,
+    resolve_identity,
+    seed_member_emails,
+)
 from app.storage import get_storage
 from app.storage.credential_loader import load_credentials_from_database
 
@@ -99,6 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Initialize storage and ensure schema exists
     storage = get_storage()
     storage.ensure_schema()
+    seed_member_emails()
 
     logger.info("database_schema_initialized")
 
@@ -139,8 +149,34 @@ app.add_middleware(
 app.add_middleware(RequestIDMiddleware)
 
 
+@app.middleware("http")
+async def household_access(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    try:
+        identity = await run_in_threadpool(resolve_identity, request)
+        request.state.household_identity = identity
+        if identity.access == "capture_only" and not capture_path_allowed(
+            request.method, request.url.path
+        ):
+            return JSONResponse(
+                {"detail": "This account has capture-only access."}, status_code=403
+            )
+    except HTTPException as exc:
+        return JSONResponse(
+            {"detail": exc.detail},
+            status_code=exc.status_code,
+            headers={"Cache-Control": "no-store"},
+        )
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 # Register routers
 app.include_router(health.router)
+app.include_router(identity_router)
+app.include_router(captures_router)
 app.include_router(home.router)
 app.include_router(intake.router)
 app.include_router(household.router)

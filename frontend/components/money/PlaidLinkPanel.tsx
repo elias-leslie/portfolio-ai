@@ -22,6 +22,7 @@ import {
   usePlaidLink,
 } from 'react-plaid-link'
 import {
+  DataServiceReadState,
   formatDataServiceList,
   formatDataServiceTime,
   MoneyDataServiceConfigForm,
@@ -58,7 +59,12 @@ function defaultRedirectUri() {
 }
 
 export function PlaidLinkPanel() {
-  const { data: status, isLoading } = usePlaidStatus()
+  const {
+    data: status,
+    isLoading,
+    error: statusError,
+    refetch: refetchStatus,
+  } = usePlaidStatus()
   const configurePlaid = useConfigurePlaid()
   const createLinkToken = useCreatePlaidLinkToken()
   const exchangePublicToken = useExchangePlaidPublicToken()
@@ -384,6 +390,15 @@ export function PlaidLinkPanel() {
     </MoneyDataServiceConfigForm>
   )
 
+  if (!status)
+    return (
+      <DataServiceReadState
+        title="Plaid"
+        loading={isLoading}
+        onRetry={() => void refetchStatus()}
+      />
+    )
+
   return (
     <MoneyDataServicePanel
       title="Plaid"
@@ -395,7 +410,21 @@ export function PlaidLinkPanel() {
       configForm={configForm}
       statusTiles={statusTiles}
       metricTiles={metricTiles}
-      alerts={[linkError]}
+      alerts={[
+        statusError ? (
+          <span key="status-error">
+            Showing the last loaded Plaid status.{' '}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => void refetchStatus()}
+            >
+              Retry status
+            </button>
+          </span>
+        ) : null,
+        linkError,
+      ]}
       syncAction={{
         label: 'Sync',
         icon: <RefreshCw className="h-4 w-4" />,

@@ -9,6 +9,7 @@ import type { HouseholdConfirmedFact } from '@/lib/api/household'
 import { formatCurrency, formatCurrencyWhole } from '@/lib/formatters'
 import { useActivateCard, useDeleteCard } from '@/lib/hooks/useCards'
 import { cn } from '@/lib/utils'
+import { CardHistoryEditor } from './CardHistoryEditor'
 import {
   daysBetween,
   formatShortDate,
@@ -57,7 +58,7 @@ function CardRow({
 }) {
   const product = card.product
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-text">
@@ -74,7 +75,9 @@ function CardRow({
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {!card.isPrimaryActive && card.role === 'rotating' ? (
+        {!card.closedDate &&
+        !card.isPrimaryActive &&
+        card.role === 'rotating' ? (
           <Button
             type="button"
             size="sm"
@@ -93,9 +96,12 @@ function CardRow({
           onClick={onDelete}
           disabled={isDeleting}
         >
-          Remove
+          {card.status === 'candidate'
+            ? 'Remove candidate'
+            : 'Record closed today'}
         </Button>
       </div>
+      <CardHistoryEditor card={card} />
     </div>
   )
 }
@@ -202,8 +208,9 @@ export interface ActiveCardPanelProps {
   cards: HouseholdCreditCard[]
   softCharges: SoftCharge[]
   facts: HouseholdConfirmedFact[]
-  /** Household month-to-date spend (soft + pending + posted) from the dashboard. */
+  /** Canonical card-account purchases, including provisional rows. */
   monthToDateSpend?: number | null
+  provisionalSpend?: number | null
   actions?: React.ReactNode
 }
 
@@ -212,6 +219,7 @@ export function ActiveCardPanel({
   softCharges,
   facts,
   monthToDateSpend,
+  provisionalSpend,
   actions,
 }: ActiveCardPanelProps) {
   const activateCard = useActivateCard()
@@ -229,7 +237,7 @@ export function ActiveCardPanel({
     (card) => card.role === 'rotating' && card.id !== primary?.id,
   )
 
-  const softMtd = useMemo(
+  const localSoftMtd = useMemo(
     () =>
       softCharges
         .filter(
@@ -239,6 +247,7 @@ export function ActiveCardPanel({
         .reduce((sum, charge) => sum + charge.amount, 0),
     [softCharges],
   )
+  const softMtd = provisionalSpend ?? localSoftMtd
   const totalMtd = monthToDateSpend ?? softMtd
   const hardMtd = Math.max(0, totalMtd - softMtd)
   const cap = resolveMonthlyCardCap(facts, primary?.id)
@@ -266,7 +275,17 @@ export function ActiveCardPanel({
                 isActivating={activateCard.isPending}
                 isDeleting={deleteCard.isPending}
               />
-              <BudgetGauge softMtd={softMtd} hardMtd={hardMtd} cap={cap} />
+              {monthToDateSpend == null ? (
+                <p className="text-sm text-text-muted">
+                  Card spending total is not available yet.
+                </p>
+              ) : (
+                <BudgetGauge softMtd={softMtd} hardMtd={hardMtd} cap={cap} />
+              )}
+              <p className="text-xs text-text-muted">
+                Recorded card accounts only. Refunds and duplicate evidence are
+                netted; provisional purchases may change when posted.
+              </p>
               <WelcomeBonusBar card={primary} />
             </div>
           ) : (
@@ -288,6 +307,28 @@ export function ActiveCardPanel({
           ))}
         </div>
       )}
+      {cards.some((card) => card.closedDate) ? (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-sm text-text-muted">
+            Closed card history
+          </summary>
+          <div className="mt-3 space-y-3">
+            {cards
+              .filter((card) => card.closedDate)
+              .map((card) => (
+                <div
+                  key={card.id}
+                  className="rounded-xl border border-border/30 p-3"
+                >
+                  <p className="text-sm">
+                    {card.product?.productName} · {playerLabel(card.player)}
+                  </p>
+                  <CardHistoryEditor card={card} />
+                </div>
+              ))}
+          </div>
+        </details>
+      ) : null}
     </SectionCard>
   )
 }

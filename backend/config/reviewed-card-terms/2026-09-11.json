@@ -1,0 +1,739 @@
+{
+  "reviewed_on": "2026-09-11",
+  "scope": "Verified annual fees, general/direct earning rates, public offers and supported credits. Conditional partner benefits require explicit planned use and are omitted otherwise. Anniversary rewards use dated cash flows.",
+  "updates": [
+    {
+      "slug": "amazon-prime-visa",
+      "fields": {
+        "annual_fee": 0,
+        "reward_multipliers": {
+          "other": 1,
+          "amazon": 5,
+          "gas": 2,
+          "dining": 2,
+          "transit": 2,
+          "portal_travel": 5
+        },
+        "issuer_rules": {
+          "chase_5_24": true,
+          "welcome_offer_unverified": false,
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 0,
+        "welcome_bonus_cash": 150,
+        "welcome_min_spend": 0,
+        "welcome_window_days": 0,
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Annual fee 0",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Approval gift card; Prime membership required.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Approval gift card; Prime membership required.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Approval gift card; Prime membership required.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Approval gift card; Prime membership required.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Approval gift card; Prime membership required.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/amazon-prime-rewards",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "amex-gold",
+      "fields": {
+        "annual_fee": 325,
+        "reward_multipliers": {
+          "other": 1,
+          "dining": 4,
+          "groceries": 4,
+          "flights": 3
+        },
+        "issuer_rules": {
+          "holding_limit_credit": 5,
+          "amex_once_per_lifetime": true,
+          "welcome_offer_unverified": true,
+          "reward_caps": {
+            "groceries": 25000,
+            "dining": 50000
+          },
+          "unmodeled_conditional_credits": true
+        },
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/gold-card/",
+          "excerpt": "Annual fee 325",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/gold-card/",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/gold-card/",
+          "excerpt": "Personalized welcome offer; no fixed public bonus verified.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "credits": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/gold-card/",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "amex-platinum",
+      "fields": {
+        "annual_fee": 895,
+        "reward_multipliers": {
+          "other": 1,
+          "flights": 5
+        },
+        "issuer_rules": {
+          "holding_limit_credit": 5,
+          "amex_once_per_lifetime": true,
+          "welcome_offer_unverified": true,
+          "reward_caps": {
+            "flights": 500000
+          },
+          "unmodeled_conditional_credits": true
+        },
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/platinum/",
+          "excerpt": "Annual fee 895",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/platinum/",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/platinum/",
+          "excerpt": "Personalized welcome offer; no fixed public bonus verified.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "credits": {
+          "source_url": "https://www.americanexpress.com/us/credit-cards/card/platinum/",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "capital-one-venture",
+      "fields": {
+        "annual_fee": 95,
+        "reward_multipliers": {
+          "other": 2
+        },
+        "issuer_rules": {
+          "pulls_all_bureaus": true,
+          "capital_one_1_per_6mo": true,
+          "welcome_offer_unverified": false,
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 75000,
+        "welcome_bonus_cash": 0,
+        "welcome_min_spend": 4000,
+        "welcome_window_days": 90,
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Annual fee 95",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Public offer; verify eligibility before applying.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Public offer; verify eligibility before applying.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Public offer; verify eligibility before applying.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Public offer; verify eligibility before applying.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Public offer; verify eligibility before applying.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture/",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "capital-one-venture-x",
+      "fields": {
+        "annual_fee": 395,
+        "reward_multipliers": {
+          "other": 2
+        },
+        "issuer_rules": {
+          "pulls_all_bureaus": true,
+          "capital_one_1_per_6mo": true,
+          "welcome_offer_unverified": true,
+          "unmodeled_conditional_credits": true,
+          "anniversary_points": 10000
+        },
+        "credits": [
+          {
+            "name": "Capital One Travel credit",
+            "annual_value": 300,
+            "type": "moderate",
+            "eligible_buckets": [
+              "portal_travel",
+              "portal_hotels"
+            ],
+            "excludes_rewards": true,
+            "conditions": "Use through Capital One Travel before the next account anniversary."
+          }
+        ]
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture-x/",
+          "excerpt": "Annual fee 395",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://www.capitalone.com/credit-cards/venture-x/",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://www.capitalone.com/credit-cards/",
+          "excerpt": "10,000 anniversary miles after the first anniversary; other application constraints remain estimates.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "credits": {
+          "source_url": "https://www.capitalone.com/credit-cards/",
+          "excerpt": "A $300 Capital One Travel credit each account year and 10,000 miles after the first anniversary; miles are modeled on renewal dates, not in first-year credits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "chase-freedom-unlimited",
+      "fields": {
+        "annual_fee": 0,
+        "reward_multipliers": {
+          "other": 1.5,
+          "dining": 3,
+          "drugstores": 3,
+          "portal_travel": 5
+        },
+        "issuer_rules": {
+          "chase_5_24": true,
+          "welcome_offer_unverified": false,
+          "repeat_product_months": 24,
+          "repeat_product_basis": "bonus",
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 0,
+        "welcome_bonus_cash": 200,
+        "welcome_min_spend": 500,
+        "welcome_window_days": 90,
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Annual fee 0",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Bonus requires no current card and no bonus in 24 months.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Bonus requires no current card and no bonus in 24 months.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Bonus requires no current card and no bonus in 24 months.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Bonus requires no current card and no bonus in 24 months.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Bonus requires no current card and no bonus in 24 months.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://creditcards.chase.com/cash-back-credit-cards/freedom/unlimited",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "chase-sapphire-preferred",
+      "fields": {
+        "annual_fee": 95,
+        "reward_multipliers": {
+          "other": 1,
+          "dining": 3,
+          "gas": 3,
+          "streaming": 3,
+          "online_groceries": 3,
+          "travel": 2,
+          "hotels": 2,
+          "flights": 2,
+          "transit": 2,
+          "portal_travel": 5,
+          "portal_hotels": 5
+        },
+        "issuer_rules": {
+          "family": "sapphire",
+          "chase_5_24": true,
+          "bonus_once_per_months": 48,
+          "welcome_offer_unverified": false,
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 75000,
+        "welcome_bonus_cash": 0,
+        "welcome_min_spend": 5000,
+        "welcome_window_days": 90,
+        "credits": [
+          {
+            "name": "Chase Travel hotel credit",
+            "annual_value": 100,
+            "type": "moderate",
+            "eligible_buckets": [
+              "portal_hotels"
+            ],
+            "excludes_rewards": true,
+            "conditions": "Hotel stays booked through Chase Travel; credited purchases earn no points."
+          }
+        ]
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Annual fee 95",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/preferred",
+          "excerpt": "Annual hotel credit is $100, limited to Chase Travel hotels; credited amounts do not earn points.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "chase-sapphire-reserve",
+      "fields": {
+        "annual_fee": 795,
+        "reward_multipliers": {
+          "other": 1,
+          "dining": 3,
+          "flights": 4,
+          "hotels": 4,
+          "portal_travel": 8
+        },
+        "issuer_rules": {
+          "family": "sapphire",
+          "chase_5_24": true,
+          "bonus_once_per_months": 48,
+          "welcome_offer_unverified": false,
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 100000,
+        "welcome_bonus_cash": 0,
+        "welcome_min_spend": 6000,
+        "welcome_window_days": 90,
+        "credits": [
+          {
+            "name": "Annual travel credit",
+            "annual_value": 300,
+            "type": "easy",
+            "eligible_buckets": [
+              "travel",
+              "flights",
+              "hotels",
+              "transit",
+              "portal_travel",
+              "portal_hotels"
+            ],
+            "excludes_rewards": true,
+            "conditions": "Account anniversary year; eligible travel only; credited purchases earn no points."
+          }
+        ]
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Annual fee 795",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Prior ownership or a prior bonus can preclude eligibility.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://creditcards.chase.com/rewards-credit-cards/sapphire/reserve",
+          "excerpt": "Up to $300 of eligible travel per account year; credited purchases do not earn rewards. Other conditional benefits excluded from this model.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "citi-strata-premier",
+      "fields": {
+        "annual_fee": 95,
+        "reward_multipliers": {
+          "other": 1,
+          "dining": 3,
+          "groceries": 3,
+          "gas": 3,
+          "flights": 3,
+          "hotels": 3
+        },
+        "issuer_rules": {
+          "bonus_once_per_months": 48,
+          "welcome_offer_unverified": false,
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 60000,
+        "welcome_bonus_cash": 0,
+        "welcome_min_spend": 4000,
+        "welcome_window_days": 90,
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Annual fee 95",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Citi Travel bonuses require eligible portal booking types.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Citi Travel bonuses require eligible portal booking types.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Citi Travel bonuses require eligible portal booking types.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Citi Travel bonuses require eligible portal booking types.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Citi Travel bonuses require eligible portal booking types.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://www.citi.com/credit-cards/citi-strata-premier-credit-card",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "wells-fargo-autograph",
+      "fields": {
+        "annual_fee": 0,
+        "reward_multipliers": {
+          "other": 1,
+          "dining": 3,
+          "travel": 3,
+          "hotels": 3,
+          "flights": 3,
+          "gas": 3,
+          "transit": 3,
+          "streaming": 3
+        },
+        "issuer_rules": {
+          "welcome_offer_unverified": false,
+          "repeat_product_months": 48,
+          "repeat_product_basis": "opened",
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 20000,
+        "welcome_bonus_cash": 0,
+        "welcome_min_spend": 1000,
+        "welcome_window_days": 90,
+        "credits": []
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Annual fee 0",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-visa-credit-card/",
+          "excerpt": "Conditional partner benefits are omitted from modeled value unless an eligible planned purchase is specified; this is not a claim the product offers no other benefits.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    },
+    {
+      "slug": "wells-fargo-autograph-journey",
+      "fields": {
+        "annual_fee": 95,
+        "reward_multipliers": {
+          "other": 1,
+          "dining": 3,
+          "travel": 3,
+          "hotels": 5,
+          "flights": 4
+        },
+        "issuer_rules": {
+          "welcome_offer_unverified": false,
+          "repeat_product_months": 48,
+          "repeat_product_basis": "opened",
+          "unmodeled_conditional_credits": true
+        },
+        "welcome_bonus_points": 60000,
+        "welcome_bonus_cash": 0,
+        "welcome_min_spend": 4000,
+        "welcome_window_days": 90,
+        "credits": [
+          {
+            "name": "Airline purchase credit",
+            "annual_value": 50,
+            "type": "easy",
+            "eligible_buckets": [
+              "flights"
+            ],
+            "minimum_purchase": 50,
+            "conditions": "Requires one eligible airline purchase of at least $50 each account year. Annual spending alone does not establish the purchase size."
+          }
+        ]
+      },
+      "evidence": {
+        "annual_fee": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Annual fee 95",
+          "observed_on": "2026-09-11"
+        },
+        "reward_multipliers": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "General and specified direct-channel rewards; portal rates require explicit booking allocation.",
+          "observed_on": "2026-09-11"
+        },
+        "issuer_rules": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Bonus eligibility and reward caps; retained application heuristics remain warnings, not issuer guarantees."
+        },
+        "welcome_bonus_points": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_bonus_cash": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_min_spend": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "welcome_window_days": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Same product opened within 48 months can preclude a bonus.",
+          "observed_on": "2026-09-11"
+        },
+        "credits": {
+          "source_url": "https://creditcards.wellsfargo.com/autograph-journey-visa-credit-card/",
+          "excerpt": "Each account year, one $50 credit follows a qualifying airline purchase of at least $50.",
+          "observed_on": "2026-09-11",
+          "verification_scope": "Only the benefits included in this model; conditional extras deliberately have no assumed value."
+        }
+      }
+    }
+  ]
+}

@@ -201,9 +201,7 @@ def _declared_item_count(value: object) -> Decimal | None:
     return parsed
 
 
-def _receipt_items_cover_declared_count(
-    *, line_items: object, declared_items_sold: object
-) -> bool:
+def _receipt_items_cover_declared_count(*, line_items: object, declared_items_sold: object) -> bool:
     declared = _declared_item_count(declared_items_sold)
     if declared is None:
         return True
@@ -285,6 +283,9 @@ def _receipt_line_item_row(
         "Receipt Total": context["receipt_total"],
         "Source": "receipt_line_item",
     }
+    item_code = _string_value(raw_item.get("item_code"))
+    if item_code and "costco" in str(context["merchant"]).lower():
+        row["Costco Item Number"] = item_code
     if discount > 0:
         # Keep the shelf price and the markdown visible; downstream price
         # history compares "Total Amount", which is what was actually paid.
@@ -376,9 +377,7 @@ def _build_transaction_context(
             _first_present_value(raw_transaction, ("subtotal", "subtotal_amount", "pre_tax_total"))
         ),
         "tax_amount": _string_value(
-            _first_present_value(
-                raw_transaction, ("tax_amount", "sales_tax", "tax", "total_tax")
-            )
+            _first_present_value(raw_transaction, ("tax_amount", "sales_tax", "tax", "total_tax"))
         ),
         "declared_items_sold": _string_value(
             _first_present_value(raw_transaction, ("declared_items_sold", "items_sold"))
@@ -408,9 +407,7 @@ def _build_top_level_context(
             _first_present_value(structured_data, ("subtotal", "subtotal_amount", "pre_tax_total"))
         ),
         "tax_amount": _string_value(
-            _first_present_value(
-                structured_data, ("tax_amount", "sales_tax", "tax", "total_tax")
-            )
+            _first_present_value(structured_data, ("tax_amount", "sales_tax", "tax", "total_tax"))
         ),
         "declared_items_sold": _string_value(
             review_declared_items_sold or structured_declared_items_sold
