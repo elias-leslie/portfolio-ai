@@ -2177,7 +2177,7 @@ class HouseholdAccountRegistryService:
                     institution_name=None,
                     account_name=transaction_label,
                     owner_name=None,
-                    account_mask=transaction_label,
+                    account_mask=derive_account_mask(None, transaction_label),
                     fallback_label=transaction_label,
                     explicit_match_key=None,
                 )
@@ -2186,6 +2186,15 @@ class HouseholdAccountRegistryService:
                     for key in _mask_identity_candidates(candidates)
                     if key in identity_map
                 }
+                # Receipt labels often omit asset/type, so their scoped mask
+                # keys cannot equal a typed registry key. Require a unique
+                # canonical match; shared last-four digits stay unresolved.
+                transaction_mask = derive_account_mask(None, transaction_label)
+                if transaction_mask:
+                    matched.update(
+                        account_id for account_id, account in canonical_accounts.items()
+                        if account_masks_match(transaction_mask, account.account_mask)
+                    )
                 matched.update(label_map.get(normalize_text(transaction_label), set()))
                 if len(matched) == 1:
                     next_account_id = next(iter(matched))

@@ -34,6 +34,7 @@ from app.services.card_rewards_service import (
     CardRewardsService,
 )
 from app.services.card_rotation_engine import CardRotationEngine
+from app.services.household_account_lifecycle_service import close_registered_account
 from app.services.household_transaction_service import HouseholdTransactionService
 from app.storage import get_storage
 
@@ -312,6 +313,14 @@ class CardManagementService:
             )
             if not (getattr(result, "rowcount", 0) or 0):
                 raise KeyError(f"Credit card {card_id} not found.")
+            card = self._get_card(conn, card_id)
+            if card.household_account_id and (fields.get("closed_date") or fields.get("status") == "closed"):
+                close_registered_account(conn, account_id=card.household_account_id, closed_date=_opt_date(card.closed_date))
+            elif card.household_account_id and "closed_date" in fields and fields["closed_date"] is None and card.status != "closed":
+                conn.execute("""UPDATE household_accounts SET
+                    metadata = metadata - 'account_status' - 'closed_date' - 'status_confirmed_by' - 'status_confirmed_at',
+                    feed_status = 'unknown', updated_at = now()
+                    WHERE id = %s AND metadata->>'status_confirmed_by' = 'user'""", [card.household_account_id])
             conn.commit()
             return self._get_card(conn, card_id)
 
@@ -368,6 +377,9 @@ class CardManagementService:
                 result = conn.execute("UPDATE household_credit_cards SET status='closed', closed_date=COALESCE(closed_date,CURRENT_DATE), is_primary_active=FALSE, updated_at=now() WHERE id=%s", [card_id])
                 if not (getattr(result, "rowcount", 0) or 0):
                     raise KeyError(f"Credit card {card_id} not found.")
+                card = self._get_card(conn, card_id)
+                if card.household_account_id:
+                    close_registered_account(conn, account_id=card.household_account_id, closed_date=_opt_date(card.closed_date))
             conn.commit()
         logger.info("credit_card_removed_from_wallet", card_id=card_id)
 

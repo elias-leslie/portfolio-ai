@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from functools import lru_cache
 from importlib import import_module
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
@@ -41,6 +41,13 @@ class HomeActionQuestionResponse(BaseModel):
     options: list[str] = Field(default_factory=list)
 
 
+class HomeActionAccountResponse(BaseModel):
+    kind: Literal["registered", "discovered"]
+    id: str
+    label: str
+    account_type: str = "other"
+
+
 class HomeActionItemResponse(BaseModel):
     id: str
     source: str
@@ -55,6 +62,7 @@ class HomeActionItemResponse(BaseModel):
     decision: DecisionSection | None = None
     execution: HomeActionExecutionResponse | None = None
     question: HomeActionQuestionResponse | None = None
+    account: HomeActionAccountResponse | None = None
 
 
 class HomeActionQueueResponse(BaseModel):

@@ -12,6 +12,7 @@ import type {
 } from '@/lib/api/household'
 import { formatCurrencyWhole } from '@/lib/formatters'
 import { formatRelativeTime } from '@/lib/utils'
+import { AccountClosureButton } from './AccountClosureButton'
 import { EvidenceUploadComposer } from './EvidenceUploadComposer'
 import {
   accountCoverageDetail,
@@ -147,6 +148,15 @@ export function AccountAccordionItem({
         <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {account.householdAccountId ? (
+                <AccountClosureButton
+                  target={{
+                    kind: 'registered',
+                    id: account.householdAccountId,
+                    label: account.label,
+                  }}
+                />
+              ) : null}
               <Button
                 type="button"
                 size="sm"

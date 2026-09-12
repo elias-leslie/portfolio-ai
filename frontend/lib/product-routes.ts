@@ -10,7 +10,7 @@ export const PRIMARY_PRODUCT_ROUTES: MainRoute[] = [
     href: '/',
     label: 'Today',
     description:
-      'The single ranked queue for what matters now across money and investing.',
+      'Your daily briefing on household finances, markets, and investing.',
   },
   {
     href: '/portfolio',

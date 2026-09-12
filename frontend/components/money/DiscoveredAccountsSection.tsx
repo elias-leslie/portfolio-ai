@@ -4,6 +4,7 @@ import type {
   HouseholdDiscoveredAccount,
   HouseholdTrackedAccountInput,
 } from '@/lib/api/household'
+import { AccountClosureButton } from './AccountClosureButton'
 import type { MoneyAccountsFocus } from './types'
 
 type Props = {
@@ -75,7 +76,7 @@ export function DiscoveredAccountsSection({ accounts, focus, onSeed }: Props) {
                 </span>
               ) : null}
             </div>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"
@@ -95,6 +96,13 @@ export function DiscoveredAccountsSection({ accounts, focus, onSeed }: Props) {
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Create tracked row
               </Button>
+              <AccountClosureButton
+                target={{
+                  kind: 'discovered',
+                  id: account.key,
+                  label: account.suggestedLabel,
+                }}
+              />
             </div>
           </div>
         ))}

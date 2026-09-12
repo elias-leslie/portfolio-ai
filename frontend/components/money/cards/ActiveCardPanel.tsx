@@ -9,6 +9,7 @@ import type { HouseholdConfirmedFact } from '@/lib/api/household'
 import { formatCurrency, formatCurrencyWhole } from '@/lib/formatters'
 import { useActivateCard, useDeleteCard } from '@/lib/hooks/useCards'
 import { cn } from '@/lib/utils'
+import { CardBonusControls } from './CardBonusControls'
 import { CardHistoryEditor } from './CardHistoryEditor'
 import {
   daysBetween,
@@ -58,7 +59,10 @@ function CardRow({
 }) {
   const product = card.product
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
+    <div
+      id={`card-${card.id}`}
+      className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-surface-muted/20 px-4 py-3 md:flex-row md:flex-wrap md:items-center md:justify-between"
+    >
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-text">
@@ -102,6 +106,7 @@ function CardRow({
         </Button>
       </div>
       <CardHistoryEditor card={card} />
+      <CardBonusControls card={card} />
     </div>
   )
 }

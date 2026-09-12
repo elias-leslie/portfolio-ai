@@ -3,7 +3,10 @@ import json
 import uuid
 
 import pytest
-from tests.integration.services.test_household_transaction_dedup import _insert_document
+from tests.integration.services.test_household_transaction_dedup import (
+    _insert_account,
+    _insert_document,
+)
 
 from app.models.credit_cards import CreditCardCreate, CreditCardUpdate
 from app.services.card_management_service import CardManagementService
@@ -39,6 +42,22 @@ def test_original_welcome_terms_and_history_survive_catalog_update(cards):
     corrected = service.update_owned_card(card.id, CreditCardUpdate(closed_date=None, welcome_earned_date=None))
     assert corrected.closed_date is None and corrected.welcome_earned_date is None
     assert corrected.status == 'rotated_out'
+
+
+@pytest.mark.parametrize("method", ["history", "wallet"])
+def test_card_closure_and_correction_share_the_registry_lifecycle(cards, method):
+    service, product = cards
+    account_id = _insert_account(service.storage)
+    card = service.create_owned_card(CreditCardCreate(product_id=product, status='active', household_account_id=account_id))
+    if method == "history":
+        service.update_owned_card(card.id, CreditCardUpdate(closed_date="2026-08-01"))
+    else:
+        service.delete_owned_card(card.id)
+    with service.storage.connection() as conn:
+        assert conn.execute("SELECT metadata->>'account_status',feed_status FROM household_accounts WHERE id=%s", [account_id]).fetchone() == ('closed', 'closed')
+    service.update_owned_card(card.id, CreditCardUpdate(closed_date=None))
+    with service.storage.connection() as conn:
+        assert conn.execute("SELECT metadata->>'account_status',feed_status FROM household_accounts WHERE id=%s", [account_id]).fetchone() == (None, 'unknown')
 
 
 def test_offer_extraction_never_updates_existing_catalog_before_or_after_card_confirmation(cards):

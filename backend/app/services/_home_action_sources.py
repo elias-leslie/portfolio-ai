@@ -326,8 +326,10 @@ def build_household_actions(
     items: Iterable[object],
     accounts: Iterable[object] = (),
     questions: Iterable[object] = (),
+    discovered_accounts: Iterable[object] = (),
 ) -> list[dict[str, object]]:
     question_map = {str(_field_value(question, "id")): question for question in questions}
+    discovered_map = {f"discovered-{_field_value(a, 'key')}": a for a in discovered_accounts}
     account_map = {}
     for account in accounts:
         for key in ("id", "household_account_id", "tracked_account_id"):
@@ -380,6 +382,20 @@ def build_household_actions(
             "_rank_score": score,
         }
         question_id = _field_value(item, "related_question_id")
+        canonical_id = _field_value(account, "household_account_id")
+        discovered = discovered_map.get(need_id)
+        if canonical_id:
+            action["account"] = {
+                "kind": "registered", "id": str(canonical_id),
+                "label": str(_field_value(account, "label", "Account")),
+                "account_type": str(_field_value(account, "account_type", "other")),
+            }
+        elif discovered:
+            action["account"] = {
+                "kind": "discovered", "id": str(_field_value(discovered, "key")),
+                "label": str(_field_value(discovered, "suggested_label")),
+                "account_type": str(_field_value(discovered, "account_type", "other")),
+            }
         if question_id:
             question = question_map.get(str(question_id), item)
             action["question"] = {
@@ -416,6 +432,7 @@ def build_household_actions(
                 + ".",
                 "href": "/money?" + urlencode({"tab": "accounts", "institution": institution}),
                 "action_label": "Review these accounts",
+                "account": None,  # A grouped request must not close only its lead account.
             }
         )
     return sorted(actions, key=lambda action: float(action["_rank_score"]), reverse=True)
@@ -429,5 +446,6 @@ def build_household_actions_from_service(household_service: object) -> list[dict
         raise
 
     return build_household_actions(
-        dashboard.inbox, getattr(dashboard, "accounts", []), getattr(dashboard, "questions", [])
+        dashboard.inbox, getattr(dashboard, "accounts", []), getattr(dashboard, "questions", []),
+        getattr(dashboard, "discovered_accounts", []),
     )

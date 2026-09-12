@@ -107,7 +107,9 @@ async def create_card(body: CreditCardCreate) -> HouseholdCreditCard:
 @router.put("/{card_id}", response_model=HouseholdCreditCard)
 async def update_card(card_id: str, body: CreditCardUpdate) -> HouseholdCreditCard:
     try:
-        return await run_in_threadpool(_service().update_owned_card, card_id, body)
+        card = await run_in_threadpool(_service().update_owned_card, card_id, body)
+        import_module("app.api.household")._invalidate_household_cache()
+        return card
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:
@@ -128,6 +130,7 @@ async def activate_card(card_id: str) -> HouseholdCreditCard:
 async def delete_card(card_id: str) -> None:
     try:
         await run_in_threadpool(_service().delete_owned_card, card_id)
+        import_module("app.api.household")._invalidate_household_cache()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except KeyError as exc:

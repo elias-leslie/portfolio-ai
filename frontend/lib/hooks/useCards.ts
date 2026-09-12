@@ -28,6 +28,7 @@ async function refreshCardQueries(
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
   await queryClient.invalidateQueries({ queryKey: ['cards'], exact: false })
+  await queryClient.invalidateQueries({ queryKey: ['home', 'action-queue'] })
 }
 
 /** Soft charges mirror into the canonical ledger, so household budget/ledger
@@ -115,6 +116,7 @@ export function useUpdateCard() {
     }) => updateOwnedCard(cardId, payload),
     onSuccess: async () => {
       await refreshCardQueries(queryClient)
+      await queryClient.invalidateQueries({ queryKey: ['household'] })
       toast.success('Card updated.')
     },
     onError: (error) => {

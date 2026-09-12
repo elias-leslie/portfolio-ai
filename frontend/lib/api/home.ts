@@ -1,4 +1,5 @@
 import { get, post } from './client'
+import type { AccountResolutionTarget } from './household/account-lifecycle'
 import type { SymbolDecisionSection } from './symbols'
 
 export interface HomeActionExecution {
@@ -21,6 +22,7 @@ export interface HomeActionItem {
   badge: string | null
   decision?: SymbolDecisionSection | null
   execution?: HomeActionExecution | null
+  account?: AccountResolutionTarget | null
   question?: {
     id: string
     format: string

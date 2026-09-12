@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDecisionMeta, formatDecisionSeverity } from '@/lib/decision'
 import { cn } from '@/lib/utils'
+import { HomeAccountOptions } from './HomeAccountOptions'
 import { HomeQuestionAnswer } from './HomeQuestionAnswer'
 import { quickActionLabel, quickActionTitle } from './quickActionHelpers'
 
@@ -201,6 +202,9 @@ export function HomeActionQueueContent({
                   >
                     {quickLabel}
                   </Button>
+                ) : null}
+                {action.account ? (
+                  <HomeAccountOptions target={action.account} />
                 ) : null}
               </div>
             </article>

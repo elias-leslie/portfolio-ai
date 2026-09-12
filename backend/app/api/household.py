@@ -49,6 +49,10 @@ from app.models.household_planning import (
     HouseholdPropertyValuationRefreshRequest,
     HouseholdPropertyValuationRefreshResult,
 )
+from app.services.household_account_lifecycle_service import (
+    AccountClosureRequest,
+    record_account_closed,
+)
 from app.services.household_manual_holdings_service import ManualHoldingsReplaceRequest
 from app.services.household_upload_validation import (
     HouseholdUploadValidationError,
@@ -63,6 +67,8 @@ router = APIRouter(prefix="/api/household", tags=["household"])
 
 def _invalidate_household_cache() -> None:
     invalidate_cache_pattern("GET:/api/household*")
+    invalidate_cache_pattern("GET:/api/home/action-queue*")
+    import_module("app.api.home")._home_action_service().invalidate_cache()
 
 
 @lru_cache(maxsize=1)
@@ -255,6 +261,16 @@ async def list_household_questions() -> HouseholdQuestionList:
 async def list_household_accounts() -> list[HouseholdTrackedAccount]:
     """Return household account display preferences."""
     return await run_in_threadpool(_service().list_tracked_accounts)
+
+
+@router.post("/accounts/record-closed")
+async def record_household_account_closed(payload: AccountClosureRequest) -> dict[str, object]:
+    try:
+        result = await run_in_threadpool(record_account_closed, _service(), payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _invalidate_household_cache()
+    return result
 
 
 @router.post("/accounts", response_model=HouseholdTrackedAccount)

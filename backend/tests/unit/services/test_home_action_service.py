@@ -80,6 +80,27 @@ def test_invalidate_cache_clears_cached_action_queue() -> None:
     assert refreshed["actions"][0]["title"] == "New portfolio action"
 
 
+def test_account_options_use_canonical_ids_and_do_not_treat_a_group_as_one_account():
+    from app.api.home import HomeActionItemResponse
+
+    accounts = [SimpleNamespace(id=f"a{i}", household_account_id=f"canonical-{i}",
+        label=f"Card {i}", account_type="credit_card", institution_name="Bank") for i in range(2)]
+    items = [SimpleNamespace(id=f"account-{a.id}-stale_transactions", related_account_id=a.id,
+        priority="high", title=f"Update {a.label}") for a in accounts]
+    single = HomeActionItemResponse.model_validate(build_household_actions(items[:1], accounts)[0])
+    assert single.account is not None
+    assert single.account.id == "canonical-0"
+    assert single.account.kind == "registered"
+    grouped = build_household_actions(items, accounts)
+    assert len(grouped) == 1
+    assert grouped[0]["account"] is None
+    candidate = SimpleNamespace(key="unlinked_4635", suggested_label="Visa 4635", account_type="credit_card")
+    discovered = build_household_actions(
+        [SimpleNamespace(id="discovered-unlinked_4635", priority="medium")], discovered_accounts=[candidate],
+    )[0]
+    assert discovered["account"] == {"kind": "discovered", "id": "unlinked_4635", "label": "Visa 4635", "account_type": "credit_card"}
+
+
 def test_get_action_queue_sorts_and_dedupes_actions() -> None:
     service = object.__new__(HomeActionService)
     service._portfolio_health_actions = lambda: []

@@ -212,6 +212,27 @@ def test_sync_transactions_links_exact_account_label_to_canonical_account() -> N
     assert params[2] == "tx-1"
 
 
+def test_sync_transactions_leaves_shared_last_four_unresolved() -> None:
+    service = HouseholdAccountRegistryService()
+    conn = _TransactionSyncConnection([
+        ("tx-1", "doc-1", "Visa ending 4635", None, []),
+    ])
+    accounts = {
+        account_id: _canonical(
+            account_id=account_id,
+            label=label,
+            asset_group="credit",
+            account_type="credit_card",
+            source_type="credit_card",
+            account_mask="4635",
+        )
+        for account_id, label in [("card-1", "First bank Visa"), ("card-2", "Second bank Visa")]
+    }
+
+    assert service._sync_transactions(conn, identity_map={}, canonical_accounts=accounts) == 0
+    assert conn.updates == []
+
+
 def test_account_identity_candidates_do_not_emit_owner_level_education_keys() -> None:
     candidates = account_identity_candidates(
         source_type="education",
