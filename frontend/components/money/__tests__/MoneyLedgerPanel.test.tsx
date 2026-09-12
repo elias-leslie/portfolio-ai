@@ -196,9 +196,9 @@ describe('MoneyLedgerPanel', () => {
 
   it('asks the server for the next page by offset', async () => {
     const user = userEvent.setup()
-    mockLedgerPage(
-      Array.from({ length: PAGE_SIZE }, (_, i) => buildEntry(i + 1)),
-    )
+    // Offset follows the requested page size, even with fewer returned rows.
+    // Rendering a full page is covered separately above.
+    mockLedgerPage([buildEntry(1)])
 
     render(<MoneyLedgerPanel />)
 
