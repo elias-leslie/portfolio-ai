@@ -48,6 +48,7 @@ dependencies = [
     "pyyaml==6.0.3",
     "python-json-logger==4.0.0",
     "structlog==25.5.0",
+    "summitflow-st-sdk==0.1.0",
     "tenacity==9.1.2",
     "psutil==5.9.8",
     # Technical indicators
@@ -65,6 +66,7 @@ dependencies = [
 
 [project.scripts]
 portfolio-ai-mcp = "app.mcp_server.__main__:main"
+portfolio-st = "app.st_cli.__main__:main"
 
 [project.optional-dependencies]
 dev = [
@@ -111,6 +113,7 @@ constraint-dependencies = [
 
 [tool.uv.sources]
 agent-hub-client = { path = "../docker/workspace-packages/agent_hub_client-0.4.1-py3-none-any.whl" }
+summitflow-st-sdk = { path = "../docker/workspace-packages/summitflow_st_sdk-0.1.0-py3-none-any.whl" }
 
 [build-system]
 requires = ["hatchling"]
