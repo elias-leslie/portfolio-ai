@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 
 class EmptyInput(BaseModel):
-    pass
+    agent_hub_run_id: str | None = None
+    agent_hub_trigger: Literal["scheduled", "manual"] | None = None
 
 
 class SymbolInput(BaseModel):
@@ -71,3 +72,5 @@ class PriceCheckInput(BaseModel):
     product_ids: list[str] | None = None
     shopping_list_id: str | None = None
     max_local_stores: int | None = None
+    agent_hub_run_id: str | None = None
+    agent_hub_trigger: Literal["scheduled", "manual"] | None = None

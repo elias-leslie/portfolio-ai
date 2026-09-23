@@ -1,0 +1,127 @@
+"""Contract checks for Agent Hub owned Portfolio AI background work."""
+
+from __future__ import annotations
+
+import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+from pydantic import SecretStr
+
+from app.api import automations
+from app.main import app
+from app.services.agent_hub_automation_owner import (
+    OwnerDispatchPayload,
+    dispatch_owner_run,
+    legacy_schedule_allowed,
+    verify_dispatch_identity,
+)
+
+PAYLOAD = OwnerDispatchPayload(
+    run_id="ah-run-1",
+    profile_id="profile-1",
+    workflow_key="jenny_daily_operator",
+    definition_version=1,
+    profile_revision=2,
+    occurrence_key="scheduled:profile-1:2026-09-23T22:15:00+00:00",
+    trigger="scheduled",
+    scheduled_for="2026-09-23T22:15:00+00:00",
+    config={},
+    policy_config={},
+)
+
+
+def test_dispatch_auth_requires_shared_secret_and_matching_idempotency_key() -> None:
+    assert verify_dispatch_identity("shared-secret", "shared-secret", "ah-run-1", "ah-run-1")
+    assert not verify_dispatch_identity("wrong", "shared-secret", "ah-run-1", "ah-run-1")
+    assert not verify_dispatch_identity("shared-secret", "", "ah-run-1", "ah-run-1")
+    assert not verify_dispatch_identity("shared-secret", "shared-secret", "other", "ah-run-1")
+
+
+def test_legacy_clock_fails_closed_and_stops_after_central_cutover() -> None:
+    assert not legacy_schedule_allowed(None, "portfolio-ai/jenny_daily_operator")
+    assert legacy_schedule_allowed(
+        [{"workflow_key": "portfolio-ai/jenny_daily_operator", "clock_owner": "legacy"}],
+        "portfolio-ai/jenny_daily_operator",
+    )
+    assert not legacy_schedule_allowed(
+        [{"workflow_key": "portfolio-ai/jenny_daily_operator", "clock_owner": "central"}],
+        "portfolio-ai/jenny_daily_operator",
+    )
+    assert not legacy_schedule_allowed([], "portfolio-ai/jenny_daily_operator")
+
+
+@pytest.mark.asyncio
+async def test_owner_dispatch_receipt_is_stable_on_replay() -> None:
+    reserved: dict[str, str] = {}
+    launches: list[tuple[str, str, dict[str, str]]] = []
+
+    def reserve(payload: OwnerDispatchPayload) -> tuple[str, bool]:
+        if payload.run_id in reserved:
+            return reserved[payload.run_id], False
+        reserved[payload.run_id] = "accepted"
+        return "accepted", True
+
+    async def launch(workflow_key: str, run_id: str, input_data: dict[str, str]) -> None:
+        launches.append((workflow_key, run_id, input_data))
+
+    first = await dispatch_owner_run(PAYLOAD, reserve=reserve, launch=launch, confirm=lambda _: None)
+    replay = await dispatch_owner_run(PAYLOAD, reserve=reserve, launch=launch, confirm=lambda _: None)
+
+    assert first == replay == {"owner_run_id": "ah-run-1", "status": "accepted"}
+    assert launches == [
+        (
+            "jenny_daily_operator",
+            "ah-run-1",
+            {"agent_hub_run_id": "ah-run-1", "agent_hub_trigger": "scheduled"},
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_callback_rejects_wrong_identity_before_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(automations.settings, "agent_hub_internal_secret", SecretStr("shared-secret"))
+
+    async def unexpected_dispatch(payload: OwnerDispatchPayload) -> dict[str, str]:
+        raise AssertionError("Unauthorized callback reached dispatch")
+
+    monkeypatch.setattr(automations, "dispatch_owner_run", unexpected_dispatch)
+    with pytest.raises(HTTPException) as error:
+        await automations.dispatch_automation(
+            "jenny_daily_operator", PAYLOAD,
+            x_agent_hub_internal="wrong", idempotency_key=PAYLOAD.run_id,
+        )
+    assert error.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_callback_forwards_valid_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(automations.settings, "agent_hub_internal_secret", SecretStr("shared-secret"))
+    seen: list[OwnerDispatchPayload] = []
+
+    async def dispatch(payload: OwnerDispatchPayload) -> dict[str, str]:
+        seen.append(payload)
+        return {"owner_run_id": payload.run_id, "status": "accepted"}
+
+    monkeypatch.setattr(automations, "dispatch_owner_run", dispatch)
+    result = await automations.dispatch_automation(
+        "jenny_daily_operator", PAYLOAD,
+        x_agent_hub_internal="shared-secret", idempotency_key=PAYLOAD.run_id,
+    )
+    assert result == {"owner_run_id": PAYLOAD.run_id, "status": "accepted"}
+    assert seen == [PAYLOAD]
+
+
+def test_callback_http_route_uses_service_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(automations.settings, "agent_hub_internal_secret", SecretStr("shared-secret"))
+
+    async def dispatch(payload: OwnerDispatchPayload) -> dict[str, str]:
+        return {"owner_run_id": payload.run_id, "status": "accepted"}
+
+    monkeypatch.setattr(automations, "dispatch_owner_run", dispatch)
+    response = TestClient(app).post(
+        "/api/automations/dispatch/jenny_daily_operator",
+        json=PAYLOAD.model_dump(),
+        headers={"X-Agent-Hub-Internal": "shared-secret", "Idempotency-Key": PAYLOAD.run_id},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"owner_run_id": PAYLOAD.run_id, "status": "accepted"}

@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.api import (
+    automations,
     cards,
     health,
     home,
@@ -153,6 +154,12 @@ app.add_middleware(RequestIDMiddleware)
 async def household_access(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
+    if request.method == "POST" and request.url.path.startswith((
+        "/api/automations/dispatch/", "/api/automations/fence/",
+    )):
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        return response
     try:
         identity = await run_in_threadpool(resolve_identity, request)
         request.state.household_identity = identity
@@ -175,6 +182,7 @@ async def household_access(
 
 # Register routers
 app.include_router(health.router)
+app.include_router(automations.router)
 app.include_router(identity_router)
 app.include_router(captures_router)
 app.include_router(home.router)

@@ -80,6 +80,7 @@ class Settings(BaseSettings):
 
     # Agent Hub integration
     agent_hub_url: str = f"http://localhost:{AGENT_HUB_BACKEND_PORT}"
+    agent_hub_internal_secret: SecretStr = SecretStr("")
     agent_hub_enabled: bool | None = None
     portfolio_client_id: str = ""
     portfolio_request_source: str = "portfolio-ai"

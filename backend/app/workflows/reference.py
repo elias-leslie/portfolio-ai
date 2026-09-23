@@ -11,6 +11,7 @@ from typing import Any
 from hatchet_sdk import ConcurrencyExpression, ConcurrencyLimitStrategy, Context
 
 from ..hatchet_app import hatchet
+from ..services.agent_hub_automation_owner import run_central_task, run_legacy_tick
 from ..services.preferences_service import get_automation_preferences
 from .models import EmptyInput
 
@@ -173,12 +174,18 @@ async def refresh_sec_cik_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
     ),
 )
 async def retrain_ml_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    automation = get_automation_preferences()
-    if not bool(automation["scheduled_ml_labeling_enabled"]["enabled"]):
-        return {"status": "skipped", "reason": "scheduled_ml_labeling_disabled"}
-    from ..tasks.ml_training_tasks import retrain_article_quality_model
+    async def operation() -> dict[str, Any]:
+        if not input.agent_hub_run_id and not bool(
+            get_automation_preferences()["scheduled_ml_labeling_enabled"]["enabled"]
+        ):
+            return {"status": "skipped", "reason": "scheduled_ml_labeling_disabled"}
+        from ..tasks.ml_training_tasks import retrain_article_quality_model
 
-    return await asyncio.to_thread(retrain_article_quality_model)
+        return await asyncio.to_thread(retrain_article_quality_model)
+
+    if input.agent_hub_run_id:
+        return await run_central_task(input.agent_hub_run_id, operation)
+    return await run_legacy_tick("retrain_ml", operation)
 
 
 @hatchet.task(
