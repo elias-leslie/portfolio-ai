@@ -222,7 +222,7 @@ export function FreshnessStatusBadge() {
       </button>
 
       {open ? (
-        <div className="fixed left-3 right-3 top-16 z-50 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-lg border border-border/50 bg-surface-elev p-4 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:max-h-none sm:w-[min(92vw,28rem)]">
+        <div className="fixed left-3 right-3 top-16 z-50 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-lg border border-border/50 bg-surface-elev p-4 shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(92vw,28rem)]">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-text">Data Feed</p>
