@@ -55,17 +55,18 @@
     "@types/react": "19",
     "@types/react-dom": "19",
     "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/coverage-v8": "^4.1.10",
-    "@vitest/ui": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/ui": "^4.1.11",
     "jsdom": "^27.4.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "8.0.16",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "pnpm": {
     "overrides": {
       "browserslist": "4.28.7",
+      "fflate": "0.8.3",
       "nanoid@3": "3.3.18",
       "postcss": "8.5.23"
     }
