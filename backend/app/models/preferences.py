@@ -45,7 +45,6 @@ DEFAULT_PREFERENCES = {
     "auto_trim_enabled": None,
     "scheduled_jenny_operator_enabled": None,
     "scheduled_ml_labeling_enabled": None,
-    "scheduled_strategy_research_enabled": None,
     "scheduled_account_sync_enabled": None,
     "scheduled_price_check_enabled": None,
 }
@@ -116,9 +115,6 @@ class PreferencesResponse(BaseModel):
     )
     scheduled_ml_labeling_enabled: bool = Field(
         ..., description="Allow scheduled article-labeling and ML retraining runs"
-    )
-    scheduled_strategy_research_enabled: bool = Field(
-        ..., description="Allow background strategy research and evolution agents to run automatically"
     )
     scheduled_account_sync_enabled: bool = Field(
         ..., description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
@@ -206,17 +202,16 @@ class PreferencesUpdate(BaseModel):
     auto_trim_enabled: bool | None = Field(
         None, description="Allow automatic watchlist trimming for weak names"
     )
-    scheduled_strategy_research_enabled: bool | None = Field(
-        None, description="Allow background strategy research and evolution agents to run automatically"
-    )
     scheduled_account_sync_enabled: bool | None = Field(
         None, description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
     )
 
     @model_validator(mode="before")
     @classmethod
-    def reject_agent_hub_schedule_writes(cls, value: Any) -> Any:
+    def reject_unavailable_schedule_writes(cls, value: Any) -> Any:
         if isinstance(value, dict):
+            if "scheduled_strategy_research_enabled" in value:
+                raise ValueError("The background strategy research control is retired")
             forbidden = AGENT_HUB_SCHEDULE_FIELDS.intersection(value)
             if forbidden:
                 raise ValueError(f"These schedules are managed in Agent Hub: {', '.join(sorted(forbidden))}")

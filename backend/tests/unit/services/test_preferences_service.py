@@ -59,10 +59,7 @@ def test_get_automation_preferences_prefers_stored_values(monkeypatch) -> None:
         "enabled": False,
         "source": "rules_default",
     }
-    assert resolved["scheduled_strategy_research_enabled"] == {
-        "enabled": False,
-        "source": "rules_default",
-    }
+    assert "scheduled_strategy_research_enabled" not in resolved
 
 
 def test_dict_to_preferences_response_exposes_effective_automation_values(monkeypatch) -> None:
@@ -110,7 +107,7 @@ def test_dict_to_preferences_response_exposes_effective_automation_values(monkey
     assert response.auto_trim_enabled is True
     assert response.scheduled_jenny_operator_enabled is False
     assert response.scheduled_ml_labeling_enabled is False
-    assert response.scheduled_strategy_research_enabled is False
+    assert not hasattr(response, "scheduled_strategy_research_enabled")
 
 
 def test_frontend_poll_interval_allows_manual_mode(monkeypatch) -> None:
@@ -294,7 +291,6 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "thesis_generation_enabled": True,
             "auto_remove_on_invalidation": False,
             "auto_trim_enabled": True,
-            "scheduled_strategy_research_enabled": True,
         },
     )
 
@@ -312,7 +308,6 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             thesis_generation_enabled=None,
             auto_remove_on_invalidation=None,
             auto_trim_enabled=None,
-            scheduled_strategy_research_enabled=None,
         )
     )
 
@@ -324,7 +319,6 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "thesis_generation_enabled": None,
             "auto_remove_on_invalidation": None,
             "auto_trim_enabled": None,
-            "scheduled_strategy_research_enabled": None,
         }
     )
 
@@ -356,6 +350,17 @@ def test_preferences_route_rejects_central_schedule_writes(field_name: str) -> N
     )
     assert response.status_code == 422
     assert "Agent Hub" in response.text
+
+
+def test_retired_strategy_research_preference_cannot_be_updated() -> None:
+    with pytest.raises(ValidationError, match="retired"):
+        PreferencesUpdate.model_validate({"scheduled_strategy_research_enabled": True})
+    response = TestClient(app).post(
+        "/api/preferences",
+        json={"scheduled_strategy_research_enabled": False},
+    )
+    assert response.status_code == 422
+    assert "retired" in response.text
 
 
 def _scoring_weights_storage(stored: object) -> MagicMock:

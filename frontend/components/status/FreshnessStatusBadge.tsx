@@ -409,26 +409,6 @@ export function FreshnessStatusBadge() {
                   }
                 />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor="freshness-strategy-agents"
-                  className="text-xs font-medium text-text"
-                >
-                  Strategy agents
-                </label>
-                <Switch
-                  id="freshness-strategy-agents"
-                  checked={
-                    preferences?.scheduledStrategyResearchEnabled ?? false
-                  }
-                  disabled={updatePreferences.isPending}
-                  onCheckedChange={(checked) =>
-                    updatePreferences.mutate({
-                      scheduledStrategyResearchEnabled: checked,
-                    })
-                  }
-                />
-              </div>
             </div>
             <a
               href="https://agent.summitflow.dev/automations?project_id=portfolio-ai"

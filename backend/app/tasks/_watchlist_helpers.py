@@ -12,7 +12,6 @@ import time
 from app.constants import DEFAULT_BACKFILL_DAYS
 from app.logging_config import get_logger
 from app.models.preferences import MIN_WATCHLIST_REFRESH_MINUTES
-from app.services.preferences_service import get_automation_preferences
 from app.storage import PortfolioStorage, get_storage
 from app.tasks.types import WatchlistResultDict
 from app.utils.market_hours import is_market_hours
@@ -88,21 +87,6 @@ def get_watchlist_symbols(storage: PortfolioStorage) -> list[str]:
 # ---------------------------------------------------------------------------
 # Trigger helpers
 # ---------------------------------------------------------------------------
-
-
-def trigger_strategy_generation_for_top_symbols() -> None:
-    """Trigger async strategy generation for top watchlist symbols (auto-001)."""
-    automation = get_automation_preferences()
-    if not bool(automation["scheduled_strategy_research_enabled"]["enabled"]):
-        logger.info("strategy_generation_trigger_skipped", reason="scheduled_strategy_research_disabled")
-        return
-    try:
-        from app.tasks.strategy.generation_tasks import trigger_strategies_for_top_watchlist
-
-        trigger_strategies_for_top_watchlist()
-        logger.info("strategy_generation_triggered_from_watchlist")
-    except Exception as e:
-        logger.warning("strategy_generation_trigger_failed", error=str(e), error_type=type(e).__name__)
 
 
 def trigger_auto_backfill(storage: PortfolioStorage) -> None:

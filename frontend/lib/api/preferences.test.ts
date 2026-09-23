@@ -41,7 +41,6 @@ describe('preferences api', () => {
         auto_trim_enabled: true,
         scheduled_jenny_operator_enabled: false,
         scheduled_ml_labeling_enabled: false,
-        scheduled_strategy_research_enabled: false,
       }),
     } as unknown as Response)
 
@@ -67,7 +66,6 @@ describe('preferences api', () => {
         auto_trim_enabled: true,
         scheduled_jenny_operator_enabled: false,
         scheduled_ml_labeling_enabled: false,
-        scheduled_strategy_research_enabled: false,
       }),
     } as unknown as Response)
 

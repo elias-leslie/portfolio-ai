@@ -25,7 +25,6 @@ AUTOMATION_PREFERENCE_KEYS = (
     "thesis_generation_enabled",
     "auto_remove_on_invalidation",
     "auto_trim_enabled",
-    "scheduled_strategy_research_enabled",
     "scheduled_account_sync_enabled",
 )
 
@@ -52,7 +51,6 @@ def get_automation_defaults() -> dict[str, bool]:
         "auto_trim_enabled": rules.watchlist_management.auto_trim_enabled,
         "scheduled_jenny_operator_enabled": False,
         "scheduled_ml_labeling_enabled": False,
-        "scheduled_strategy_research_enabled": False,
         # Recurring account sync is on by default — keeping holdings current is
         # the expected baseline; users can pause it from the Data Feed panel.
         "scheduled_account_sync_enabled": True,
@@ -108,14 +106,13 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
                 auto_trim_enabled,
                 scheduled_jenny_operator_enabled,
                 scheduled_ml_labeling_enabled,
-                scheduled_strategy_research_enabled,
                 scheduled_account_sync_enabled,
                 scheduled_price_check_enabled,
                 created_at,
                 updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            [USER_ID, None, None, None, None, None, None, None, None, now, now],
+            [USER_ID, None, None, None, None, None, None, None, now, now],
         )
         conn.commit()
 
@@ -126,7 +123,6 @@ def get_or_create_automation_preferences() -> dict[str, Any]:
         "auto_trim_enabled": None,
         "scheduled_jenny_operator_enabled": None,
         "scheduled_ml_labeling_enabled": None,
-        "scheduled_strategy_research_enabled": None,
         "scheduled_account_sync_enabled": None,
         "scheduled_price_check_enabled": None,
         "created_at": now,
@@ -173,7 +169,6 @@ def dict_to_preferences_response(prefs: dict[str, Any]) -> PreferencesResponse:
         auto_trim_enabled=bool(automation["auto_trim_enabled"]["enabled"]),
         scheduled_jenny_operator_enabled=bool(automation["scheduled_jenny_operator_enabled"]["enabled"]),
         scheduled_ml_labeling_enabled=bool(automation["scheduled_ml_labeling_enabled"]["enabled"]),
-        scheduled_strategy_research_enabled=bool(automation["scheduled_strategy_research_enabled"]["enabled"]),
         scheduled_account_sync_enabled=bool(automation["scheduled_account_sync_enabled"]["enabled"]),
         scheduled_price_check_enabled=bool(automation["scheduled_price_check_enabled"]["enabled"]),
     )
@@ -385,7 +380,6 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
             SET thesis_generation_enabled = %s,
                 auto_remove_on_invalidation = %s,
                 auto_trim_enabled = %s,
-                scheduled_strategy_research_enabled = %s,
                 scheduled_account_sync_enabled = %s,
                 updated_at = %s
             WHERE id = %s
@@ -394,7 +388,6 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 current.get("thesis_generation_enabled"),
                 current.get("auto_remove_on_invalidation"),
                 current.get("auto_trim_enabled"),
-                current.get("scheduled_strategy_research_enabled"),
                 current.get("scheduled_account_sync_enabled"),
                 datetime.now(UTC),
                 current["id"],

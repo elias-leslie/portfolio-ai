@@ -103,7 +103,7 @@ def test_center_exposes_only_local_background_agent_guardrails(monkeypatch) -> N
 
     assert "scheduled_jenny_operator_enabled" not in guardrails
     assert "scheduled_ml_labeling_enabled" not in guardrails
-    assert guardrails["scheduled_strategy_research_enabled"]["enabled"] is False
+    assert "scheduled_strategy_research_enabled" not in guardrails
 
 
 def test_warnings_dedupe_repeated_failures() -> None:

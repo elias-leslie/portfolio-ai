@@ -45,7 +45,7 @@ class StrategyMonitoringResultDict(TypedDict, total=False):
 
 
 class StrategyTriggerResultDict(TypedDict, total=False):
-    """Result from strategy trigger tasks (trigger_strategies_for_top_watchlist, etc.)."""
+    """Result from strategy trigger tasks."""
 
     status: str  # "completed", "failed", "rate_limited", "rejected"
     generated: int

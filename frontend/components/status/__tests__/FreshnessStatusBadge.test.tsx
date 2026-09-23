@@ -22,7 +22,6 @@ vi.mock('@/lib/hooks/usePreferences', () => ({
     data: {
       frontendPollInterval: 30,
       scheduledAccountSyncEnabled: true,
-      scheduledStrategyResearchEnabled: false,
     },
   }),
   useUpdatePreferences: () => ({
@@ -53,11 +52,8 @@ describe('FreshnessStatusBadge', () => {
     )
     expect(screen.queryByText('Jenny scheduled runs')).not.toBeInTheDocument()
     expect(screen.queryByText('ML labeling jobs')).not.toBeInTheDocument()
+    expect(screen.queryByText('Strategy agents')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('switch', { name: 'Strategy agents' }))
-    expect(updatePreferences).toHaveBeenCalledWith({
-      scheduledStrategyResearchEnabled: true,
-    })
     await user.click(
       screen.getByRole('switch', { name: 'Account syncs (SnapTrade, Plaid)' }),
     )

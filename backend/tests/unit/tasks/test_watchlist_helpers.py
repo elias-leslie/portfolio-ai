@@ -21,11 +21,6 @@ def test_execute_refresh_uses_lightweight_background_mode(monkeypatch) -> None:
     monkeypatch.setattr("app.tasks._watchlist_helpers.is_market_hours", lambda: True)
     monkeypatch.setattr("app.tasks._watchlist_helpers.task_logger", _null_task_logger)
     monkeypatch.setattr("app.tasks._watchlist_helpers.refresh_watchlist_scores_service", mock_refresh)
-    monkeypatch.setattr(
-        "app.tasks._watchlist_helpers.trigger_strategy_generation_for_top_symbols",
-        lambda: (_ for _ in ()).throw(AssertionError("strategy trigger should not run")),
-    )
-
     result = execute_refresh(
         account_id="default",
         task_id="task-123",
