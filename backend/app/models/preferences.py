@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Constants
 ALLOWED_NEWS_LOOKBACK_HOURS = (6, 12, 24, 48)
@@ -12,6 +12,11 @@ DEFAULT_NEWS_LOOKBACK_HOURS = 6
 ALLOWED_NEWS_MAX_ARTICLES = (5, 10, 15, 20)
 DEFAULT_NEWS_MAX_ARTICLES = 10
 MIN_WATCHLIST_REFRESH_MINUTES = 15
+AGENT_HUB_SCHEDULE_FIELDS = frozenset({
+    "scheduled_jenny_operator_enabled",
+    "scheduled_ml_labeling_enabled",
+    "scheduled_price_check_enabled",
+})
 
 # Default preferences values
 DEFAULT_PREFERENCES = {
@@ -201,21 +206,21 @@ class PreferencesUpdate(BaseModel):
     auto_trim_enabled: bool | None = Field(
         None, description="Allow automatic watchlist trimming for weak names"
     )
-    scheduled_jenny_operator_enabled: bool | None = Field(
-        None, description="Allow scheduled Jenny portfolio reviews to run without opening the app"
-    )
-    scheduled_ml_labeling_enabled: bool | None = Field(
-        None, description="Allow scheduled article-labeling and ML retraining runs"
-    )
     scheduled_strategy_research_enabled: bool | None = Field(
         None, description="Allow background strategy research and evolution agents to run automatically"
     )
     scheduled_account_sync_enabled: bool | None = Field(
         None, description="Run the recurring data-services account sync (SnapTrade, Plaid) on a schedule"
     )
-    scheduled_price_check_enabled: bool | None = Field(
-        None, description="Run the weekly cross-vendor price check on a schedule"
-    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_agent_hub_schedule_writes(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            forbidden = AGENT_HUB_SCHEDULE_FIELDS.intersection(value)
+            if forbidden:
+                raise ValueError(f"These schedules are managed in Agent Hub: {', '.join(sorted(forbidden))}")
+        return value
 
     @field_validator("display_timezone")
     @classmethod

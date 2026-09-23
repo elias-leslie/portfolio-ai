@@ -92,8 +92,6 @@ export interface PreferencesUpdate {
   thesisGenerationEnabled?: boolean
   autoRemoveOnInvalidation?: boolean
   autoTrimEnabled?: boolean
-  scheduledJennyOperatorEnabled?: boolean
-  scheduledMlLabelingEnabled?: boolean
   scheduledStrategyResearchEnabled?: boolean
   scheduledAccountSyncEnabled?: boolean
   // New weight configuration fields (migration 019)

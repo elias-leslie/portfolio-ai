@@ -64,9 +64,14 @@ async def jenny_daily_operator_wf(input: EmptyInput, ctx: Context) -> dict[str, 
     ),
 )
 async def jenny_weekly_learning_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
-    from ..tasks.jenny_operator_tasks import run_weekly_learning_task
+    async def operation() -> dict[str, Any]:
+        from ..tasks.jenny_operator_tasks import run_weekly_learning_task
 
-    return await asyncio.to_thread(run_weekly_learning_task)
+        return await asyncio.to_thread(run_weekly_learning_task, input.agent_hub_trigger or "scheduled")
+
+    if input.agent_hub_run_id:
+        return await run_central_task(input.agent_hub_run_id, operation)
+    return await run_legacy_tick("jenny_weekly_learning", operation)
 
 
 @hatchet.task(

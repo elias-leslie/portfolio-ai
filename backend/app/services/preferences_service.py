@@ -25,11 +25,8 @@ AUTOMATION_PREFERENCE_KEYS = (
     "thesis_generation_enabled",
     "auto_remove_on_invalidation",
     "auto_trim_enabled",
-    "scheduled_jenny_operator_enabled",
-    "scheduled_ml_labeling_enabled",
     "scheduled_strategy_research_enabled",
     "scheduled_account_sync_enabled",
-    "scheduled_price_check_enabled",
 )
 
 def _normalize_watchlist_refresh_preferences(prefs: dict[str, Any]) -> dict[str, Any]:
@@ -388,11 +385,8 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
             SET thesis_generation_enabled = %s,
                 auto_remove_on_invalidation = %s,
                 auto_trim_enabled = %s,
-                scheduled_jenny_operator_enabled = %s,
-                scheduled_ml_labeling_enabled = %s,
                 scheduled_strategy_research_enabled = %s,
                 scheduled_account_sync_enabled = %s,
-                scheduled_price_check_enabled = %s,
                 updated_at = %s
             WHERE id = %s
             """,
@@ -400,11 +394,8 @@ def _update_automation_preferences(updates: dict[str, bool | None]) -> None:
                 current.get("thesis_generation_enabled"),
                 current.get("auto_remove_on_invalidation"),
                 current.get("auto_trim_enabled"),
-                current.get("scheduled_jenny_operator_enabled"),
-                current.get("scheduled_ml_labeling_enabled"),
                 current.get("scheduled_strategy_research_enabled"),
                 current.get("scheduled_account_sync_enabled"),
-                current.get("scheduled_price_check_enabled"),
                 datetime.now(UTC),
                 current["id"],
             ],

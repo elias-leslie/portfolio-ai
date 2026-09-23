@@ -10,6 +10,7 @@ from pydantic import SecretStr
 from app.api import automations
 from app.main import app
 from app.services.agent_hub_automation_owner import (
+    WORKFLOW_KEYS,
     OwnerDispatchPayload,
     dispatch_owner_run,
     legacy_schedule_allowed,
@@ -48,6 +49,14 @@ def test_legacy_clock_fails_closed_and_stops_after_central_cutover() -> None:
         "portfolio-ai/jenny_daily_operator",
     )
     assert not legacy_schedule_allowed([], "portfolio-ai/jenny_daily_operator")
+
+
+def test_weekly_learning_is_registered_for_dispatch_and_fencing() -> None:
+    assert "jenny_weekly_learning" in WORKFLOW_KEYS
+    assert OwnerDispatchPayload.model_validate({
+        **PAYLOAD.model_dump(),
+        "workflow_key": "jenny_weekly_learning",
+    }).workflow_key == "jenny_weekly_learning"
 
 
 @pytest.mark.asyncio

@@ -16,9 +16,9 @@ def run_daily_operator_task() -> dict[str, Any]:
     return result.model_dump()
 
 
-def run_weekly_learning_task() -> dict[str, Any]:
+def run_weekly_learning_task(triggered_by: str = "scheduled") -> dict[str, Any]:
     """Run Jenny's weekly learning and scorecard refresh."""
-    result = JennyOperatorService().run_weekly_learning(triggered_by="scheduled")
+    result = JennyOperatorService().run_weekly_learning(triggered_by=triggered_by)
     return result.model_dump()
 
 

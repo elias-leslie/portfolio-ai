@@ -73,7 +73,7 @@ def test_recent_runs_use_failure_summary_for_failed_jenny_runs() -> None:
     assert runs[0].detail == "Jenny routine failed: timed out fetching intelligence."
 
 
-def test_center_exposes_background_agent_guardrails(monkeypatch) -> None:
+def test_center_exposes_only_local_background_agent_guardrails(monkeypatch) -> None:
     service = AutomationCenterService()
     service.storage = _fake_storage(
         jenny_rows=[],
@@ -101,8 +101,8 @@ def test_center_exposes_background_agent_guardrails(monkeypatch) -> None:
     raw_guardrails = cast(list[dict[str, object]], center["guardrails"])
     guardrails = {str(item["key"]): item for item in raw_guardrails}
 
-    assert guardrails["scheduled_jenny_operator_enabled"]["enabled"] is False
-    assert guardrails["scheduled_ml_labeling_enabled"]["enabled"] is False
+    assert "scheduled_jenny_operator_enabled" not in guardrails
+    assert "scheduled_ml_labeling_enabled" not in guardrails
     assert guardrails["scheduled_strategy_research_enabled"]["enabled"] is False
 
 

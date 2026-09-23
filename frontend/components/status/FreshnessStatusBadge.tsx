@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   CheckCircle2,
+  ExternalLink,
   Loader2,
   RefreshCw,
   Wifi,
@@ -410,24 +411,6 @@ export function FreshnessStatusBadge() {
               </div>
               <div className="flex items-center justify-between gap-3">
                 <label
-                  htmlFor="freshness-jenny-runs"
-                  className="text-xs font-medium text-text"
-                >
-                  Jenny scheduled runs
-                </label>
-                <Switch
-                  id="freshness-jenny-runs"
-                  checked={preferences?.scheduledJennyOperatorEnabled ?? false}
-                  disabled={updatePreferences.isPending}
-                  onCheckedChange={(checked) =>
-                    updatePreferences.mutate({
-                      scheduledJennyOperatorEnabled: checked,
-                    })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <label
                   htmlFor="freshness-strategy-agents"
                   className="text-xs font-medium text-text"
                 >
@@ -446,25 +429,16 @@ export function FreshnessStatusBadge() {
                   }
                 />
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor="freshness-ml-labeling"
-                  className="text-xs font-medium text-text"
-                >
-                  ML labeling jobs
-                </label>
-                <Switch
-                  id="freshness-ml-labeling"
-                  checked={preferences?.scheduledMlLabelingEnabled ?? false}
-                  disabled={updatePreferences.isPending}
-                  onCheckedChange={(checked) =>
-                    updatePreferences.mutate({
-                      scheduledMlLabelingEnabled: checked,
-                    })
-                  }
-                />
-              </div>
             </div>
+            <a
+              href="https://agent.summitflow.dev/automations?project_id=portfolio-ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 border-t border-border/35 pt-3 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            >
+              Manage Portfolio automations in Agent Hub
+              <ExternalLink className="size-3" aria-hidden />
+            </a>
             {updatePreferences.error ? (
               <p role="alert" className="text-xs text-loss">
                 Could not save this preference. Check system status and try

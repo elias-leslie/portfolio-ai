@@ -6,8 +6,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.main import app
 from app.models.preferences import PreferencesUpdate
 from app.services.preferences_service import (
     dict_to_preferences_response,
@@ -292,8 +294,6 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "thesis_generation_enabled": True,
             "auto_remove_on_invalidation": False,
             "auto_trim_enabled": True,
-            "scheduled_jenny_operator_enabled": True,
-            "scheduled_ml_labeling_enabled": True,
             "scheduled_strategy_research_enabled": True,
         },
     )
@@ -312,8 +312,6 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             thesis_generation_enabled=None,
             auto_remove_on_invalidation=None,
             auto_trim_enabled=None,
-            scheduled_jenny_operator_enabled=None,
-            scheduled_ml_labeling_enabled=None,
             scheduled_strategy_research_enabled=None,
         )
     )
@@ -326,11 +324,38 @@ def test_update_preferences_allows_clearing_automation_overrides(monkeypatch) ->
             "thesis_generation_enabled": None,
             "auto_remove_on_invalidation": None,
             "auto_trim_enabled": None,
-            "scheduled_jenny_operator_enabled": None,
-            "scheduled_ml_labeling_enabled": None,
             "scheduled_strategy_research_enabled": None,
         }
     )
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "scheduled_jenny_operator_enabled",
+        "scheduled_ml_labeling_enabled",
+        "scheduled_price_check_enabled",
+    ],
+)
+@pytest.mark.parametrize("value", [True, False, None])
+def test_central_automation_preferences_cannot_be_updated_locally(
+    field_name: str, value: bool | None,
+) -> None:
+    with pytest.raises(ValidationError, match="Agent Hub"):
+        PreferencesUpdate.model_validate({field_name: value, "frontend_poll_interval": 30})
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["scheduled_jenny_operator_enabled", "scheduled_ml_labeling_enabled", "scheduled_price_check_enabled"],
+)
+def test_preferences_route_rejects_central_schedule_writes(field_name: str) -> None:
+    response = TestClient(app).post(
+        "/api/preferences",
+        json={field_name: True, "frontend_poll_interval": 30},
+    )
+    assert response.status_code == 422
+    assert "Agent Hub" in response.text
 
 
 def _scoring_weights_storage(stored: object) -> MagicMock:

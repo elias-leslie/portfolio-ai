@@ -28,6 +28,45 @@ async def test_legacy_household_cron_stops_when_clock_is_not_legacy(
 
 
 @pytest.mark.asyncio
+async def test_weekly_learning_uses_fenced_clock_and_central_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def legacy_run(key: str, operation: Any) -> dict[str, Any]:
+        assert key == "jenny_weekly_learning"
+        return {"status": "skipped", "reason": "legacy_clock_fenced"}
+
+    monkeypatch.setattr(jenny, "run_legacy_tick", legacy_run)
+    legacy_result = await cast(
+        Awaitable[dict[str, Any]],
+        jenny.jenny_weekly_learning_wf._task._fn(EmptyInput(), None),
+    )
+    assert legacy_result == {"status": "skipped", "reason": "legacy_clock_fenced"}
+
+    async def central_run(run_id: str, operation: Any) -> dict[str, Any]:
+        assert run_id == "ah-weekly-learning-1"
+        return await operation()
+
+    from app.tasks import jenny_operator_tasks
+
+    monkeypatch.setattr(jenny, "run_central_task", central_run)
+    seen_triggers: list[str] = []
+
+    def learning_task(triggered_by: str) -> dict[str, Any]:
+        seen_triggers.append(triggered_by)
+        return {"status": "completed"}
+
+    monkeypatch.setattr(jenny_operator_tasks, "run_weekly_learning_task", learning_task)
+    central_result = await cast(
+        Awaitable[dict[str, Any]],
+        jenny.jenny_weekly_learning_wf._task._fn(
+            EmptyInput(agent_hub_run_id="ah-weekly-learning-1", agent_hub_trigger="manual"), None
+        ),
+    )
+    assert central_result == {"status": "completed"}
+    assert seen_triggers == ["manual"]
+
+
+@pytest.mark.asyncio
 async def test_central_operator_uses_owner_gate_without_old_preference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

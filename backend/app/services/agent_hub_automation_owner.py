@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 TERMINAL = {"succeeded", "failed", "skipped", "cancelled"}
 WORKFLOW_KEYS = frozenset({
     "jenny_daily_household_maintenance", "jenny_daily_operator",
-    "retrain_ml", "jenny_weekly_price_check",
+    "jenny_weekly_learning", "retrain_ml", "jenny_weekly_price_check",
 })
 
 
@@ -37,6 +37,7 @@ class OwnerDispatchPayload(BaseModel):
     workflow_key: Literal[
         "jenny_daily_household_maintenance",
         "jenny_daily_operator",
+        "jenny_weekly_learning",
         "retrain_ml",
         "jenny_weekly_price_check",
     ]
@@ -231,6 +232,7 @@ async def _launch(workflow_key: str, run_id: str, input_data: dict[str, str]) ->
     targets = {
         "jenny_daily_household_maintenance": ("app.workflows.jenny", "jenny_daily_household_maintenance_wf"),
         "jenny_daily_operator": ("app.workflows.jenny", "jenny_daily_operator_wf"),
+        "jenny_weekly_learning": ("app.workflows.jenny", "jenny_weekly_learning_wf"),
         "retrain_ml": ("app.workflows.reference", "retrain_ml_wf"),
         "jenny_weekly_price_check": ("app.workflows.jenny", "jenny_weekly_price_check_wf"),
     }

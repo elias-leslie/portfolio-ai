@@ -48,22 +48,6 @@ class AutomationCenterService:
                     detail="Controls whether weak watchlist names can be trimmed automatically.",
                 ),
                 AutomationGuardrail(
-                    key="scheduled_jenny_operator_enabled",
-                    label="Scheduled Jenny reviews",
-                    value="Enabled" if automation["scheduled_jenny_operator_enabled"]["enabled"] else "Disabled",
-                    enabled=bool(automation["scheduled_jenny_operator_enabled"]["enabled"]),
-                    source=str(automation["scheduled_jenny_operator_enabled"]["source"]),
-                    detail="Controls daily portfolio-review agent runs that happen even when the app is closed.",
-                ),
-                AutomationGuardrail(
-                    key="scheduled_ml_labeling_enabled",
-                    label="Scheduled ML labeling",
-                    value="Enabled" if automation["scheduled_ml_labeling_enabled"]["enabled"] else "Disabled",
-                    enabled=bool(automation["scheduled_ml_labeling_enabled"]["enabled"]),
-                    source=str(automation["scheduled_ml_labeling_enabled"]["source"]),
-                    detail="Controls article-labeling agent runs used to retrain the news-quality model.",
-                ),
-                AutomationGuardrail(
                     key="scheduled_strategy_research_enabled",
                     label="Background strategy research",
                     value="Enabled" if automation["scheduled_strategy_research_enabled"]["enabled"] else "Disabled",
