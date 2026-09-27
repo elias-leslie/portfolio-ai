@@ -25,7 +25,12 @@ from plaid.model.products import Products
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
 from app.logging_config import get_logger
-from app.services._household_merchants import _canonical_category_from_taxonomy
+from app.services._household_merchants import (
+    _canonical_category_from_taxonomy,
+    _card_credit_flow,
+    _classify_merchant,
+    _is_property_payment_income,
+)
 from app.services._household_taxonomy import canonical_classification
 from app.services.credential_crypto import (
     CredentialCipher,
@@ -230,20 +235,21 @@ def _transaction_flow(
 ) -> str:
     primary = str(personal_finance_category.get("primary") or "").upper()
     detailed = str(personal_finance_category.get("detailed") or "").upper()
-    # A card payment is a credit on the card, regardless of the provider's
-    # personal-finance category. Plaid has labeled this household's payment as
-    # salary, which otherwise becomes phantom income.
-    if (
-        amount < 0
-        and (account_type or "").lower() in {"credit", "credit_card"}
-        and _CARD_PAYMENT_DESCRIPTION.search(description)
-    ):
-        return "payment"
+    # Card credits are payments only when the description says so. Plaid has
+    # labeled both card payments and merchant credits as income in this feed.
+    if amount < 0 and (account_type or "").lower() in {"credit", "credit_card"}:
+        return (
+            "payment"
+            if _CARD_PAYMENT_DESCRIPTION.search(description)
+            else "transfer_in"
+            if primary == "TRANSFER_IN"
+            else "credit"
+        )
     if amount > 0:
         if primary == "TRANSFER_OUT":
             return "investment" if "INVESTMENT" in detailed else "transfer_out"
         return "expense"
-    if primary == "INCOME":
+    if primary == "INCOME" or _is_property_payment_income(description):
         return "income"
     if primary == "TRANSFER_IN":
         return "transfer_in"
@@ -271,6 +277,7 @@ def _transaction_classification(
     *,
     account_type: str | None,
     description: str,
+    merchant_name: str | None = None,
 ) -> tuple[str, str, str]:
     flow_type = _transaction_flow(
         amount,
@@ -280,7 +287,25 @@ def _transaction_classification(
     )
     if flow_type == "payment":
         return flow_type, "Transfers", "mixed"
+    if flow_type == "income":
+        return flow_type, "Income", "essential"
+    if flow_type == "transfer_in":
+        return flow_type, "Transfers", "mixed"
     category, essentiality = _transaction_category(personal_finance_category)
+    if (
+        (account_type or "").lower() in {"credit", "credit_card"}
+        and flow_type in {"expense", "credit"}
+        and category in {"Income", "Transfers"}
+    ):
+        category, essentiality = _classify_merchant(
+            raw_merchant=merchant_name or description,
+            description=description,
+            amount=float(abs(amount)),
+        )
+    if flow_type == "credit":
+        flow_type = _card_credit_flow(description=description, merchant_category=category)
+        if flow_type == "credit":
+            return flow_type, "Unknown", "mixed"
     return flow_type, category, essentiality
 
 
@@ -1414,6 +1439,7 @@ class PlaidService:
             personal_finance_category,
             account_type=str(account_row[2]) if account_row and account_row[2] else None,
             description=str(transaction.get("name") or merchant),
+            merchant_name=str(transaction.get("merchant_name") or merchant),
         )
         merchant_id, canonical_name, category, essentiality, has_manual_rule, rule_id = (
             self.transaction_service._resolve_merchant(
@@ -1502,14 +1528,20 @@ class PlaidService:
                 account_label = EXCLUDED.account_label,
                 amount = EXCLUDED.amount,
                 currency = EXCLUDED.currency,
-                flow_type = EXCLUDED.flow_type,
+                flow_type = CASE
+                    WHEN household_transactions.categorization_source IN (
+                        'manual', 'manual_rule', 'merchant_rule',
+                        'transaction_audit', 'transaction_audit_agent'
+                    ) THEN household_transactions.flow_type
+                    ELSE EXCLUDED.flow_type
+                END,
                 category = CASE
-                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                         THEN household_transactions.category
                     ELSE EXCLUDED.category
                 END,
                 essentiality = CASE
-                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                         THEN household_transactions.essentiality
                     ELSE EXCLUDED.essentiality
                 END,
@@ -1519,28 +1551,35 @@ class PlaidService:
                 external_transaction_id = EXCLUDED.external_transaction_id,
                 original_category = COALESCE(household_transactions.original_category, EXCLUDED.original_category),
                 categorization_source = CASE
-                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                         THEN household_transactions.categorization_source
                     ELSE EXCLUDED.categorization_source
                 END,
                 categorization_version = EXCLUDED.categorization_version,
                 category_updated_at = CASE
-                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                         THEN household_transactions.category_updated_at
                     ELSE EXCLUDED.category_updated_at
                 END,
                 category_updated_by = CASE
-                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                         THEN household_transactions.category_updated_by
                     ELSE EXCLUDED.category_updated_by
                 END,
                 transaction_rule_id = CASE
-                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                    WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                         THEN household_transactions.transaction_rule_id
                     ELSE EXCLUDED.transaction_rule_id
                 END,
                 pending = EXCLUDED.pending,
-                removed = FALSE,
+                removed = CASE
+                    WHEN household_transactions.metadata ? 'dedup'
+                      OR household_transactions.categorization_source IN (
+                          'manual', 'manual_rule', 'merchant_rule',
+                          'transaction_audit', 'transaction_audit_agent'
+                      ) THEN household_transactions.removed
+                    ELSE FALSE
+                END,
                 updated_at = EXCLUDED.updated_at
             """,
             [

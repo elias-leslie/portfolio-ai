@@ -437,7 +437,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
 
 
         infer_profile_from_transactions(
-            self.storage, profile=self.get_profile(),
+            self.storage,
+            monthly_income=self.transaction_service.income_totals_by_month(),
+            profile=self.get_profile(),
             reports=self.transaction_service.build_reports(),
             existing_inferences=fetch_inferred_value_rows(self.storage),
         )

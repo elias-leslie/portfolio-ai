@@ -330,7 +330,7 @@ class HouseholdTransactionService:
         touched_account_ids: set[str] = set()
 
         with self.storage.connection() as conn:
-            for transaction in transactions:
+            for transaction_index, transaction in enumerate(transactions):
                 transaction_metadata = transaction.metadata or {}
                 original_category = transaction.category
                 (
@@ -394,6 +394,47 @@ class HouseholdTransactionService:
                         transaction.flow_type,
                     ]).encode("utf-8")
                 ).hexdigest()
+                # Older imports hashed flow and canonical merchant into identity.
+                # A corrected parser can change either on replay; reuse a unique
+                # prior row instead of inserting a second copy of the same line.
+                prior_rows = conn.execute(
+                    """
+                    SELECT row_hash
+                    FROM household_transactions
+                    WHERE document_id = %s
+                      AND transaction_date::date = %s
+                      AND description = %s
+                      AND amount = %s
+                      AND (
+                          household_account_id = %s
+                          OR household_account_id IS NULL
+                      )
+                    ORDER BY created_at, row_hash
+                    """,
+                    [
+                        document.id,
+                        transaction.transaction_date,
+                        transaction.description,
+                        transaction.amount,
+                        household_account_id,
+                    ],
+                ).fetchall()
+                available_prior_hash = next(
+                    (
+                        str(prior[0])
+                        for prior in prior_rows
+                        if str(prior[0]) not in current_row_hashes
+                    ),
+                    None,
+                )
+                if available_prior_hash is not None:
+                    row_hash = available_prior_hash
+                if row_hash in current_row_hashes:
+                    # Equal-date, equal-price purchases can be two real charges.
+                    # Keep a deterministic occurrence identity within this file.
+                    row_hash = hashlib.sha256(
+                        f"{row_hash}|row:{transaction_index}".encode()
+                    ).hexdigest()
                 current_row_hashes.add(row_hash)
                 metadata = {
                     "filename": document.filename,
@@ -424,14 +465,20 @@ class HouseholdTransactionService:
                         account_label = COALESCE(EXCLUDED.account_label, household_transactions.account_label),
                         amount = EXCLUDED.amount,
                         currency = EXCLUDED.currency,
-                        flow_type = EXCLUDED.flow_type,
+                        flow_type = CASE
+                            WHEN household_transactions.categorization_source IN (
+                                'manual', 'manual_rule', 'merchant_rule',
+                                'transaction_audit', 'transaction_audit_agent'
+                            ) THEN household_transactions.flow_type
+                            ELSE EXCLUDED.flow_type
+                        END,
                         category = CASE
-                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                                 THEN household_transactions.category
                             ELSE COALESCE(EXCLUDED.category, household_transactions.category)
                         END,
                         essentiality = CASE
-                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                                 THEN household_transactions.essentiality
                             ELSE COALESCE(EXCLUDED.essentiality, household_transactions.essentiality)
                         END,
@@ -444,29 +491,36 @@ class HouseholdTransactionService:
                         external_transaction_id = COALESCE(EXCLUDED.external_transaction_id, household_transactions.external_transaction_id),
                         original_category = COALESCE(household_transactions.original_category, EXCLUDED.original_category),
                         categorization_source = CASE
-                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                                 THEN household_transactions.categorization_source
                             ELSE COALESCE(EXCLUDED.categorization_source, household_transactions.categorization_source)
                         END,
                         categorization_version = COALESCE(EXCLUDED.categorization_version, household_transactions.categorization_version),
                         category_updated_at = CASE
-                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                                 THEN household_transactions.category_updated_at
                             ELSE EXCLUDED.category_updated_at
                         END,
                         category_updated_by = CASE
-                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                                 THEN household_transactions.category_updated_by
                             ELSE EXCLUDED.category_updated_by
                         END,
                         transaction_rule_id = CASE
-                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule')
+                            WHEN household_transactions.categorization_source IN ('manual', 'manual_rule', 'merchant_rule', 'transaction_audit', 'transaction_audit_agent')
                                 THEN household_transactions.transaction_rule_id
                             ELSE COALESCE(EXCLUDED.transaction_rule_id, household_transactions.transaction_rule_id)
                         END,
                         balance_after = COALESCE(EXCLUDED.balance_after, household_transactions.balance_after),
                         pending = FALSE,
-                        removed = FALSE,
+                        removed = CASE
+                            WHEN household_transactions.metadata ? 'dedup'
+                              OR household_transactions.categorization_source IN (
+                                  'manual', 'manual_rule', 'merchant_rule',
+                                  'transaction_audit', 'transaction_audit_agent'
+                              ) THEN household_transactions.removed
+                            ELSE FALSE
+                        END,
                         updated_at = EXCLUDED.updated_at
                     RETURNING xmax = 0
                     """,
@@ -516,6 +570,11 @@ class HouseholdTransactionService:
                     DELETE FROM household_transactions
                     WHERE document_id = %s
                       AND row_hash <> ALL(%s)
+                      AND COALESCE(categorization_source, '') NOT IN (
+                          'manual', 'manual_rule', 'merchant_rule',
+                          'transaction_audit', 'transaction_audit_agent'
+                      )
+                      AND NOT (metadata ? 'dedup')
                     RETURNING id
                     """,
                     [

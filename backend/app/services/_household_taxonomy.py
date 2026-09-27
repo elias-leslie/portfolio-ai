@@ -35,6 +35,7 @@ CATEGORY_ESSENTIALITY: dict[str, str] = {
     "Cash": MIXED,
     "Peer Payments": MIXED,
     "Transfers": MIXED,
+    "Investments": MIXED,
     "Debt Payments": MIXED,
     # Home is the furniture, the hardware store and the garden nursery. The
     # property tax and the HOA that used to sit here as the category's only

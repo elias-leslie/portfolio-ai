@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 from app.logging_config import get_logger
 from app.models.household_finance import HouseholdProfile, HouseholdReports
-from app.services._household_dashboard_query_sql import INCOME_MONTHLY_AVG_SQL
 
 logger = get_logger(__name__)
 
@@ -117,12 +117,10 @@ def upsert_transaction_inference(
     return True
 
 
-def _income_metrics(storage: Any) -> tuple[int, float]:
-    with storage.connection() as conn:
-        income_row = conn.execute(INCOME_MONTHLY_AVG_SQL).fetchone()
-    income_months = int(income_row[0] or 0) if income_row else 0
-    avg_monthly_income = float(income_row[1] or 0.0) if income_row else 0.0
-    return income_months, avg_monthly_income
+def _income_metrics(monthly_income: Mapping[str, float]) -> tuple[int, float]:
+    """Use Money's reversal- and removal-aware income, not a second raw sum."""
+    income_months = len(monthly_income)
+    return income_months, sum(monthly_income.values()) / income_months if income_months else 0.0
 
 
 def _report_metrics(reports: HouseholdReports, avg_monthly_income: float) -> tuple[int, float, float, float]:
@@ -136,11 +134,12 @@ def _report_metrics(reports: HouseholdReports, avg_monthly_income: float) -> tup
 def infer_profile_from_transactions(
     storage: Any,
     *,
+    monthly_income: Mapping[str, float],
     profile: HouseholdProfile,
     reports: HouseholdReports,
     existing_inferences: dict[str, dict[str, Any]],
 ) -> None:
-    income_months, avg_monthly_income = _income_metrics(storage)
+    income_months, avg_monthly_income = _income_metrics(monthly_income)
     coverage_months, avg_essential, avg_discretionary, avg_savings = _report_metrics(
         reports,
         avg_monthly_income,

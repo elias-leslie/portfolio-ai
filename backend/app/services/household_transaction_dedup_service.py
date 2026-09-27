@@ -22,9 +22,10 @@ Design:
   statement_csv, then oldest). Other rows get ``removed=TRUE`` plus a
   ``metadata.dedup`` audit blob — never deleted. Manual categorizations
   on removed rows are copied onto a compatible survivor.
-- Only ``plaid`` / ``statement_csv`` / ``statement_activity`` rows are
-  considered; pending rows are skipped (the soft-charge reconciler owns
-  the pending lifecycle).
+- Plaid, SnapTrade, statement and bank-statement rows are considered;
+  pending rows are skipped (the soft-charge reconciler owns that lifecycle).
+- Opposite-flow, cross-account pairs are reported for review. Frequency of
+  nearby merchant activity cannot establish which source direction is right.
 
 Known limit: two distinct real charges with identical amount, compatible
 merchants, dates <= 3 days apart, *each seen by only one source*, would
@@ -69,6 +70,9 @@ FUZZY_DATE_TOLERANCE_DAYS = 3
 _MERCHANT_MIN_PREFIX = 6
 _MERCHANT_MIN_SUBSUMED = 3
 _MANUAL_SOURCES = {"manual", "manual_rule", "merchant_rule"}
+_AUDIT_SOURCES = {"transaction_audit", "transaction_audit_agent"}
+_PROTECTED_SOURCES = _MANUAL_SOURCES | _AUDIT_SOURCES
+_PDF_SOURCES = {"bank_statement", "statement_activity"}
 
 
 # Card processors prefix the real merchant on statement labels ("SQ *NU AGE",
@@ -179,7 +183,7 @@ def _rows_joined(a: dict[str, Any], b: dict[str, Any]) -> bool:
         # destroys one of the two real transactions.
         key_a, key_b = merchant_key(a), merchant_key(b)
         if not key_a or not key_b:
-            return True
+            return False
         return merchants_compatible(key_a, key_b)
     if a["source_system"] == b["source_system"]:
         return False
@@ -244,6 +248,10 @@ def plan_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any] | None:
         return None
     survivor_ids = {str(r["id"]) for r in best}
     removed = [r for r in cluster if str(r["id"]) not in survivor_ids]
+    if any(r.get("categorization_source") in _AUDIT_SOURCES for r in removed):
+        # A reviewed row may carry a flow decision that category copying cannot
+        # transfer to another row. Leave the cluster for explicit review.
+        return None
 
     category_copies: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for donor in removed:
@@ -261,11 +269,8 @@ def plan_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any] | None:
     return {"survivors": best, "removed": removed, "category_copies": category_copies}
 
 
-# A merchant payment has a direction. The same premium cannot both leave the
-# household and arrive in it on the same day, so a pair that claims otherwise is
-# one payment ingested twice with one side's sign misparsed -- not two events.
-# Transfers are deliberately excluded: an internal move between two owned
-# accounts is *supposed* to appear as a matched out/in pair.
+# Opposite-flow rows of the same amount and date need provenance review.
+# Transfers are excluded because matched out/in rows can be one internal move.
 _CONTRADICTORY_FLOWS = ("income", "expense")
 
 
@@ -311,13 +316,10 @@ def find_flow_contradictions(
 
 
 def merchant_direction_evidence(rows: list[dict[str, Any]]) -> dict[str, str]:
-    """Decide each merchant's true direction from how it behaves everywhere else.
+    """Summarize historical merchant direction for diagnostic review only.
 
-    A contradiction says one of the two rows is wrong but not which. The rest of
-    the ledger usually knows: an insurance carrier that appears as an expense in
-    every other month is an expense here too. Only an unambiguous majority
-    counts, so a merchant with genuinely mixed direction yields no verdict and
-    its contradictions are left alone rather than guessed at.
+    The majority cannot prove which side of a particular contradiction is
+    wrong; deduplication never uses this signal to remove a row.
     """
     tallies: dict[str, dict[str, int]] = {}
     for row in rows:
@@ -336,6 +338,46 @@ def merchant_direction_evidence(rows: list[dict[str, Any]]) -> dict[str, str]:
         elif tally["income"] > tally["expense"]:
             verdicts[key] = "income"
     return verdicts
+
+
+def cross_account_document_twins(
+    rows: list[dict[str, Any]],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """One PDF row and one CSV row with the same full transaction text.
+
+    Some Wells PDF and CSV imports resolve to different household account IDs.
+    Exact date, amount, flow and full alphanumeric description are required;
+    repeated same-key rows are left alone because pairing is ambiguous.
+    """
+    grouped: dict[tuple[date, str, str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        if row["source_system"] not in _PDF_SOURCES | {"statement_csv"}:
+            continue
+        description = re.sub(r"[^a-z0-9]", "", str(row.get("description") or "").lower())
+        if len(description) < 12:
+            continue
+        key = (
+            row["transaction_date"],
+            f"{row['amount']:.4f}",
+            row["flow_type"],
+            description,
+        )
+        grouped.setdefault(key, []).append(row)
+
+    twins: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for group in grouped.values():
+        if len(group) != 2:
+            continue
+        pdf = next((row for row in group if row["source_system"] in _PDF_SOURCES), None)
+        csv = next((row for row in group if row["source_system"] == "statement_csv"), None)
+        if (
+            pdf is not None
+            and csv is not None
+            and pdf["document_id"] != csv["document_id"]
+            and pdf["household_account_id"] != csv["household_account_id"]
+        ):
+            twins.append((pdf, csv))
+    return twins
 
 
 class HouseholdTransactionDedupService:
@@ -435,6 +477,7 @@ class HouseholdTransactionDedupService:
                 all_records.append(record)
 
             now = datetime.now(UTC)
+            planned_removed_ids: set[str] = set()
             for group in groups.values():
                 if len(group) < 2:
                     continue
@@ -445,6 +488,7 @@ class HouseholdTransactionDedupService:
                     summary["clusters"] += 1
                     summary["removed"] += len(plan["removed"])
                     summary["category_copies"] += len(plan["category_copies"])
+                    planned_removed_ids.update(str(row["id"]) for row in plan["removed"])
                     if len(summary["samples"]) < 10:
                         sample = plan["removed"][0]
                         summary["samples"].append(
@@ -494,7 +538,10 @@ class HouseholdTransactionDedupService:
                                 transaction_rule_id = %s,
                                 updated_at = %s
                             WHERE id = %s
-                              AND categorization_source NOT IN ('manual', 'manual_rule', 'merchant_rule')
+                              AND categorization_source NOT IN (
+                                  'manual', 'manual_rule', 'merchant_rule',
+                                  'transaction_audit', 'transaction_audit_agent'
+                              )
                             """,
                             [
                                 donor["category"],
@@ -507,52 +554,47 @@ class HouseholdTransactionDedupService:
                                 survivor["id"],
                             ],
                         )
+            for pdf, csv in cross_account_document_twins(
+                [row for row in all_records if row["id"] not in planned_removed_ids]
+            ):
+                protected = [
+                    row for row in (pdf, csv)
+                    if row.get("categorization_source") in _PROTECTED_SOURCES
+                ]
+                if len(protected) == 2:
+                    continue
+                # The CSV carries the account identity the mismatched PDF lost.
+                survivor = protected[0] if protected else csv
+                duplicate = csv if survivor is pdf else pdf
+                summary["clusters"] += 1
+                summary["removed"] += 1
+                planned_removed_ids.add(str(duplicate["id"]))
+                if dry_run:
+                    continue
+                conn.execute(
+                    """
+                    UPDATE household_transactions
+                    SET removed = TRUE,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                        updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [
+                        json.dumps({"dedup": {
+                            "batch_id": batch_id,
+                            "kept_transaction_id": str(survivor["id"]),
+                            "reason": "cross_account_exact_document_duplicate",
+                        }}),
+                        now,
+                        duplicate["id"],
+                    ],
+                )
             contradictions = find_flow_contradictions(list(all_records))
+            # A cross-account income/expense pair can be two genuine events.
+            # Neither merchant-majority nor an assumed expense establishes which
+            # row is wrong; surface these pairs for provenance review.
             summary["flow_contradictions"] = len(contradictions)
-            if contradictions:
-                directions = merchant_direction_evidence(list(all_records))
-                for income_row, expense_row in contradictions:
-                    verdict = directions.get(merchant_key(income_row))
-                    if verdict is None:
-                        # The ledger holds no majority opinion on this merchant.
-                        # Fall back to dropping the income side: a same-day,
-                        # same-amount, cross-account pair is one payment, and
-                        # booking it as income is what manufactures the phantom
-                        # income that makes a losing month read as a saving one.
-                        # Recorded as an assumption so it stays reversible.
-                        verdict = "expense"
-                        summary["flow_contradictions_unresolved"] += 1
-                        resolution = "assumed_expense"
-                    else:
-                        summary["flow_contradictions_resolved"] += 1
-                        resolution = verdict
-                    loser = income_row if verdict == "expense" else expense_row
-                    winner = expense_row if verdict == "expense" else income_row
-                    if dry_run:
-                        continue
-                    conn.execute(
-                        """
-                        UPDATE household_transactions
-                        SET removed = TRUE,
-                            metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
-                            updated_at = %s
-                        WHERE id = %s
-                        """,
-                        [
-                            json.dumps(
-                                {
-                                    "dedup": {
-                                        "batch_id": batch_id,
-                                        "kept_transaction_id": str(winner["id"]),
-                                        "reason": "flow_type_contradiction",
-                                        "merchant_direction": resolution,
-                                    }
-                                }
-                            ),
-                            now,
-                            loser["id"],
-                        ],
-                    )
+            summary["flow_contradictions_unresolved"] = len(contradictions)
             if not dry_run:
                 conn.commit()
         if summary["removed"]:

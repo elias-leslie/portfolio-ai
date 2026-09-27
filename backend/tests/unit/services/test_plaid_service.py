@@ -191,6 +191,92 @@ def test_card_payment_rule_preserves_refunds_and_payroll() -> None:
     ) == ("income", "Income", "essential")
 
 
+@pytest.mark.parametrize(
+    ("description", "expected_category", "expected_essentiality"),
+    [
+        ("Depop", "Retail", "discretionary"),
+        ("Anthropic", "Subscriptions", "discretionary"),
+        ("Airbnb", "Travel", "discretionary"),
+    ],
+)
+def test_card_merchant_credit_tagged_income_is_a_refund(
+    description: str, expected_category: str, expected_essentiality: str
+) -> None:
+    assert _transaction_classification(
+        Decimal("-120.18"),
+        {"primary": "INCOME", "detailed": "INCOME_OTHER_INCOME"},
+        account_type="credit",
+        description=description,
+    ) == ("refund", expected_category, expected_essentiality)
+
+
+@pytest.mark.parametrize("description", ["Unidentified card credit", "Cash back rewards"])
+def test_ambiguous_card_credit_is_neither_income_nor_spend_refund(description: str) -> None:
+    assert _transaction_classification(
+        Decimal("-120.18"),
+        {"primary": "INCOME", "detailed": "INCOME_OTHER_INCOME"},
+        account_type="credit",
+        description=description,
+    ) == ("credit", "Unknown", "mixed")
+
+
+def test_card_credit_uses_plaid_merchant_name_when_transaction_name_is_generic() -> None:
+    assert _transaction_classification(
+        Decimal("-25.00"),
+        {"primary": "INCOME", "detailed": "INCOME_OTHER_INCOME"},
+        account_type="credit",
+        description="Credit",
+        merchant_name="Depop",
+    ) == ("refund", "Retail", "discretionary")
+
+
+def test_plaid_replay_upsert_preserves_reviewed_flow_and_dedup_removal(monkeypatch) -> None:
+    service = _service()
+    service.transaction_service = SimpleNamespace(
+        _resolve_merchant=lambda **_kwargs: (None, "Depop", "Retail", "discretionary", False, None)
+    )
+    monkeypatch.setattr(plaid_service.SoftChargeReconciler, "try_match", lambda **_kwargs: None)
+    queries: list[str] = []
+
+    class FakeResult:
+        def fetchone(self):
+            return ("household-account", "Card", "credit")
+
+    class FakeConnection:
+        def execute(self, sql: str, _params: list[object]) -> FakeResult:
+            queries.append(sql)
+            return FakeResult()
+
+    service._upsert_transaction(
+        conn=FakeConnection(),
+        item={"item_id": "item-1"},
+        document_id="document-1",
+        transaction={
+            "transaction_id": "txn-1",
+            "account_id": "account-1",
+            "date": "2026-03-01",
+            "amount": -25.00,
+            "name": "Depop",
+            "personal_finance_category": {"primary": "INCOME", "detailed": "INCOME_OTHER_INCOME"},
+        },
+        removed=False,
+    )
+
+    household_upsert = next(sql for sql in queries if "INSERT INTO household_transactions" in sql)
+    assert "transaction_audit_agent" in household_upsert
+    assert "THEN household_transactions.flow_type" in household_upsert
+    assert "household_transactions.metadata ? 'dedup'" in household_upsert
+
+
+def test_confirmed_property_zelle_receipt_is_income_even_with_transfer_pfc() -> None:
+    assert _transaction_classification(
+        Decimal("-506.31"),
+        {"primary": "TRANSFER_IN", "detailed": "TRANSFER_IN_ACCOUNT_TRANSFER"},
+        account_type="depository",
+        description="Zelle From Michael Wiley Mortgage Payment On The Property At 8",
+    ) == ("income", "Income", "essential")
+
+
 def test_upsert_household_account_reuses_existing_mask_identity() -> None:
     service = _service()
     executed_params: list[list[object]] = []

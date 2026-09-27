@@ -12,10 +12,12 @@ from typing import Any
 
 from app.services._household_document_pipeline_utils import parse_decimal_value
 from app.services._household_merchants import (
+    _card_credit_flow,
     _classification_for_flow,
     _classify_merchant,
     _classify_statement_flow,
     _classify_wells_flow,
+    _is_property_payment_income,
     _is_refund_like_text,
 )
 from app.services._household_spend_filters import looks_like_investment_activity
@@ -302,14 +304,23 @@ def _classify_statement_csv_flow(
 
     income_tokens = ("dividend", "interest paid", "interest received", "interest credit")
     transfer_tokens = ("funds transfer", "transfer received", "zelle", "online transfer")
-    compact_transfer_tokens = ("epay", "cepay", "creditcautopay", "instxfer", "moneyline")
+    compact_transfer_tokens = (
+        "epay", "cepay", "creditcautopay", "instxfer", "moneyline",
+        "acctverify", "brokemoneylink", "venmocashout",
+    )
 
     if source_type == "credit_card":
         if signed_amount < 0:
             resolved_flow = "expense"
         else:
-            resolved_flow = "refund" if is_refund_like else "payment"
-    elif any(token in normalized for token in income_tokens):
+            resolved_flow = _card_credit_flow(
+                description=description, merchant_category=category
+            )
+    elif source_type == "brokerage" and "spaxx" in normalized and "dividend received" in normalized:
+        resolved_flow = "investment"
+    elif _is_property_payment_income(description) or any(
+        token in normalized for token in income_tokens
+    ):
         resolved_flow = "income"
     elif looks_like_investment_activity(description=description, merchant=description) or any(
         token in normalized for token in ("reinvestment", "reinvest", "sweep into")
@@ -326,7 +337,14 @@ def _classify_statement_csv_flow(
     ):
         resolved_flow = "transfer_in" if is_positive else "transfer_out"
 
-    if resolved_flow in {"payment", "transfer_in", "transfer_out", "investment"}:
+    if (
+        resolved_flow == "investment"
+        and source_type == "brokerage"
+        and "spaxx" in normalized
+        and "dividend received" in normalized
+    ):
+        resolved_category, resolved_essentiality = "Investments", "mixed"
+    elif resolved_flow in {"payment", "transfer_in", "transfer_out", "investment"}:
         resolved_category, resolved_essentiality = transfer_category
     elif resolved_flow == "income":
         resolved_category, resolved_essentiality = "Income", "essential"
@@ -336,6 +354,8 @@ def _classify_statement_csv_flow(
             description=description,
             amount=float(abs(signed_amount)),
         )
+    elif resolved_flow == "credit":
+        resolved_category, resolved_essentiality = "Unknown", "mixed"
     elif resolved_flow is None:
         if signed_amount < 0:
             resolved_flow = "expense"
@@ -455,10 +475,13 @@ def parse_ofx_transactions(
             if amount < 0:
                 flow_type = "expense"
             else:
-                flow_type = (
-                    "refund"
-                    if _is_refund_like_text(raw_merchant=description, description=description)
-                    else "payment"
+                merchant_category, _ = _classify_merchant(
+                    raw_merchant=description,
+                    description=description,
+                    amount=float(normalized_amount),
+                )
+                flow_type = _card_credit_flow(
+                    description=description, merchant_category=merchant_category
                 )
         else:
             flow_type = "expense" if amount < 0 else "income"
@@ -540,6 +563,15 @@ def parse_chase_statement(
             previous_normalized_line = normalized_line
             continue
         flow_type = _classify_statement_flow(description)
+        if amount < 0 and flow_type == "expense":
+            merchant_category, _ = _classify_merchant(
+                raw_merchant=description,
+                description=description,
+                amount=float(abs(amount)),
+            )
+            flow_type = _card_credit_flow(
+                description=description, merchant_category=merchant_category
+            )
         if flow_type != "expense":
             amount = abs(amount)
         category, essentiality = _classification_for_flow(

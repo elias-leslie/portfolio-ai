@@ -14,10 +14,6 @@ from app.services._household_taxonomy import (
     normalize_category,
 )
 
-MIN_SUBSCRIPTION_AMOUNT = 5.0
-MAX_SUBSCRIPTION_AMOUNT = 25.0
-BILLS_AMOUNT_THRESHOLD = 800.0
-
 _PLAID_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "BANK_FEES": ("Bills", "essential"),
     "ENTERTAINMENT_MUSIC_AND_AUDIO": ("Subscriptions", "discretionary"),
@@ -201,6 +197,8 @@ def _classify_statement_flow(description: str) -> str:
 
 def _classify_wells_flow(description: str) -> str:
     normalized = description.lower()
+    if _is_property_payment_income(description):
+        return "income"
     if (
         "payroll" in normalized
         or "deposit" in normalized
@@ -226,6 +224,15 @@ def _classify_wells_flow(description: str) -> str:
     return "expense"
 
 
+def _is_property_payment_income(description: str) -> bool:
+    """The confirmed third-party property receipt, not a generic Zelle rule."""
+    normalized = re.sub(r"\s+", " ", description.lower())
+    return (
+        re.search(r"\bzelle from michael wiley\b", normalized) is not None
+        and re.search(r"\bmortgage payment on the property at 8\b", normalized) is not None
+    )
+
+
 def _classify_merchant(
     *, raw_merchant: str, description: str, amount: float | None = None
 ) -> tuple[str, str]:
@@ -237,6 +244,15 @@ def _classify_merchant(
     if statement_name is not None:
         raw_merchant = statement_name
     normalized = _merchant_root(f"{raw_merchant} {description}")
+    specific_merchants = (
+        ("costco gas", ("Gas", "essential")),
+        ("seaworld food svc", ("Dining", "discretionary")),
+        ("sephora", ("Personal Care", "discretionary")),
+        ("sunbiz", ("Bills", "essential")),
+    )
+    for name, classification in specific_merchants:
+        if name in normalized:
+            return classification
     rules = [
         (["payroll", "ui benefit", "payables", "salary", "wages"], ("Income", "essential")),
         (["zelle from", "transfer from"], ("Transfers", "mixed")),
@@ -362,8 +378,8 @@ def _classify_merchant(
                 "chatgpt",
                 "claude",
                 "anthropic",
+                "nanonoble",
                 "google one",
-                "sunbiz",
                 "chamber",
             ],
             ("Subscriptions", "discretionary"),
@@ -375,7 +391,6 @@ def _classify_merchant(
                 "tj maxx",
                 "t j maxx",
                 "american eagle",
-                "sephora",
                 "amazon",
                 "dillard",
                 "aerie",
@@ -386,6 +401,7 @@ def _classify_merchant(
                 "michaels",
                 "adidas",
                 "edikted",
+                "depop",
             ],
             ("Retail", "discretionary"),
         ),
@@ -437,12 +453,6 @@ def _classify_merchant(
         if any(keyword in normalized for keyword in keywords):
             return classification
 
-    if amount is not None:
-        if MIN_SUBSCRIPTION_AMOUNT <= amount <= MAX_SUBSCRIPTION_AMOUNT:
-            return ("Subscriptions", "discretionary")
-        if amount >= BILLS_AMOUNT_THRESHOLD:
-            return ("Bills", "essential")
-
     return ("Household", "mixed")
 
 
@@ -455,6 +465,14 @@ def _classification_for_flow(
 ) -> tuple[str, str]:
     if flow_type == "income":
         return ("Income", "essential")
+    if flow_type == "credit":
+        return ("Unknown", "mixed")
+    if (
+        flow_type == "investment"
+        and "spaxx" in description.lower()
+        and "dividend received" in description.lower()
+    ):
+        return ("Investments", "mixed")
     if flow_type in {"payment", "transfer_in", "transfer_out", "investment"}:
         return ("Transfers", "mixed")
     category, _ = _classify_merchant(
@@ -492,6 +510,17 @@ def _looks_like_mixed_big_box_merchant(*, raw_merchant: str, description: str) -
 def _is_refund_like_text(*, raw_merchant: str, description: str) -> bool:
     normalized = _merchant_root(f"{raw_merchant} {description}")
     return "refund" in normalized or "return" in normalized
+
+
+def _card_credit_flow(*, description: str, merchant_category: str) -> str:
+    """Leave a card credit unresolved unless its text or spend category identifies it."""
+    if _classify_statement_flow(description) == "payment":
+        return "payment"
+    if _is_refund_like_text(raw_merchant=description, description=description):
+        return "refund"
+    if merchant_category not in {"Household", "Unknown", "Income", "Transfers"}:
+        return "refund"
+    return "credit"
 
 
 def _effective_transaction_flow(

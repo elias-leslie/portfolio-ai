@@ -219,19 +219,3 @@ LATEST_TRANSACTION_DATE_SQL = {
         GROUP BY household_account_id
     """,
 }
-
-INCOME_MONTHLY_AVG_SQL = f"""
-    SELECT
-        COUNT(*) AS months_with_income,
-        AVG(month_total) AS avg_monthly_income
-    FROM (
-        SELECT
-            date_trunc('month', transaction_date) AS month_bucket,
-            SUM(CAST(amount AS DOUBLE PRECISION)) AS month_total
-        FROM household_transactions
-        WHERE flow_type = 'income'
-          AND {current_transaction_date_predicate()}
-          AND NOT {_INVESTMENT_ACTIVITY_SQL}
-        GROUP BY 1
-    ) monthly_income
-"""

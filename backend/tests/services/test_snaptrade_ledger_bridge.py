@@ -246,7 +246,8 @@ def test_flow_classification_matches_statement_csv_path() -> None:
     assert by_external["act-duke"]["flow_type"] == "expense"
     assert by_external["act-cepay"]["flow_type"] == "transfer_out"
     assert by_external["act-cepay"]["category"] == "Transfers"
-    assert by_external["act-div"]["flow_type"] == "income"
+    assert by_external["act-div"]["flow_type"] == "investment"
+    assert by_external["act-div"]["category"] == "Investments"
     # Ledger stores absolute amounts; direction lives in flow_type.
     assert by_external["act-duke"]["amount"] == Decimal("170.43")
 

@@ -9,9 +9,9 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
+from app.services._household_dashboard_profile_inference import _income_metrics
 from app.services._household_dashboard_query_sql import (
     CATEGORIZATION_SQL,
-    INCOME_MONTHLY_AVG_SQL,
     MONTH_SPEND_SQL,
     RECURRING_SQL,
     RETIREMENT_CONTRIBUTION_SQL,
@@ -143,7 +143,6 @@ def test_current_fact_queries_share_current_date_guard() -> None:
         MONTH_SPEND_SQL,
         _UNKNOWN_ACCOUNT_SQL,
         STATEMENT_FRESHNESS_SQL,
-        INCOME_MONTHLY_AVG_SQL,
     ]
 
     assert all("transaction_date <= CURRENT_DATE" in sql for sql in guarded_queries)
@@ -154,9 +153,10 @@ def test_current_month_spend_excludes_brokerage_trades() -> None:
     assert "you sold" in MONTH_SPEND_SQL.lower()
 
 
-def test_income_average_excludes_brokerage_trade_proceeds() -> None:
-    assert "you sold" in INCOME_MONTHLY_AVG_SQL.lower()
-    assert "you redeemed" in INCOME_MONTHLY_AVG_SQL.lower()
+def test_profile_income_metrics_use_canonical_money_income_totals() -> None:
+    # The caller's Money totals already exclude removed rows and reversals.
+    # A second raw SQL sum can reintroduce those rows into inferred budgets.
+    assert _income_metrics({"2026-01": 7622.17, "2026-02": 6541.84}) == (2, 7082.005)
 
 
 def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for_same_source_type() -> None:

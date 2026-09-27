@@ -9,11 +9,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
+from app.services import household_transaction_service as transaction_module
 from app.services._household_merchants import _effective_transaction_classification
 from app.services._household_report_builder import _merchant_aliases
 from app.services._household_spend_filters import is_budget_driving_expense
 from app.services._household_spend_periods import month_label
 from app.services._household_transaction_parsers import (
+    ExtractedTransaction,
     _classify_statement_csv_flow,
     extract_transactions,
     parse_chase_statement,
@@ -41,6 +45,27 @@ def test_cma_card_cautopay_is_a_transfer_without_hiding_utility_autopay() -> Non
         category="Bills",
         essentiality="essential",
     ) == ("expense", "Bills", "essential")
+
+
+@pytest.mark.parametrize(
+    ("description", "signed_amount", "expected_flow"),
+    [
+        ("DIRECT DEPOSIT PAYPAL ACCTVERIFY (Cash)", Decimal("0.12"), "transfer_in"),
+        ("DIRECT DEBIT CHARLES SCHWABACCTVERIFY (Cash)", Decimal("-0.54"), "transfer_out"),
+        ("DIRECT DEPOSIT SCHWAB BROKEMONEYLINK (Cash)", Decimal("100"), "transfer_in"),
+        ("DIRECT DEPOSIT VENMO CASHOUT (Cash)", Decimal("114.51"), "transfer_in"),
+    ],
+)
+def test_cma_verification_and_wallet_movements_are_transfers(
+    description: str, signed_amount: Decimal, expected_flow: str
+) -> None:
+    assert _classify_statement_csv_flow(
+        description=description,
+        source_type="brokerage",
+        signed_amount=signed_amount,
+        category="Income" if signed_amount > 0 else "Household",
+        essentiality="essential" if signed_amount > 0 else "mixed",
+    ) == (expected_flow, "Transfers", "mixed")
 
 
 class _FakeConnection:
@@ -330,14 +355,14 @@ def test_extract_transactions_parses_generic_cash_management_csv(tmp_path: Path)
         "expense",
         "transfer_in",
         "investment",
-        "income",
+        "investment",
         "transfer_out",
     ]
     assert [transaction.category for transaction in transactions] == [
         "Bills",
         "Transfers",
         "Transfers",
-        "Income",
+        "Investments",
         "Transfers",
     ]
     assert transactions[0].account_label == "Cash Management (Joint WROS)"
@@ -639,6 +664,112 @@ def test_import_document_transactions_keeps_transfer_categories_even_with_old_me
     assert service.storage.conn.insert_params[12] == "transfer_out"
     assert service.storage.conn.insert_params[13] == "Transfers"
     assert service.storage.conn.insert_params[14] == "mixed"
+
+
+def test_document_replay_reuses_prior_row_and_preserves_reviewed_flow() -> None:
+    class ReplayConnection(_MerchantOverrideConnection):
+        def __init__(self) -> None:
+            super().__init__()
+            self.upsert_sql = ""
+            self.delete_sql = ""
+
+        def execute(self, sql: str, params: list[Any] | None = None) -> Any:
+            if "SELECT row_hash" in sql and "FROM household_transactions" in sql:
+                return SimpleNamespace(fetchall=lambda: [("prior-row-hash",)])
+            if "INSERT INTO household_transactions" in sql:
+                self.upsert_sql = sql
+            if "DELETE FROM household_transactions" in sql:
+                self.delete_sql = sql
+            return super().execute(sql, params)
+
+    service = HouseholdTransactionService()
+    storage = _MerchantOverrideStorage()
+    storage.conn = ReplayConnection()
+    service.storage = storage
+
+    service.import_document_transactions(
+        document=SimpleNamespace(
+            id="doc-replay",
+            filename="wells.pdf",
+            source_type="bank",
+            document_type="statement",
+            account_label="Wells Fargo Checking",
+        ),
+        reviewed={
+            "source_type": "bank",
+            "document_type": "statement",
+            "summary": "Wells Fargo statement",
+            "extracted_text": (
+                "February 25, 2026 Page 2 of 5\nTransaction history\n"
+                "2/17   Chase Credit Crd Epay 260215 9126729844 Alex Demo  5,645.34       1,100.00\n"
+                "Totals $5,645.34 $1,100.00\n"
+            ),
+            "structured_data": {},
+        },
+    )
+
+    assert storage.conn.insert_params is not None
+    assert storage.conn.insert_params[4] == "prior-row-hash"
+    assert "transaction_audit_agent" in storage.conn.upsert_sql
+    assert "THEN household_transactions.flow_type" in storage.conn.upsert_sql
+    assert "household_transactions.metadata ? 'dedup'" in storage.conn.upsert_sql
+    assert "AND NOT (metadata ? 'dedup')" in storage.conn.delete_sql
+    assert "transaction_audit_agent" in storage.conn.delete_sql
+
+
+def test_document_replay_keeps_two_identical_same_day_charges(monkeypatch) -> None:
+    class RepeatedConnection(_MerchantOverrideConnection):
+        def __init__(self) -> None:
+            super().__init__()
+            self.row_hashes: list[str] = []
+            self.prior_hashes = ["prior-row-hash"]
+
+        def execute(self, sql: str, params: list[Any] | None = None) -> Any:
+            if "SELECT row_hash" in sql and "FROM household_transactions" in sql:
+                return SimpleNamespace(
+                    fetchall=lambda: [(row_hash,) for row_hash in self.prior_hashes]
+                )
+            if "INSERT INTO household_transactions" in sql and params is not None:
+                row_hash = str(params[4])
+                self.row_hashes.append(row_hash)
+                if row_hash not in self.prior_hashes:
+                    self.prior_hashes.append(row_hash)
+            return super().execute(sql, params)
+
+    repeated = ExtractedTransaction(
+        transaction_date=date(2026, 2, 17),
+        description="Same merchant",
+        raw_merchant="Same merchant",
+        amount=Decimal("25.00"),
+        flow_type="expense",
+        category="Retail",
+        essentiality="discretionary",
+        confidence=0.95,
+    )
+    monkeypatch.setattr(transaction_module, "extract_transactions", lambda **_kwargs: [repeated, repeated])
+    service = HouseholdTransactionService()
+    storage = _MerchantOverrideStorage()
+    storage.conn = RepeatedConnection()
+    service.storage = storage
+
+    document = SimpleNamespace(
+        id="doc-repeat",
+        filename="activity.csv",
+        source_type="credit_card",
+        document_type="statement",
+        account_label="Card",
+    )
+    reviewed = {"source_type": "credit_card", "document_type": "statement"}
+    service.import_document_transactions(
+        document=document,
+        reviewed=reviewed,
+    )
+    service.import_document_transactions(document=document, reviewed=reviewed)
+
+    assert len(storage.conn.row_hashes) == 4
+    assert storage.conn.row_hashes[0] == "prior-row-hash"
+    assert storage.conn.row_hashes[1] != storage.conn.row_hashes[0]
+    assert storage.conn.row_hashes[2:] == storage.conn.row_hashes[:2]
 
 
 def test_build_reports_excludes_cash_movement_rows_even_when_stored_as_expense() -> None:

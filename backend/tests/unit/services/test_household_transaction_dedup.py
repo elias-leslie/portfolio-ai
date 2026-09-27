@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 
 from app.services.household_transaction_dedup_service import (
     DEDUP_SOURCE_SYSTEMS,
     SOURCE_PRIORITY,
+    HouseholdTransactionDedupService,
     cluster_rows,
+    cross_account_document_twins,
     find_flow_contradictions,
     merchant_direction_evidence,
     merchant_key,
@@ -139,12 +142,97 @@ def test_cluster_cross_source_date_skew_requires_compatible_merchants() -> None:
     assert sizes == [1, 2]
 
 
+def test_matching_pdf_and_csv_statement_rows_collapse_with_same_account_evidence() -> None:
+    pdf = _row(
+        row_id="pdf", document_id="pdf-document", source_system="statement_activity",
+        raw_merchant="Depop",
+    )
+    csv = _row(
+        row_id="csv", document_id="csv-document", source_system="statement_csv",
+        raw_merchant="DEPOP | Sale",
+    )
+    plan = plan_cluster(cluster_rows([pdf, csv])[0])
+    assert plan is not None
+    assert [row["id"] for row in plan["survivors"]] == ["pdf"]
+    assert [row["id"] for row in plan["removed"]] == ["csv"]
+
+
+def test_cross_account_pdf_csv_twins_require_exact_full_text_and_one_to_one_rows() -> None:
+    pdf = _row(
+        row_id="pdf", document_id="wells-pdf", source_system="bank_statement",
+        raw_merchant="Zelle From Michael Wiley Mortgage Payment On The Property At 8",
+    )
+    csv = _row(
+        row_id="csv", document_id="wells-csv", source_system="statement_csv",
+        raw_merchant="ZELLE FROM MICHAEL WILEY - MORTGAGE PAYMENT ON THE PROPERTY AT 8",
+    )
+    csv["household_account_id"] = "misattributed-account"
+    assert [(a["id"], b["id"]) for a, b in cross_account_document_twins([pdf, csv])] == [
+        ("pdf", "csv")
+    ]
+
+    repeated_csv = dict(csv, id="csv-2")
+    assert cross_account_document_twins([pdf, csv, repeated_csv]) == []
+    different_detail = dict(csv, description="ZELLE FROM MICHAEL WILEY OTHER PAYMENT")
+    assert cross_account_document_twins([pdf, different_detail]) == []
+
+
+def test_cross_account_exact_document_pair_soft_removes_only_pdf_copy() -> None:
+    now = datetime(2026, 1, 3, tzinfo=UTC)
+    description = "Zelle From Michael Wiley Mortgage Payment On The Property At 8"
+    rows = [
+        ("pdf", "doc-pdf", "acct-pdf", "bank_statement", date(2026, 1, 2), 506.31,
+         "income", description, description, "parser", "Income", "essential",
+         None, None, None, now),
+        ("csv", "doc-csv", "acct-csv", "statement_csv", date(2026, 1, 2), 506.31,
+         "income", description.upper(), description.upper(), "parser", "Income", "essential",
+         None, None, None, now),
+    ]
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.writes: list[tuple[str, list[object]]] = []
+
+        def execute(self, sql: str, params: list[object]) -> FakeConnection:
+            if not sql.lstrip().startswith("SELECT"):
+                self.writes.append((sql, params))
+            return self
+
+        def fetchall(self) -> list[tuple]:
+            return rows
+
+        def commit(self) -> None:
+            pass
+
+    class FakeStorage:
+        def __init__(self) -> None:
+            self.conn = FakeConnection()
+
+        @contextmanager
+        def connection(self):
+            yield self.conn
+
+    storage = FakeStorage()
+    summary = HouseholdTransactionDedupService(storage).dedupe_transactions()
+    assert summary["removed"] == 1
+    assert len(storage.conn.writes) == 1
+    assert storage.conn.writes[0][1][-1] == "pdf"
+    assert "cross_account_exact_document_duplicate" in storage.conn.writes[0][1][0]
+
+
 def test_cluster_same_source_different_dates_never_join() -> None:
     rows = [
         _row(row_id="a", document_id="d1", on=date(2026, 3, 2)),
         _row(row_id="b", document_id="d2", on=date(2026, 3, 4)),
     ]
     assert len(cluster_rows(rows)) == 2
+
+
+def test_cross_document_match_requires_merchant_evidence() -> None:
+    first = _row(row_id="a", document_id="d1", raw_merchant="")
+    first["description"] = ""
+    second = _row(row_id="b", document_id="d2", raw_merchant="All Smiles Ortho")
+    assert len(cluster_rows([first, second])) == 2
 
 
 def test_plan_keeps_max_per_document_multiplicity() -> None:
@@ -230,6 +318,15 @@ def test_plan_copies_manual_category_onto_compatible_survivor() -> None:
     survivor, donor = plan["category_copies"][0]
     assert survivor["id"] == "wa"
     assert donor["id"] == "lm"
+
+
+def test_plan_keeps_audited_flow_row_for_review() -> None:
+    audited = _row(
+        row_id="audit", document_id="d1", categorization_source="transaction_audit"
+    )
+    plain_a = _row(row_id="p1", document_id="d2", source_system="plaid")
+    plain_b = _row(row_id="p2", document_id="d2", source_system="plaid")
+    assert plan_cluster([audited, plain_a, plain_b]) is None
 
 
 def test_merchant_key_strips_statement_redaction_runs() -> None:
@@ -322,6 +419,48 @@ def test_merchant_direction_evidence_needs_an_unambiguous_majority() -> None:
 
     tied = merchant_direction_evidence([expense_one, income_one])
     assert merchant_key(expense_one) not in tied
+
+
+def test_flow_contradiction_is_reported_without_guessing_which_row_to_remove() -> None:
+    now = datetime(2026, 1, 3, tzinfo=UTC)
+    rows = [
+        ("income", "doc-income", "acct-1", "statement_csv", date(2026, 1, 2), 132.08,
+         "income", "PROG SELECT INS", "PROG SELECT INS", "parser", "Income", "essential",
+         None, None, None, now),
+        ("expense", "doc-expense", "acct-2", "bank_statement", date(2026, 1, 2), 132.08,
+         "expense", "PROG SELECT INS", "PROG SELECT INS", "parser", "Insurance", "essential",
+         None, None, None, now),
+    ]
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.writes: list[str] = []
+
+        def execute(self, sql: str, _params: list[object]) -> FakeConnection:
+            if not sql.lstrip().startswith("SELECT"):
+                self.writes.append(sql)
+            return self
+
+        def fetchall(self) -> list[tuple]:
+            return rows
+
+        def commit(self) -> None:
+            pass
+
+    class FakeStorage:
+        def __init__(self) -> None:
+            self.conn = FakeConnection()
+
+        @contextmanager
+        def connection(self):
+            yield self.conn
+
+    storage = FakeStorage()
+    summary = HouseholdTransactionDedupService(storage).dedupe_transactions()
+    assert summary["flow_contradictions"] == 1
+    assert summary["flow_contradictions_unresolved"] == 1
+    assert summary["flow_contradictions_resolved"] == 0
+    assert storage.conn.writes == []
 
 
 def test_live_feeds_outrank_one_time_uploads() -> None:

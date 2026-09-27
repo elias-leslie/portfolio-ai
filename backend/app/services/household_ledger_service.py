@@ -116,7 +116,7 @@ def _effective_date(*values: Any) -> datetime:
 
 def _is_credit_flow(flow_type: str | None) -> bool:
     normalized = (flow_type or "").strip().lower()
-    return normalized in {"income", "refund", "transfer_in"}
+    return normalized in {"income", "refund", "transfer_in", "credit"}
 
 
 def _is_debit_flow(flow_type: str | None) -> bool:
