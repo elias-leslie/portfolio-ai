@@ -9,7 +9,11 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
-from app.services._household_dashboard_profile_inference import _income_metrics
+from app.services._household_dashboard_profile_inference import (
+    _income_metrics,
+    _stale_transaction_inference_fields,
+    build_inferences,
+)
 from app.services._household_dashboard_query_sql import (
     CATEGORIZATION_SQL,
     MONTH_SPEND_SQL,
@@ -157,6 +161,52 @@ def test_profile_income_metrics_use_canonical_money_income_totals() -> None:
     # The caller's Money totals already exclude removed rows and reversals.
     # A second raw SQL sum can reintroduce those rows into inferred budgets.
     assert _income_metrics({"2026-01": 7622.17, "2026-02": 6541.84}) == (2, 7082.005)
+
+
+def test_overspending_does_not_become_a_monthly_discretionary_target() -> None:
+    inferences = build_inferences(6000, 6, 0.85, 4000, 3500, 0, 6, 0.85)
+    fields = {name for name, *_ in inferences}
+    assert "monthly_discretionary_target" not in fields
+    assert "monthly_savings_target" not in fields
+    assert "monthly_net_income_target" in fields
+    no_income_fields = {name for name, *_ in build_inferences(0, 0, 0, 0, 3500, 0, 6, 0.85)}
+    assert "monthly_discretionary_target" not in no_income_fields
+
+
+def test_stale_savings_and_unaffordable_target_inferences_are_retired() -> None:
+    profile = SimpleNamespace(monthly_discretionary_target=None, monthly_savings_target=0)
+    existing = {
+        "monthly_discretionary_target": {"source": "transaction_inference", "status": "inferred"},
+        "monthly_savings_target": {"source": "transaction_inference", "status": "inferred"},
+        "monthly_net_income_target": {"source": "transaction_inference", "status": "confirmed"},
+    }
+    assert _stale_transaction_inference_fields(existing, profile, set()) == [
+        "monthly_discretionary_target", "monthly_savings_target"
+    ]
+
+
+def test_superseded_inference_is_not_presented_as_a_budget_value(monkeypatch) -> None:
+    from app.services import household_finance_service as finance_module
+
+    class EmptyProfile:
+        def __getattr__(self, _name: str) -> None:
+            return None
+
+    monkeypatch.setattr(finance_module, "fetch_inferred_value_rows", lambda _storage: {
+        "monthly_discretionary_target": {
+            "value": "6639.41", "confidence": 0.85, "status": "superseded",
+            "rationale": "old transaction estimate",
+        }
+    })
+    service = SimpleNamespace(storage=object())
+    resolved = finance_module.HouseholdFinanceService.get_resolved_values(
+        service, profile=EmptyProfile(), questions=[]
+    )
+    discretionary = next(
+        value for value in resolved if value.field_name == "monthly_discretionary_target"
+    )
+    assert discretionary.value is None
+    assert discretionary.status == "missing"
 
 
 def test_detect_unknown_accounts_skips_institution_when_known_account_exists_for_same_source_type() -> None:

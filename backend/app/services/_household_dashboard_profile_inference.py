@@ -45,7 +45,14 @@ def build_inferences(
             "monthly_essential_target", avg_essential, confidence,
             f"I see ~${avg_essential:,.0f}/mo in essential spending across {coverage_months} month{'s' if coverage_months != 1 else ''} of transaction data.",
         ))
-    if avg_discretionary > 0:
+    # Observed overspending is evidence, not a feasible monthly budget target.
+    # One-time purchases can dominate this average, so abstain when the
+    # essentials plus discretionary history exceed observed income.
+    if (
+        avg_discretionary > 0
+        and avg_monthly_income > 0
+        and avg_essential + avg_discretionary <= avg_monthly_income
+    ):
         inferences.append((
             "monthly_discretionary_target", avg_discretionary, confidence,
             f"I see ~${avg_discretionary:,.0f}/mo in discretionary spending across {coverage_months} month{'s' if coverage_months != 1 else ''} of transaction data.",
@@ -63,11 +70,11 @@ def _update_inference(conn: Any, field_name: str, rounded_value: float, confiden
     conn.execute(
         """
         UPDATE household_inferred_values
-        SET value_text = %s, confidence = %s, rationale = %s,
+        SET value_text = %s, confidence = %s, rationale = %s, status = 'inferred',
             metadata = %s::jsonb, updated_at = %s
         WHERE field_name = %s
           AND metadata->>'source' = 'transaction_inference'
-          AND status NOT IN ('confirmed', 'dismissed', 'superseded')
+          AND status NOT IN ('confirmed', 'dismissed')
         """,
         [str(rounded_value), confidence, rationale, metadata_json, now, field_name],
     )
@@ -123,6 +130,21 @@ def _income_metrics(monthly_income: Mapping[str, float]) -> tuple[int, float]:
     return income_months, sum(monthly_income.values()) / income_months if income_months else 0.0
 
 
+def _stale_transaction_inference_fields(
+    existing_inferences: Mapping[str, Mapping[str, Any]],
+    profile: HouseholdProfile,
+    desired_fields: set[str],
+) -> list[str]:
+    """Retire inferred targets that current evidence no longer supports."""
+    return sorted(
+        field_name
+        for field_name, inference in existing_inferences.items()
+        if inference.get("source") == "transaction_inference"
+        and inference.get("status") == "inferred"
+        and (field_name not in desired_fields or getattr(profile, field_name, None) is not None)
+    )
+
+
 def _report_metrics(reports: HouseholdReports, avg_monthly_income: float) -> tuple[int, float, float, float]:
     coverage_months = reports.executive.coverage_months
     avg_essential = reports.executive.average_monthly_essentials
@@ -156,10 +178,22 @@ def infer_profile_from_transactions(
         coverage_months,
         confidence_for_months(coverage_months),
     )
-    if not inferences:
+    desired_fields = {field_name for field_name, *_ in inferences}
+    stale_fields = _stale_transaction_inference_fields(
+        existing_inferences, profile, desired_fields
+    )
+    if not inferences and not stale_fields:
         return
     updated = False
     with storage.connection() as conn:
+        for field_name in stale_fields:
+            conn.execute(
+                """UPDATE household_inferred_values SET status='superseded', updated_at=NOW()
+                   WHERE field_name=%s AND metadata->>'source'='transaction_inference'
+                     AND status='inferred'""",
+                [field_name],
+            )
+            updated = True
         for field_name, value, confidence, rationale in inferences:
             if not upsert_transaction_inference(
                 conn,

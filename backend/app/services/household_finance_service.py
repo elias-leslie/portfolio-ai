@@ -667,7 +667,9 @@ class HouseholdFinanceService(_HFDocumentMethods, _HFIntakeMethods):
                         rationale="You confirmed or overrode this value directly.",
                     )
                 )
-            elif inferred is not None:
+            elif inferred is not None and inferred.get("status") not in {
+                "dismissed", "superseded"
+            }:
                 conf = inferred["confidence"]
                 resolved.append(
                     HouseholdResolvedValue(
