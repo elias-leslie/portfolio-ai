@@ -302,7 +302,7 @@ def _classify_statement_csv_flow(
 
     income_tokens = ("dividend", "interest paid", "interest received", "interest credit")
     transfer_tokens = ("funds transfer", "transfer received", "zelle", "online transfer")
-    compact_transfer_tokens = ("epay", "cepay", "instxfer", "moneyline")
+    compact_transfer_tokens = ("epay", "cepay", "creditcautopay", "instxfer", "moneyline")
 
     if source_type == "credit_card":
         if signed_amount < 0:

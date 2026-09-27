@@ -16,6 +16,7 @@ _INVESTMENT_ACTIVITY_TEXT_PATTERNS = (
 _NON_SPEND_TEXT_PATTERNS = (
     "payment thank you",
     "credit crd epay",
+    "credit cautopay",
     "inst xfer",
     "online transfer",
     "recurring transfer",
@@ -41,6 +42,7 @@ RULE_LABELS = {
     "category:debt payments": "Paying down a balance",
     "description:payment thank you": "Card payment",
     "description:credit crd epay": "Card payment",
+    "description:credit cautopay": "Card payment",
     "description:inst xfer": "Account transfer",
     "description:online transfer": "Account transfer",
     "description:recurring transfer": "Standing transfer",

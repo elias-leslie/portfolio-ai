@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -47,6 +48,7 @@ _DEFAULT_PRODUCTS = ["transactions"]
 _DEFAULT_COUNTRY_CODES = ["US"]
 _VALID_ENVIRONMENTS = {"sandbox", "production"}
 _GENERIC_PLAID_ACCOUNT_NAMES = {"account", "credit card"}
+_CARD_PAYMENT_DESCRIPTION = re.compile(r"^\s*(?:automatic\s+)?payment[\s-]+thank\b", re.IGNORECASE)
 _MASK_IDENTITY_PREFIXES = (
     "institution-mask::",
     "mask::",
@@ -219,9 +221,24 @@ def _account_label(
     return label
 
 
-def _transaction_flow(amount: Decimal, personal_finance_category: dict[str, object]) -> str:
+def _transaction_flow(
+    amount: Decimal,
+    personal_finance_category: dict[str, object],
+    *,
+    account_type: str | None = None,
+    description: str = "",
+) -> str:
     primary = str(personal_finance_category.get("primary") or "").upper()
     detailed = str(personal_finance_category.get("detailed") or "").upper()
+    # A card payment is a credit on the card, regardless of the provider's
+    # personal-finance category. Plaid has labeled this household's payment as
+    # salary, which otherwise becomes phantom income.
+    if (
+        amount < 0
+        and (account_type or "").lower() in {"credit", "credit_card"}
+        and _CARD_PAYMENT_DESCRIPTION.search(description)
+    ):
+        return "payment"
     if amount > 0:
         if primary == "TRANSFER_OUT":
             return "investment" if "INVESTMENT" in detailed else "transfer_out"
@@ -246,6 +263,25 @@ def _transaction_category(personal_finance_category: dict[str, object]) -> tuple
     # "GENERAL_SERVICES_STORAGE" reached the household's category legend as
     # "General Services Storage", sitting beside the curated names.
     return canonical_classification(str(raw))
+
+
+def _transaction_classification(
+    amount: Decimal,
+    personal_finance_category: dict[str, object],
+    *,
+    account_type: str | None,
+    description: str,
+) -> tuple[str, str, str]:
+    flow_type = _transaction_flow(
+        amount,
+        personal_finance_category,
+        account_type=account_type,
+        description=description,
+    )
+    if flow_type == "payment":
+        return flow_type, "Transfers", "mixed"
+    category, essentiality = _transaction_category(personal_finance_category)
+    return flow_type, category, essentiality
 
 
 class PlaidService:
@@ -1356,8 +1392,6 @@ class PlaidService:
             return
         account_id = str(transaction.get("account_id") or "")
         personal_finance_category = _as_json_object(transaction.get("personal_finance_category"))
-        category, essentiality = _transaction_category(personal_finance_category)
-        flow_type = _transaction_flow(amount, personal_finance_category)
         merchant = str(
             transaction.get("merchant_name")
             or transaction.get("name")
@@ -1367,7 +1401,7 @@ class PlaidService:
         household_amount = abs(amount)
         account_row = conn.execute(
             """
-            SELECT household_account_id, name
+            SELECT household_account_id, name, type
             FROM plaid_accounts
             WHERE account_id = %s
             """,
@@ -1375,6 +1409,12 @@ class PlaidService:
         ).fetchone()
         household_account_id = str(account_row[0]) if account_row and account_row[0] else None
         account_label = str(account_row[1]) if account_row and account_row[1] else None
+        flow_type, category, essentiality = _transaction_classification(
+            amount,
+            personal_finance_category,
+            account_type=str(account_row[2]) if account_row and account_row[2] else None,
+            description=str(transaction.get("name") or merchant),
+        )
         merchant_id, canonical_name, category, essentiality, has_manual_rule, rule_id = (
             self.transaction_service._resolve_merchant(
                 conn=conn,

@@ -14,6 +14,7 @@ from app.services._household_report_builder import _merchant_aliases
 from app.services._household_spend_filters import is_budget_driving_expense
 from app.services._household_spend_periods import month_label
 from app.services._household_transaction_parsers import (
+    _classify_statement_csv_flow,
     extract_transactions,
     parse_chase_statement,
     parse_ofx_transactions,
@@ -23,6 +24,23 @@ from app.services.household_transaction_service import (
     HouseholdTransactionService,
     _undated_receipt_reason,
 )
+
+
+def test_cma_card_cautopay_is_a_transfer_without_hiding_utility_autopay() -> None:
+    assert _classify_statement_csv_flow(
+        description="DIRECT DEBIT CHASE CREDIT CAUTOPAY (Cash)",
+        source_type="brokerage",
+        signed_amount=Decimal("-5896.50"),
+        category="Bills",
+        essentiality="essential",
+    ) == ("transfer_out", "Transfers", "mixed")
+    assert _classify_statement_csv_flow(
+        description="DIRECT DEBIT DUKE ENERGY AUTOPAY (Cash)",
+        source_type="brokerage",
+        signed_amount=Decimal("-200"),
+        category="Bills",
+        essentiality="essential",
+    ) == ("expense", "Bills", "essential")
 
 
 class _FakeConnection:

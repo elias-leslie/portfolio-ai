@@ -14,6 +14,7 @@ from app.services.plaid_service import (
     PlaidService,
     _account_kind,
     _transaction_category,
+    _transaction_classification,
     _transaction_flow,
 )
 
@@ -158,6 +159,36 @@ def test_transaction_flow_keeps_investment_transfers_out_of_spend() -> None:
         )
         == "investment"
     )
+
+
+def test_card_payment_is_not_income_when_plaid_calls_it_salary() -> None:
+    assert _transaction_classification(
+        Decimal("-5896.50"),
+        {"primary": "INCOME", "detailed": "INCOME_SALARY"},
+        account_type="credit",
+        description="AUTOMATIC PAYMENT - THANK",
+    ) == ("payment", "Transfers", "mixed")
+    assert _transaction_classification(
+        Decimal("-6189.73"),
+        {"primary": "LOAN_DISBURSEMENTS", "detailed": "LOAN_DISBURSEMENTS_OTHER_DISBURSEMENT"},
+        account_type="credit",
+        description="Payment Thank You-Mobile",
+    ) == ("payment", "Transfers", "mixed")
+
+
+def test_card_payment_rule_preserves_refunds_and_payroll() -> None:
+    assert _transaction_classification(
+        Decimal("-50"),
+        {"primary": "TRAVEL", "detailed": "TRAVEL_LODGING"},
+        account_type="credit",
+        description="AIRBNB",
+    ) == ("refund", "Travel", "discretionary")
+    assert _transaction_classification(
+        Decimal("-2827.13"),
+        {"primary": "INCOME", "detailed": "INCOME_SALARY"},
+        account_type="depository",
+        description="PAYROLL",
+    ) == ("income", "Income", "essential")
 
 
 def test_upsert_household_account_reuses_existing_mask_identity() -> None:
