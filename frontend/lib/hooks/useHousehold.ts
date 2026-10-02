@@ -474,7 +474,6 @@ export function useUploadHouseholdDocument() {
     mutationFn: (payload: HouseholdDocumentUpload) =>
       uploadHouseholdDocument(payload),
     onSuccess: async (document) => {
-      await refreshHouseholdQueries(queryClient)
       const duplicateDetected =
         document.metadata?.duplicateDetected ??
         document.metadata?.duplicate_detected
@@ -483,6 +482,7 @@ export function useUploadHouseholdDocument() {
         document.metadata?.duplicate_rebound
       if (duplicateDetected === true && duplicateRebound !== true) {
         toast.info(`${document.filename} already exists in evidence intake.`)
+        await refreshHouseholdQueries(queryClient)
         return
       }
       toast.success(
@@ -490,6 +490,7 @@ export function useUploadHouseholdDocument() {
           ? `${document.filename} already exists; reapplying to selected account.`
           : `${document.filename} staged for evidence intake.`,
       )
+      await refreshHouseholdQueries(queryClient)
       void watchUploadedDocument(queryClient, document)
         .then((latest) => {
           if (!documentApplicationDone(latest)) return
@@ -520,7 +521,6 @@ export function useUploadHouseholdDocuments() {
     mutationFn: (payloads: HouseholdDocumentUpload[]) =>
       uploadHouseholdDocuments(payloads),
     onSuccess: async (documents) => {
-      await refreshHouseholdQueries(queryClient)
       const staged = documents.filter(
         (document) =>
           (document.metadata?.duplicateDetected ??
@@ -530,11 +530,13 @@ export function useUploadHouseholdDocuments() {
       )
       if (staged.length === 0) {
         toast.info('Evidence files already exist in intake.')
+        await refreshHouseholdQueries(queryClient)
         return
       }
       toast.success(
         `${staged.length} evidence file${staged.length === 1 ? '' : 's'} staged for intake.`,
       )
+      await refreshHouseholdQueries(queryClient)
       for (const document of staged) {
         void watchUploadedDocument(queryClient, document)
           .then((latest) => {

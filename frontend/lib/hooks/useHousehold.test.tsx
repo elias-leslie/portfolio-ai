@@ -166,6 +166,53 @@ describe('household evidence upload through the real API client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['single', false],
+    ['single', true],
+    ['batch', false],
+    ['batch', true],
+  ] as const)('acknowledges %s uploads before household refresh completes (duplicate=%s)', async (mode, duplicate) => {
+    const document = documentFixture({
+      metadata: duplicate
+        ? { duplicate_detected: true }
+        : { application_summary: { status: 'needs_review' } },
+    })
+    fetchMock.mockResolvedValueOnce(
+      respondWithJson(mode === 'single' ? document : [document]),
+    )
+    let releaseRefresh = () => {}
+    const refresh = new Promise<void>((resolve) => {
+      releaseRefresh = resolve
+    })
+    const client = queryClient()
+    vi.spyOn(client, 'invalidateQueries').mockReturnValue(refresh)
+    const { result } = renderHook(
+      () => ({
+        single: useUploadHouseholdDocument(),
+        batch: useUploadHouseholdDocuments(),
+      }),
+      { wrapper: wrapper(client) },
+    )
+    let upload: Promise<unknown> | undefined
+
+    await act(async () => {
+      upload =
+        mode === 'single'
+          ? result.current.single.mutateAsync(uploadPayload)
+          : result.current.batch.mutateAsync([uploadPayload])
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    try {
+      if (duplicate) expect(toastInfoMock).toHaveBeenCalledTimes(1)
+      else expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+    } finally {
+      await act(async () => {
+        releaseRefresh()
+        await upload
+      })
+    }
+  })
+
   it('keeps watching a duplicate rebound to another account until it applies', async () => {
     const rebound = {
       duplicate_detected: true,
