@@ -125,7 +125,7 @@ export interface PortfolioAnalytics {
   quoteFreshnessStatus?: string | null
   quoteFreshnessLabel?: string | null
   portfolioBeta: number
-  portfolioVolatility: number
+  portfolioVolatility: number | null
   sharpeRatio: number | null
   performance?: {
     accountCount: number

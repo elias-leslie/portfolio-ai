@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -729,7 +730,10 @@ def update_document_application_summary(
     review_proposal: dict[str, object] | None = None,
 ) -> None:
     """Patch the document metadata with the evidence-application summary."""
-    payload: dict[str, object] = {"application_summary": application_summary}
+    payload: dict[str, object] = {
+        "application_summary": application_summary,
+        "application_summary_updated_at": datetime.now(UTC).isoformat(),
+    }
     if reconciliation_summary is not None:
         payload["reconciliation_summary"] = reconciliation_summary
     if review_proposal is not None:

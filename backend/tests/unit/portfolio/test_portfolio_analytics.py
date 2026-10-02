@@ -13,6 +13,92 @@ from app.portfolio.fund_lookthrough import FundHolding, FundLookthroughProfile
 from app.portfolio.models import Position, PriceData
 
 
+@pytest.mark.parametrize("missing", [None, math.nan, math.inf, -math.inf, -0.1])
+@pytest.mark.parametrize("partial", [False, True])
+def test_portfolio_volatility_requires_complete_fallback_data(
+    missing: float | None, partial: bool,
+) -> None:
+    positions = [
+        Position(id="1", account_id="acc1", symbol="AAPL", shares=1, cost_basis=100, position_type="long"),
+    ]
+    prices = {"AAPL": PriceData(symbol="AAPL", price=100, beta=1, volatility=missing)}
+    if partial:
+        positions.append(
+            Position(id="2", account_id="acc1", symbol="MSFT", shares=1, cost_basis=100, position_type="long"),
+        )
+        prices["MSFT"] = PriceData(symbol="MSFT", price=100, beta=1, volatility=0.2)
+
+    analytics = PortfolioAnalytics().calculate_full_analytics(positions, prices)
+
+    assert analytics.portfolio_volatility is None
+    assert analytics.risk_profile is None
+    assert analytics.model_dump()["portfolio_volatility"] is None
+
+
+@pytest.mark.parametrize("volatility", [0.0, 0.2])
+def test_portfolio_volatility_preserves_measured_zero_and_short_exposure(
+    volatility: float,
+) -> None:
+    positions = [
+        Position(id="1", account_id="acc1", symbol="AAPL", shares=1, cost_basis=100, position_type="long"),
+        Position(
+            id="2", account_id="acc1", symbol="MSFT", shares=2, cost_basis=100,
+            position_type="short",
+        ),
+    ]
+    prices = {
+        "AAPL": PriceData(symbol="AAPL", price=100, volatility=volatility),
+        "MSFT": PriceData(symbol="MSFT", price=100, volatility=volatility * 2),
+    }
+
+    result = PortfolioAnalytics().calculate_portfolio_volatility(positions, prices)
+
+    assert result == pytest.approx(volatility * 5 / 3)
+
+
+def test_portfolio_volatility_ignores_missing_risk_on_zero_exposure() -> None:
+    positions = [
+        Position(id="1", account_id="acc1", symbol="AAPL", shares=1, cost_basis=100, position_type="long"),
+        Position(id="2", account_id="acc1", symbol="MSFT", shares=0, cost_basis=100, position_type="long"),
+    ]
+    prices = {
+        "AAPL": PriceData(symbol="AAPL", price=100, volatility=0.2),
+        "MSFT": PriceData(symbol="MSFT", price=100),
+    }
+
+    assert PortfolioAnalytics().calculate_portfolio_volatility(positions, prices) == 0.2
+
+
+@pytest.mark.parametrize("covariance_result", [0.0, 0.18, None])
+def test_portfolio_volatility_prefers_covariance_with_missing_individual_risk(
+    covariance_result: float | None,
+) -> None:
+    positions = [
+        Position(id="1", account_id="acc1", symbol="AAPL", shares=1, cost_basis=100, position_type="long"),
+        Position(
+            id="2", account_id="acc1", symbol="MSFT", shares=1, cost_basis=100,
+            position_type="short",
+        ),
+    ]
+    prices = {
+        "AAPL": PriceData(symbol="AAPL", price=100),
+        "MSFT": PriceData(symbol="MSFT", price=100),
+    }
+    storage = MagicMock()
+    with patch(
+        "app.analytics.covariance.get_portfolio_volatility",
+        return_value=(covariance_result, None, None),
+    ) as covariance:
+        result = PortfolioAnalytics().calculate_portfolio_volatility(
+            positions, prices, storage=storage,
+        )
+
+    assert result == covariance_result
+    covariance.assert_called_once_with(
+        storage, {"AAPL": 0.5, "MSFT": -0.5}, portfolio_id="acc1",
+    )
+
+
 @pytest.mark.smoke
 def test_calculate_portfolio_value() -> None:
     """Test calculating portfolio value."""

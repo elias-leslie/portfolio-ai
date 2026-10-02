@@ -131,7 +131,8 @@ def calculate_portfolio_volatility(
     """Calculate portfolio volatility using covariance matrix (GAP-020 fix).
 
     Uses proper formula: sigma_portfolio = sqrt(w' * Cov * w)
-    Falls back to weighted average if storage unavailable or covariance fails.
+    Falls back to weighted average if storage unavailable or covariance fails,
+    provided every nonzero priced holding has a valid volatility estimate.
 
     Args:
         positions: List of portfolio positions
@@ -200,7 +201,7 @@ def calculate_portfolio_volatility(
     weighted_vol_sum = 0.0
     for position in positions:
         price = price_data.get(position.symbol)
-        if not price or price.volatility is None or price.error:
+        if not price or price.error:
             continue
         current_fact = calculate_current_position_fact(
             symbol=position.symbol,
@@ -209,8 +210,14 @@ def calculate_portfolio_volatility(
             position_type=position.position_type,
             current_price=price.price,
         )
-        if current_fact.current_value is None:
+        if current_fact.current_value is None or current_fact.current_value == 0:
             continue
+        if (
+            price.volatility is None
+            or not math.isfinite(price.volatility)
+            or price.volatility < 0
+        ):
+            return None
         weighted_vol_sum += abs(current_fact.current_value) * price.volatility
 
     if total_value == 0:

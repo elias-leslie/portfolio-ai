@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -12,6 +14,7 @@ from pydantic import ValidationError
 from app.models.household_finance import HouseholdDocument
 from app.services._household_document_pipeline_db import (
     claim_document_review_decision,
+    update_document_application_summary,
 )
 from app.services.household_document_pipeline import (
     HouseholdDocumentPipeline,
@@ -38,6 +41,25 @@ _EMPTY_PREVIEW = {
     "planning": [],
     "inferences": [],
 }
+
+
+def test_application_summary_and_completion_timestamp_are_saved_atomically() -> None:
+    connection = MagicMock()
+    before = datetime.now(UTC)
+
+    update_document_application_summary(
+        connection,
+        document_id="synthetic-document",
+        application_summary={"status": "applied"},
+    )
+
+    after = datetime.now(UTC)
+    connection.execute.assert_called_once()
+    payload, document_id = connection.execute.call_args.args[1]
+    metadata = json.loads(payload)
+    assert document_id == "synthetic-document"
+    assert metadata["application_summary"] == {"status": "applied"}
+    assert before <= datetime.fromisoformat(metadata["application_summary_updated_at"]) <= after
 
 
 class _PipelineStub(HouseholdDocumentPipeline):

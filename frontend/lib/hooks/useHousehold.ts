@@ -90,7 +90,9 @@ function wait(ms: number) {
 }
 
 function applicationStatus(document: HouseholdDocument) {
-  const summary = document.metadata?.application_summary
+  const summary =
+    document.metadata?.applicationSummary ??
+    document.metadata?.application_summary
   if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
     return null
   }
@@ -99,12 +101,49 @@ function applicationStatus(document: HouseholdDocument) {
 }
 
 function documentApplicationDone(document: HouseholdDocument) {
-  if (document.metadata?.duplicate_detected === true) return true
+  const duplicateDetected =
+    document.metadata?.duplicateDetected ??
+    document.metadata?.duplicate_detected
+  const duplicateRebound =
+    document.metadata?.duplicateRebound ?? document.metadata?.duplicate_rebound
+  const reboundAt =
+    document.metadata?.duplicateReboundAt ??
+    document.metadata?.duplicate_rebound_at
   if (document.status === 'failed' || document.reviewStatus === 'failed') {
-    return true
+    if (duplicateRebound !== true) return true
+    const reboundTime =
+      typeof reboundAt === 'string' ? Date.parse(reboundAt) : Number.NaN
+    const failedTime = document.parsedAt
+      ? Date.parse(document.parsedAt)
+      : Number.NaN
+    return (
+      Number.isFinite(reboundTime) &&
+      Number.isFinite(failedTime) &&
+      failedTime > reboundTime
+    )
   }
+  // Parsing commits before output application; only a new summary proves completion.
+  if (duplicateRebound === true) {
+    const summaryUpdatedAt =
+      document.metadata?.applicationSummaryUpdatedAt ??
+      document.metadata?.application_summary_updated_at
+    const reboundTime =
+      typeof reboundAt === 'string' ? Date.parse(reboundAt) : Number.NaN
+    const summaryTime =
+      typeof summaryUpdatedAt === 'string'
+        ? Date.parse(summaryUpdatedAt)
+        : Number.NaN
+    if (
+      !Number.isFinite(reboundTime) ||
+      !Number.isFinite(summaryTime) ||
+      summaryTime <= reboundTime
+    ) {
+      return false
+    }
+  }
+  if (duplicateDetected === true && duplicateRebound !== true) return true
   if (applicationStatus(document)) return true
-  return document.status === 'parsed' || document.reviewStatus === 'complete'
+  return false
 }
 
 async function watchUploadedDocument(
@@ -436,20 +475,24 @@ export function useUploadHouseholdDocument() {
       uploadHouseholdDocument(payload),
     onSuccess: async (document) => {
       await refreshHouseholdQueries(queryClient)
-      if (
-        document.metadata?.duplicate_detected === true &&
-        document.metadata?.duplicate_rebound !== true
-      ) {
+      const duplicateDetected =
+        document.metadata?.duplicateDetected ??
+        document.metadata?.duplicate_detected
+      const duplicateRebound =
+        document.metadata?.duplicateRebound ??
+        document.metadata?.duplicate_rebound
+      if (duplicateDetected === true && duplicateRebound !== true) {
         toast.info(`${document.filename} already exists in evidence intake.`)
         return
       }
       toast.success(
-        document.metadata?.duplicate_rebound === true
+        duplicateRebound === true
           ? `${document.filename} already exists; reapplying to selected account.`
           : `${document.filename} staged for evidence intake.`,
       )
       void watchUploadedDocument(queryClient, document)
         .then((latest) => {
+          if (!documentApplicationDone(latest)) return
           if (latest.status === 'failed' || latest.reviewStatus === 'failed') {
             toast.error(`${latest.filename} evidence review failed.`)
             return
@@ -480,8 +523,10 @@ export function useUploadHouseholdDocuments() {
       await refreshHouseholdQueries(queryClient)
       const staged = documents.filter(
         (document) =>
-          document.metadata?.duplicate_detected !== true ||
-          document.metadata?.duplicate_rebound === true,
+          (document.metadata?.duplicateDetected ??
+            document.metadata?.duplicate_detected) !== true ||
+          (document.metadata?.duplicateRebound ??
+            document.metadata?.duplicate_rebound) === true,
       )
       if (staged.length === 0) {
         toast.info('Evidence files already exist in intake.')
@@ -493,6 +538,7 @@ export function useUploadHouseholdDocuments() {
       for (const document of staged) {
         void watchUploadedDocument(queryClient, document)
           .then((latest) => {
+            if (!documentApplicationDone(latest)) return
             if (
               latest.status === 'failed' ||
               latest.reviewStatus === 'failed'

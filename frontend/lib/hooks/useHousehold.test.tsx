@@ -1,41 +1,18 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, renderHook } from '@testing-library/react'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useUploadHouseholdDocument } from './useHousehold'
+import {
+  useUploadHouseholdDocument,
+  useUploadHouseholdDocuments,
+} from './useHousehold'
 
-const {
-  fetchHouseholdDocumentsMock,
-  toastErrorMock,
-  toastInfoMock,
-  toastSuccessMock,
-  uploadHouseholdDocumentMock,
-} = vi.hoisted(() => ({
-  fetchHouseholdDocumentsMock: vi.fn(),
+const { toastErrorMock, toastInfoMock, toastSuccessMock } = vi.hoisted(() => ({
   toastErrorMock: vi.fn(),
   toastInfoMock: vi.fn(),
   toastSuccessMock: vi.fn(),
-  uploadHouseholdDocumentMock: vi.fn(),
-}))
-
-vi.mock('@/lib/api/household', () => ({
-  answerHouseholdQuestion: vi.fn(),
-  askJenny: vi.fn(),
-  categorizeHouseholdTransaction: vi.fn(),
-  confirmFact: vi.fn(),
-  createHouseholdTrackedAccount: vi.fn(),
-  deleteHouseholdTrackedAccount: vi.fn(),
-  fetchConfirmedFacts: vi.fn(),
-  fetchHouseholdDashboard: vi.fn(),
-  fetchHouseholdDocuments: fetchHouseholdDocumentsMock,
-  fetchHouseholdLedger: vi.fn(),
-  fetchHouseholdSpending: vi.fn(),
-  updateHouseholdPlanning: vi.fn(),
-  updateHouseholdProfile: vi.fn(),
-  updateHouseholdTrackedAccount: vi.fn(),
-  uploadHouseholdDocument: uploadHouseholdDocumentMock,
 }))
 
 vi.mock('sonner', () => ({
@@ -46,29 +23,36 @@ vi.mock('sonner', () => ({
   },
 }))
 
-function documentFixture(
-  overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
+const fetchMock = vi.fn<typeof fetch>()
+
+// These are wire responses. The real API client must normalize every nested key.
+function documentFixture(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'doc-positions',
-    filename: 'Portfolio_Positions_May-02-2026.csv',
-    sourceType: 'retirement',
-    documentType: 'retirement_statement',
+    id: 'synthetic-document',
+    filename: 'synthetic-evidence.csv',
+    source_type: 'retirement',
+    document_type: 'retirement_statement',
     status: 'staged',
-    accountLabel: 'Traditional IRA',
-    fileSizeBytes: 10,
-    contentType: 'text/csv',
-    classificationConfidence: 0.95,
-    reviewStatus: null,
-    reviewSummary: null,
-    reviewConfidence: null,
-    statementStart: null,
-    statementEnd: null,
-    uploadedAt: '2026-05-02T20:00:00Z',
-    parsedAt: null,
+    account_label: 'Synthetic IRA',
+    file_size_bytes: 10,
+    content_type: 'text/csv',
+    classification_confidence: 0.95,
+    review_status: null,
+    review_summary: null,
+    review_confidence: null,
+    statement_start: null,
+    statement_end: null,
+    uploaded_at: '2026-05-02T20:00:00Z',
+    parsed_at: null,
     metadata: {},
     ...overrides,
   }
+}
+
+function respondWithJson(payload: unknown) {
+  return new Response(JSON.stringify(payload), {
+    headers: { 'content-type': 'application/json' },
+  })
 }
 
 function wrapper(queryClient: QueryClient) {
@@ -79,63 +63,444 @@ function wrapper(queryClient: QueryClient) {
   }
 }
 
-describe('useUploadHouseholdDocument', () => {
+function queryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+}
+
+const uploadPayload = {
+  rawText: 'Synthetic account evidence',
+  filename: 'synthetic-evidence.csv',
+}
+
+async function advanceReviewPoll() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1500)
+  })
+}
+
+describe('household evidence upload through the real API client', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    fetchHouseholdDocumentsMock.mockReset()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
     toastErrorMock.mockReset()
     toastInfoMock.mockReset()
     toastSuccessMock.mockReset()
-    uploadHouseholdDocumentMock.mockReset()
   })
 
   afterEach(() => {
+    cleanup()
+    vi.clearAllTimers()
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
-  it('polls review completion and refreshes household queries after upload', async () => {
-    const stagedDocument = documentFixture()
-    const appliedDocument = documentFixture({
-      status: 'parsed',
-      reviewStatus: 'complete',
-      parsedAt: '2026-05-02T20:00:03Z',
-      metadata: { application_summary: { status: 'applied' } },
-    })
-    uploadHouseholdDocumentMock.mockResolvedValue(stagedDocument)
-    fetchHouseholdDocumentsMock.mockResolvedValue({ items: [appliedDocument] })
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    })
-    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+  it('observes applied metadata even before the top-level status completes', async () => {
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson(documentFixture()))
+      .mockResolvedValueOnce(
+        respondWithJson({
+          items: [
+            documentFixture({
+              metadata: { application_summary: { status: 'applied' } },
+            }),
+          ],
+        }),
+      )
+    const client = queryClient()
+    const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
     const { result } = renderHook(() => useUploadHouseholdDocument(), {
-      wrapper: wrapper(queryClient),
+      wrapper: wrapper(client),
     })
 
     await act(async () => {
-      await result.current.mutateAsync({
-        rawText: 'Traditional IRA total 368331.51',
-        accountLabel: 'Traditional IRA',
-        householdAccountId: '6bae56cf-f08d-449b-867a-d85a7517f856',
-      })
+      await result.current.mutateAsync(uploadPayload)
     })
+    await advanceReviewPoll()
+    await advanceReviewPoll()
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500)
-    })
-    await act(async () => {
-      await Promise.resolve()
-    })
-
-    expect(fetchHouseholdDocumentsMock).toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/intake/evidence',
+      expect.objectContaining({ method: 'POST', body: expect.any(FormData) }),
+    )
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/intake/evidence',
+      expect.objectContaining({ method: 'GET' }),
+    )
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['household'],
       exact: false,
     })
     expect(toastSuccessMock).toHaveBeenCalledWith(
-      'Portfolio_Positions_May-02-2026.csv applied to money views.',
+      'synthetic-evidence.csv applied to money views.',
     )
+  })
+
+  it('reports a plain duplicate without staging or polling it', async () => {
+    fetchMock.mockResolvedValueOnce(
+      respondWithJson(
+        documentFixture({ metadata: { duplicate_detected: true } }),
+      ),
+    )
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync(uploadPayload)
+    })
+    await advanceReviewPoll()
+
+    expect(toastInfoMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv already exists in evidence intake.',
+    )
+    expect(toastSuccessMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps watching a duplicate rebound to another account until it applies', async () => {
+    const rebound = {
+      duplicate_detected: true,
+      duplicate_rebound: true,
+      duplicate_rebound_at: '2026-05-02T20:00:02Z',
+    }
+    fetchMock
+      .mockResolvedValueOnce(
+        respondWithJson(documentFixture({ metadata: rebound })),
+      )
+      .mockResolvedValueOnce(
+        respondWithJson({
+          items: [
+            documentFixture({
+              metadata: {
+                ...rebound,
+                application_summary_updated_at: '2026-05-02T20:00:04Z',
+                application_summary: { status: 'applied' },
+              },
+            }),
+          ],
+        }),
+      )
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        ...uploadPayload,
+        householdAccountId: 'synthetic-account',
+      })
+    })
+    await advanceReviewPoll()
+    await advanceReviewPoll()
+
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv already exists; reapplying to selected account.',
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv applied to money views.',
+    )
+    expect(toastInfoMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not mistake the prior applied review for rebound completion', async () => {
+    const metadata = {
+      duplicate_detected: true,
+      duplicate_rebound: true,
+      duplicate_rebound_at: '2026-05-02T20:00:02Z',
+      application_summary: { status: 'applied' },
+    }
+    const oldReview = documentFixture({
+      status: 'parsed',
+      review_status: 'complete',
+      parsed_at: '2026-05-02T20:00:01Z',
+      metadata,
+    })
+    const parsingReview = { ...oldReview, parsed_at: '2026-05-02T20:00:03Z' }
+    const newReview = {
+      ...parsingReview,
+      metadata: {
+        ...metadata,
+        application_summary_updated_at: '2026-05-02T20:00:04Z',
+      },
+    }
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson(oldReview))
+      .mockResolvedValueOnce(respondWithJson({ items: [parsingReview] }))
+      .mockResolvedValueOnce(respondWithJson({ items: [newReview] }))
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync(uploadPayload)
+    })
+    await advanceReviewPoll()
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+    await advanceReviewPoll()
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv applied to money views.',
+    )
+  })
+
+  it.each([
+    'single',
+    'batch',
+  ] as const)('does not announce old rebound success after %s polling expires', async (mode) => {
+    const oldReview = documentFixture({
+      status: 'parsed',
+      review_status: 'complete',
+      parsed_at: '2026-05-02T20:00:03Z',
+      metadata: {
+        duplicate_detected: true,
+        duplicate_rebound: true,
+        duplicate_rebound_at: '2026-05-02T20:00:02Z',
+        application_summary: { status: 'applied' },
+        application_summary_updated_at: '2026-05-02T20:00:01Z',
+      },
+    })
+    fetchMock
+      .mockResolvedValueOnce(
+        respondWithJson(mode === 'single' ? oldReview : [oldReview]),
+      )
+      .mockImplementation(async () => respondWithJson({ items: [oldReview] }))
+    const { result } = renderHook(
+      () => ({
+        single: useUploadHouseholdDocument(),
+        batch: useUploadHouseholdDocuments(),
+      }),
+      { wrapper: wrapper(queryClient()) },
+    )
+
+    await act(async () => {
+      if (mode === 'single')
+        await result.current.single.mutateAsync(uploadPayload)
+      else await result.current.batch.mutateAsync([uploadPayload])
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(41)
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+    expect(toastSuccessMock).not.toHaveBeenCalledWith(
+      'synthetic-evidence.csv applied to money views.',
+    )
+  })
+
+  it('keeps watching parsed evidence until the application summary arrives', async () => {
+    const parsed = documentFixture({
+      status: 'parsed',
+      review_status: 'complete',
+    })
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson(parsed))
+      .mockResolvedValueOnce(respondWithJson({ items: [parsed] }))
+      .mockResolvedValueOnce(
+        respondWithJson({
+          items: [
+            {
+              ...parsed,
+              metadata: { application_summary: { status: 'applied' } },
+            },
+          ],
+        }),
+      )
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync(uploadPayload)
+    })
+    await advanceReviewPoll()
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv applied to money views.',
+    )
+  })
+
+  it('reports a new rebound review failure without accepting the old applied summary', async () => {
+    const metadata = {
+      duplicate_detected: true,
+      duplicate_rebound: true,
+      duplicate_rebound_at: '2026-05-02T20:00:02Z',
+      application_summary: { status: 'applied' },
+    }
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson(documentFixture({ metadata })))
+      .mockResolvedValueOnce(
+        respondWithJson({
+          items: [
+            documentFixture({
+              status: 'needs_review',
+              review_status: 'failed',
+              parsed_at: '2026-05-02T20:00:03Z',
+              metadata,
+            }),
+          ],
+        }),
+      )
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync(uploadPayload)
+    })
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv evidence review failed.',
+    )
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops watching a needs-review outcome without claiming it applied', async () => {
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson(documentFixture()))
+      .mockResolvedValueOnce(
+        respondWithJson({
+          items: [
+            documentFixture({
+              metadata: { application_summary: { status: 'needs_review' } },
+            }),
+          ],
+        }),
+      )
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync(uploadPayload)
+    })
+    await advanceReviewPoll()
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv staged for evidence intake.',
+    )
+  })
+
+  it('retains review failure feedback', async () => {
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson(documentFixture()))
+      .mockResolvedValueOnce(
+        respondWithJson({ items: [documentFixture({ status: 'failed' })] }),
+      )
+    const { result } = renderHook(() => useUploadHouseholdDocument(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync(uploadPayload)
+    })
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(toastErrorMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv evidence review failed.',
+    )
+    expect(toastSuccessMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports an all-duplicate batch without polling', async () => {
+    fetchMock.mockResolvedValueOnce(
+      respondWithJson([
+        documentFixture({ metadata: { duplicate_detected: true } }),
+      ]),
+    )
+    const { result } = renderHook(() => useUploadHouseholdDocuments(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync([uploadPayload])
+    })
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/intake/evidence/batch',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(toastInfoMock).toHaveBeenCalledWith(
+      'Evidence files already exist in intake.',
+    )
+    expect(toastSuccessMock).not.toHaveBeenCalled()
+  })
+
+  it('watches new and rebound batch documents while excluding plain duplicates', async () => {
+    const duplicate = documentFixture({
+      id: 'synthetic-duplicate',
+      metadata: { duplicate_detected: true },
+    })
+    const rebound = documentFixture({
+      id: 'synthetic-rebound',
+      filename: 'synthetic-rebound.csv',
+      metadata: {
+        duplicate_detected: true,
+        duplicate_rebound: true,
+        duplicate_rebound_at: '2026-05-02T20:00:02Z',
+      },
+    })
+    const staged = documentFixture()
+    const applied = [staged, rebound].map((document) => ({
+      ...document,
+      metadata: {
+        ...document.metadata,
+        application_summary_updated_at: '2026-05-02T20:00:04Z',
+        application_summary: { status: 'applied' },
+      },
+    }))
+    fetchMock
+      .mockResolvedValueOnce(respondWithJson([duplicate, staged, rebound]))
+      .mockImplementation(async () =>
+        respondWithJson({ items: [duplicate, ...applied] }),
+      )
+    const { result } = renderHook(() => useUploadHouseholdDocuments(), {
+      wrapper: wrapper(queryClient()),
+    })
+
+    await act(async () => {
+      await result.current.mutateAsync([
+        uploadPayload,
+        uploadPayload,
+        uploadPayload,
+      ])
+    })
+    await advanceReviewPoll()
+    await advanceReviewPoll()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      '2 evidence files staged for intake.',
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-evidence.csv applied to money views.',
+    )
+    expect(toastSuccessMock).toHaveBeenCalledWith(
+      'synthetic-rebound.csv applied to money views.',
+    )
+    expect(toastSuccessMock).toHaveBeenCalledTimes(3)
   })
 })
