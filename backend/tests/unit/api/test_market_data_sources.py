@@ -4,12 +4,39 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
+from importlib import import_module
 from typing import Any
 
 import pytest
 
 from app.api.market_data_sources import calculate_daily_change_pct, fetch_sector_data_with_changes
 from app.portfolio.models import PriceData
+from app.utils.market_hours import NY_TZ
+
+
+@pytest.mark.parametrize(
+    "converter",
+    [
+        import_module("app.api.market_data_sources")._quote_market_date,
+        import_module("app.api.market.historical_router")._quote_market_date,
+    ],
+)
+@pytest.mark.parametrize(
+    ("timestamp", "expected"),
+    [
+        (None, None),
+        ("2026-06-01T00:00:00Z", None),
+        (date(2026, 6, 1), None),
+        (datetime(2026, 6, 1, 3, 59, tzinfo=UTC), date(2026, 5, 31)),
+        (datetime(2026, 6, 1, 4, tzinfo=UTC), date(2026, 6, 1)),
+        (datetime(2026, 1, 1, 4, 59, tzinfo=UTC), date(2025, 12, 31)),
+        (datetime(2026, 1, 1, 5, tzinfo=UTC), date(2026, 1, 1)),
+        (datetime(2026, 6, 1, 3, 59), date(2026, 5, 31)),
+        (datetime(2026, 6, 1, 23, tzinfo=NY_TZ), date(2026, 6, 1)),
+    ],
+)
+def test_quote_market_date_preserves_cash_market_calendar_date(converter, timestamp, expected) -> None:
+    assert converter(timestamp) == expected
 
 
 class _Result:

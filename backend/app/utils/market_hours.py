@@ -47,6 +47,7 @@ from app.utils._market_trading_days import (
     get_last_trading_day,
     get_market_close_time,
     get_next_trading_day,
+    get_quote_market_date,
     is_trading_day,
 )
 
@@ -69,6 +70,7 @@ __all__ = [
     "get_market_close_time",
     "get_market_status",
     "get_next_trading_day",
+    "get_quote_market_date",
     "is_after_hours",
     "is_early_close_day",
     "is_market_holiday",

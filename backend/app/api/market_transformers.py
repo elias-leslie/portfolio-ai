@@ -87,25 +87,9 @@ def build_sector_history(
     Returns:
         Tuple of (SectorHistory, period_start, period_end)
     """
-    data_points: list[SectorDataPoint] = []
-    base_price: float | None = None
-    current_pct = 0.0
-    current_start = period_start
-    current_end = period_end
-
-    for row in rows:
-        parsed = _parse_row(row)
-        if parsed is None:
-            continue
-        date_str, close = parsed
-        if base_price is None:
-            base_price = close
-            if not current_start:
-                current_start = date_str
-        pct_change = round(_calc_pct_change(close, base_price), 2)
-        data_points.append(SectorDataPoint(date=date_str, close=close, pct_change=pct_change))
-        current_pct = pct_change
-        current_end = date_str
+    points, current_start, current_end = build_indicator_data_points(rows, period_start, period_end)
+    data_points = [SectorDataPoint(**point) for point in points]
+    current_pct = data_points[-1].pct_change if data_points else 0.0
 
     return (
         SectorHistory(name=name, symbol=symbol, data=data_points, current_pct=current_pct),

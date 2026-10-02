@@ -4,7 +4,7 @@ Provides functions to determine if a date is a trading day, navigate
 between trading days, and determine market close times.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from app.utils._market_calendar import NY_TZ, is_early_close_day, is_market_holiday
 
@@ -12,6 +12,18 @@ from app.utils._market_calendar import NY_TZ, is_early_close_day, is_market_holi
 MARKET_OPEN = time(9, 30)  # 9:30 AM ET
 MARKET_CLOSE = time(16, 0)  # 4:00 PM ET
 EARLY_CLOSE = time(13, 0)  # 1:00 PM ET (day before Thanksgiving, Christmas Eve, etc.)
+
+
+def get_quote_market_date(value: object) -> date | None:
+    """Return a quote's New York calendar date, treating naive timestamps as UTC.
+
+    This is the cash-market calendar date; futures trade-date rollover is
+    handled by the futures consumer.
+    """
+    if not isinstance(value, datetime):
+        return None
+    quote_ts = value if value.tzinfo else value.replace(tzinfo=UTC)
+    return quote_ts.astimezone(NY_TZ).date()
 
 
 def is_trading_day(check_date: date | None = None) -> bool:

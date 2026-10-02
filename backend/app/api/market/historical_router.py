@@ -41,7 +41,7 @@ from app.repositories.market_repository import MarketRepository
 from app.sources.yfinance_source import YFinanceSource
 from app.storage import get_storage
 from app.utils.formatters import format_db_date
-from app.utils.market_hours import NY_TZ
+from app.utils.market_hours import get_quote_market_date as _quote_market_date
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -54,13 +54,6 @@ def _get_market_repo() -> MarketRepository:
     if "repo" not in _state:
         _state["repo"] = MarketRepository(get_storage())
     return _state["repo"]
-
-
-def _quote_market_date(value: object) -> date | None:
-    if not isinstance(value, datetime):
-        return None
-    quote_ts = value if value.tzinfo else value.replace(tzinfo=UTC)
-    return quote_ts.astimezone(NY_TZ).date()
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:

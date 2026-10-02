@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, cast
 
 from app.utils.market_hours import NY_TZ
+from app.utils.market_hours import get_quote_market_date as _quote_market_date
 
 # US market close at 4:00 PM ET = 21:00 UTC
 _MARKET_CLOSE_UTC = dt.time(21, 0, 0)
@@ -114,13 +115,6 @@ def calculate_weekly_change_pct(
             last_week_close = float(row[0])
             return ((current_price - last_week_close) / last_week_close) * 100
     return None
-
-
-def _quote_market_date(value: object) -> date | None:
-    if not isinstance(value, datetime):
-        return None
-    quote_ts = value if value.tzinfo else value.replace(tzinfo=dt.UTC)
-    return quote_ts.astimezone(NY_TZ).date()
 
 
 def _fetch_recent_closes_batch(
