@@ -1,0 +1,306 @@
+# Portfolio AI project guide
+
+[Project overview](../README.md)
+
+This guide retains the detailed project workflows and operating notes. Unless stated
+otherwise, commands and source paths are relative to the repository root. Dated
+verification records describe their observed version and do not replace current checks.
+
+[![CI](https://github.com/elias-leslie/portfolio-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/elias-leslie/portfolio-ai/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../LICENSE)
+[![Python](https://img.shields.io/badge/python-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
+
+Portfolio AI brings household money review, investment decisions, retirement planning, and financial evidence into one self-hosted workspace. It combines a FastAPI backend, a Next.js frontend, PostgreSQL, Redis, Hatchet workflows, and optional external data/AI integrations.
+
+> Portfolio AI is software for analysis and research. It is not financial advice, and it should not be used as the sole basis for investment decisions.
+
+![Portfolio AI — daily brief with market conditions and net worth, the AI-scored watchlist, and lot-level holdings P&L](../docs/images/portfolio-ai-demo.gif)
+
+## What it does
+
+- Tracks portfolios, accounts, positions, tax lots, transactions, snapshots, and allocation drift, with lot-level cost basis and P&L, tax-loss-harvesting scans (with wash-sale checks), and IPS targets / drift / rebalance plans.
+- Scores watchlist symbols across price, technical, fundamental, catalyst, and options pillars into a per-symbol composite with a plain-language narrative, and discovers/trims candidates from an S&P 500 research universe.
+- Computes a macro "deployment gate" (FULL_DEPLOY / REDUCED / DEFENSIVE) from VIX term structure, credit spreads, put/call, breadth, and factor crowding, with walk-forward and Monte Carlo backtests.
+- Runs scheduled Hatchet workflows for OHLCV / intraday / fundamentals / macro ingestion, scoring, catalysts, strategy research, data-freshness monitoring, and maintenance.
+- Applies a lightweight ML layer (scikit-learn article-quality classifier, TF-IDF news story clustering) and technical analysis (RSI, MACD, Bollinger Bands, ATR, VWAP, and more) on top of the ingested data.
+- Opens Money at a named-month Review with coverage, money in/out, category netting, planned asset funding, and up to three agreed changes. Each category links to its exact included ledger slice. Net worth and setup remain secondary.
+- Models retirement using account owners, birth cohorts, shared withdrawal rules, explicit basis coverage, and Monte Carlo scenarios. Pending calculations preserve the last completed result and its inputs.
+- Manages household cards using sourced terms, actual opening/bonus history, ordinary planned spend, dated fees, and overlapping commitments. The active wallet comes first; rotation is an inspectable scenario. Reaching a spending target is distinct from the issuer awarding a bonus. Alerts use household web push.
+- Supports family receipt/shelf-tag capture with member-scoped local drafts and upload retry. Children have capture-only access enforced by the backend. A bounded shopping pilot requires confirmed equivalent packages and current offers before suggesting savings; actual purchases and outcomes stay separate from captures.
+- Offers an optional Agent Hub companion for chat, thesis review, and document extraction. Deterministic signals and agent judgments are attributed separately. Jenny receives canonical figures, scope, and evidence links; saved assumption changes retain their previous values.
+- Ships a read-only MCP server that exposes the signal stack to MCP clients over stdio.
+
+### Design principle: deterministic core, agents at the edges
+
+Valuation, pillar scores, the macro gate, volatility, drift, retirement rules, and
+card economics are calculated in Python from explicit inputs. Scenario results
+depend on their saved inputs, rule version, and simulation seed. Missing account,
+flow, quote, package, or basis evidence limits the conclusions shown.
+
+Agents read receipts and statements, evaluate thesis evidence, and explain the
+canonical calculations. An agent review is labeled as such; it does not replace
+the deterministic signal. Proposed document changes require review, while direct
+user changes to saved assumptions retain an audit history. Recording an investment
+decision does not place a trade.
+
+> ⭐ If this is the finance workspace you've wanted, a star helps others find it.
+
+## Stack
+
+| Layer | Technology |
+| --- | --- |
+| Backend | Python 3.13, FastAPI, SQLAlchemy 2, Alembic, Pydantic 2, pandas, scikit-learn, pandas-ta |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| Data | PostgreSQL 16, Redis; yfinance + CBOE + SEC EDGAR (always-on, no key); optional FRED macro / TwelveData / FMP / Polygon / Finnhub / AlphaVantage (API key); RSS news (CNBC, MarketWatch, Nasdaq, FT, Seeking Alpha, and more) |
+| Workflows | Hatchet |
+| Quality | Ruff, ty, pytest, Biome, Vitest, TypeScript |
+| Packaging | Docker Compose, uv, pnpm |
+
+## Repository layout
+
+```text
+portfolio-ai/
+├── backend/                 # FastAPI app, Alembic migrations, tests
+├── frontend/                # Next.js app, React components, Vitest tests
+├── docker/                  # Dockerfiles, bootstrap schema, local package wheel
+├── scripts/                 # Public setup/check helper scripts
+├── docker-compose.yml       # Standalone local stack
+└── docker-compose.companion.yml # Optional Agent Hub companion override
+```
+
+## Requirements
+
+For Docker installs:
+
+- Docker Engine with the Compose plugin
+
+For native installs:
+
+- Python 3.13.x
+- Node.js 20+
+- `uv`
+- `pnpm`
+- Docker Engine with Compose plugin for PostgreSQL, Redis, and Hatchet
+
+Python 3.14 is not currently supported because the technical-analysis dependency chain requires Python 3.13.
+
+## Quickstart: Docker standalone
+
+```bash
+git clone https://github.com/elias-leslie/portfolio-ai.git
+cd portfolio-ai
+cp .env.example .env
+./scripts/generate-hatchet-dev-token.sh .env
+docker compose up -d --build
+```
+
+Then open <http://localhost:3000>.
+
+Useful checks:
+
+```bash
+curl -fsS http://localhost:8000/health
+curl -fsS http://localhost:3000 >/dev/null
+docker compose logs --tail=100 portfolio-api portfolio-web portfolio-worker
+```
+
+For the bundled Docker stack, leave `PORTFOLIO_DB_URL` and `REDIS_URL` blank in `.env`; Compose injects container-internal service URLs.
+
+## Native standalone
+
+Use Docker for the backing services, then run the API, worker, and frontend locally:
+
+```bash
+cp .env.example .env.local
+./scripts/generate-hatchet-dev-token.sh .env.local
+docker compose --env-file .env.local up -d \
+  portfolio-db portfolio-redis hatchet-migrate hatchet-setup-config hatchet
+
+cd backend
+uv sync --python 3.13 --frozen --extra dev
+uv run alembic upgrade head
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+In a second shell:
+
+```bash
+cd backend
+uv run python -m app.worker
+```
+
+In a third shell:
+
+```bash
+cd frontend
+pnpm install --frozen-lockfile
+pnpm build
+API_URL=http://localhost:8000 HOSTNAME=0.0.0.0 PORT=3000 pnpm start
+```
+
+## Configuration
+
+Copy `.env.example` to `.env` for Docker Compose or `.env.local` for native runs.
+
+Required for the app stack:
+
+- `PORTFOLIO_DB_URL`: required for native backend runs; leave blank for Docker Compose.
+- `REDIS_URL`: required for native backend runs; leave blank for Docker Compose.
+- `HATCHET_CLIENT_TOKEN`: generated by `scripts/generate-hatchet-dev-token.sh`.
+
+Optional integrations:
+
+- Market data: `POLYGON_API_KEY`, `TWELVEDATA_API_KEY`, `FMP_API_KEY`, `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, `FRED_API_KEY`, `SERPAPI_API_KEY`. Set `SEC_USER_AGENT` to a descriptive name and contact email to enable SEC EDGAR within its fair-access policy.
+- Agent Hub companion: `AGENT_HUB_URL`, `PORTFOLIO_CLIENT_ID`, `PORTFOLIO_REQUEST_SOURCE`.
+- Encrypted Plaid/SnapTrade credentials: set `PORTFOLIO_SECRET_KEY` before storing provider credentials.
+- Household uploads: `HOUSEHOLD_UPLOAD_DIR` overrides the private document directory for native installs. Docker Compose persists it in the `portfolio-household-uploads` volume.
+
+When optional keys are absent, the app should still start. Features that need a missing provider show degraded or unavailable status instead of requiring secrets at boot.
+
+## Runtime backup and restore
+
+Repository backups are not enough for Money data: PostgreSQL and the private
+household-upload volume must be captured together. The complete backup command
+auto-detects a native install or a running Docker Compose stack and writes one
+checksummed artifact with mode `0600` into a mode-`0700` directory:
+
+```bash
+./scripts/portfolio-backup.sh
+# Compatibility entry point; now creates the same complete artifact:
+./scripts/postgres-backup.sh
+```
+
+For a native install, stop the backend and worker during the short backup
+window so PostgreSQL and uploads represent the same point in time. Compose
+backups automatically pause and unpause the API and worker around the snapshot.
+Native backup also detects the former `backend/data/household_uploads` layout
+and safely copies non-conflicting files into the portable upload root before
+the snapshot. The legacy source is retained for rollback; conflicting bytes
+fail the backup instead of choosing one silently.
+
+Use `--mode native|compose` or `--upload-dir` to override auto-detection; set
+`PORTFOLIO_DB_URL` in the environment for a one-off native database target so
+credentials do not appear in the process list. Every artifact contains a PostgreSQL custom-format dump,
+portable upload storage keys, and a manifest with the size and SHA-256 of every
+payload. Verify one without changing the installation:
+
+```bash
+./scripts/portfolio-restore.sh data/backups/portfolio_ai_complete_TIMESTAMP.tar.gz --verify-only
+```
+
+A restore is intentionally explicit and destructive. For a native install,
+stop the backend and worker first and make sure the target database already
+exists. Docker Compose restores stop only the app services while leaving
+PostgreSQL available, pre-stage uploads before changing the database, and
+restart the app services only after the entire restore succeeds. On any
+failure, the app services remain stopped: resolve the error and rerun the same
+restore before restarting them, so an incomplete database/upload pair is never
+served:
+
+```bash
+./scripts/portfolio-restore.sh data/backups/portfolio_ai_complete_TIMESTAMP.tar.gz --confirm
+```
+
+Run the isolated end-to-end drill after changing backup infrastructure. It
+creates and drops two disposable databases and never targets the configured
+application database:
+
+```bash
+./scripts/backup-restore-drill.sh
+```
+
+These artifacts contain sensitive financial documents. File permissions do
+not provide encryption; keep them on encrypted storage and copy tested backups
+off-host. `PORTFOLIO_SECRET_KEY` is intentionally excluded from every artifact;
+escrow it separately in an approved encrypted secret store and never embed it
+in a backup. New document rows store relative keys so restores can move between a
+native path and the Docker volume. Existing absolute document paths remain
+read-compatible and are rebased into the configured upload root when moved.
+
+## Optional Agent Hub companion mode
+
+Agent Hub is not required for the standalone app. To enable companion AI/chat/review flows, start Agent Hub separately, set the companion variables in `.env`, and run:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.companion.yml up -d --build
+```
+
+Use the same `PORTFOLIO_CLIENT_ID` on the Agent Hub side if you want first-party client registration to line up.
+
+## Testing, linting, types, and build
+
+Run the public helper:
+
+```bash
+./scripts/test-all.sh
+```
+
+Or run each gate manually:
+
+```bash
+cd backend
+uv sync --python 3.13 --frozen --extra dev
+uv run ruff check app tests
+uv run ty check app
+uv run pytest
+
+cd ../frontend
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm exec tsc --noEmit
+pnpm test -- --run
+pnpm build
+```
+
+Docker build smoke:
+
+```bash
+cp .env.example .env
+./scripts/generate-hatchet-dev-token.sh .env
+docker compose up -d --build
+curl -fsS http://localhost:8000/health
+curl -fsS http://localhost:3000 >/dev/null
+```
+
+## MCP server
+
+The backend package installs a read-only MCP server named `portfolio-ai-mcp`. It exposes the signal stack to MCP clients over stdio, with three read-only tools: `get_deployment_zone`, `get_deployment_history`, and `get_symbol_full_picture`. Every value they return is deterministic; no tool triggers model inference.
+
+From `backend/`:
+
+```bash
+uv run portfolio-ai-mcp
+```
+
+For an MCP client, copy `.mcp.json.template` into the consuming project, update the `cwd` value to this repository's `backend/` directory, and make sure the backend environment variables point at a running database.
+
+## API
+
+Interactive API docs are available at <http://localhost:8000/docs> when the backend is running.
+
+Common endpoint groups:
+
+| Group | Endpoints | Purpose |
+| --- | --- | --- |
+| Health | `/health`, `/health/detailed` | Runtime and data-health status; worker liveness comes from a persisted Hatchet runtime heartbeat |
+| Portfolio | `/api/portfolio/*` | Accounts, positions, analytics, IPS, TLH |
+| Watchlist | `/api/watchlist/*` | Watchlist items, refreshes, narratives |
+| Symbols | `/api/symbols/*` | Per-symbol intelligence and decision context |
+| Market | `/api/market/*` | Market data, events, corporate actions, source status |
+| Macro | `/api/macro/*` | Deployment-gate score, conditions, history, backtests |
+| Thesis | `/api/thesis/*` | AI thesis validation and invalidation |
+| Catalysts & retirement | `/api/catalysts/*`, `/api/retirement/*` | Forward catalyst calendar; retirement scenarios |
+| Household | `/api/household/*` | Optional household finance workspace |
+| Credit cards | `/api/household/cards/*` | Card catalog, rewards ranking, two-player rotation plans, soft charges, offer intake, catalog research |
+
+## Security and privacy
+
+- Keep real credentials in local environment files only; never commit `.env`, `.env.local`, provider tokens, exports, logs, screenshots with private data, or database dumps.
+- Do not upload real account statements, brokerage data, or household finance documents to public demos.
+- Report vulnerabilities through GitHub private vulnerability reporting. See `SECURITY.md`.
+
+## License
+
+Licensed under the Apache License, Version 2.0. See `LICENSE` and `NOTICE`.
