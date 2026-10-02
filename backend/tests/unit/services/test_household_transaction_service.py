@@ -858,7 +858,7 @@ def test_build_spending_view_keeps_venmo_payments_visible_as_peer_payments_spend
                 (
                     "txn-utility",
                     None,
-                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "Dukeenergy Bill Pay 910066616132 Alex Demo",
                     "Dukeenergy Bill Pay 910066616132 Alex Demo",
                     Decimal("177.51"),
@@ -1357,7 +1357,7 @@ def test_build_spending_view_nets_credit_card_returns_against_spend() -> None:
                 (
                     "txn-return",
                     "acct-chase",
-                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "AMAZON MKTPLACE PMTS | Return",
                     "Amazon",
                     Decimal("30.82"),
@@ -1576,7 +1576,7 @@ def test_build_spending_view_reclassifies_obvious_household_miscategorizations()
                 (
                     "txn-frontier",
                     None,
-                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "DIRECT DEBIT FRONTIER COMMUBILL PAY (Cash)",
                     "DIRECT DEBIT FRONTIER COMMUBILL PAY (Cash)",
                     Decimal("34.99"),
@@ -1632,7 +1632,7 @@ def test_build_spending_view_treats_mixed_big_box_merchants_conservatively() -> 
                 (
                     "txn-walmart-online",
                     None,
-                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "WALMART.COM 800-925-6278 AR",
                     "WALMART.COM 800-925-6278 AR",
                     Decimal("181.84"),
@@ -1651,7 +1651,7 @@ def test_build_spending_view_treats_mixed_big_box_merchants_conservatively() -> 
                 (
                     "txn-publix",
                     None,
-                    datetime.combine(today - timedelta(days=2), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "PUBLIX #1309 | Sale",
                     "PUBLIX #1309 | Sale",
                     Decimal("45.88"),
@@ -1708,7 +1708,7 @@ def test_build_spending_view_reclassifies_auto_and_airport_merchants() -> None:
                 (
                     "txn-airport",
                     None,
-                    datetime.combine(today - timedelta(days=1), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "International Tampa | Sale",
                     "International Tampa | Sale",
                     Decimal("7.68"),
@@ -1727,7 +1727,7 @@ def test_build_spending_view_reclassifies_auto_and_airport_merchants() -> None:
                 (
                     "txn-bucees",
                     None,
-                    datetime.combine(today - timedelta(days=2), datetime.min.time(), tzinfo=UTC),
+                    datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=UTC),
                     "BUC-EE'S #0051 FORT VALLEY GA",
                     "BUC-EE'S #0051 FORT VALLEY GA",
                     Decimal("67.18"),
