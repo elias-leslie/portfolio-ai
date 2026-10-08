@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, contextmanager
+from copy import deepcopy
 from datetime import date
 from decimal import Decimal
 from threading import Event, Lock
@@ -430,11 +431,12 @@ def test_upsert_household_account_reuses_existing_mask_identity() -> None:
 
 
 class _RecordingResult:
-    def __init__(self, row: list[object] | None = None) -> None:
+    def __init__(self, row: list[object] | None = None, rows: list[list[object]] | None = None) -> None:
         self.row = row
+        self.rows = rows or []
 
     def fetchall(self) -> list[list[object]]:
-        return []
+        return self.rows
 
     def fetchone(self) -> list[object] | None:
         return self.row
@@ -453,7 +455,9 @@ class _RecordingConnection:
         if "pg_try_advisory_lock" in sql:
             return _RecordingResult([True])
         if "SELECT transactions_cursor" in sql:
-            return _RecordingResult([""])
+            return _RecordingResult(["", {}])
+        if "SELECT account_id, household_account_id FROM plaid_accounts" in sql:
+            return _RecordingResult(rows=[["account-1", "canonical-cma"], ["cma", "canonical-cma"], ["card", "canonical-card"]])
         return _RecordingResult()
 
     def commit(self) -> None:
@@ -475,6 +479,97 @@ class _RecordingStorage(AbstractContextManager[_RecordingConnection]):
 
     def __exit__(self, *args: object) -> None:
         return None
+
+
+_PENDING_RECONCILIATION = "pending_transaction_reconciliation"
+
+
+class _DurablePlaidStorage:
+    """Committed item state survives new service instances and connections."""
+
+    def __init__(self) -> None:
+        self.state: dict[str, Any] = {
+            "cursor": "", "metadata": {"link_metadata": {"institution": "keep"}},
+            "last_error": None, "raw_rows": [],
+        }
+        self.canonical_accounts = {"account-1": "canonical-cma", "account-2": "canonical-card"}
+        self.fail_cursor_commit = False
+
+    @contextmanager
+    def connection(self):
+        store = self
+
+        class Session(_RecordingConnection):
+            def __init__(self) -> None:
+                super().__init__()
+                self.pending = deepcopy(store.state)
+                self.cursor_dirty = False
+
+            def execute(self, sql: str, params: list[object] | None = None) -> _RecordingResult:
+                result = super().execute(sql, params)
+                if "SELECT transactions_cursor" in sql:
+                    return _RecordingResult([store.state["cursor"], deepcopy(store.state["metadata"])])
+                if "FROM plaid_accounts" in sql:
+                    class AccountsResult(_RecordingResult):
+                        def fetchall(self) -> list[list[object]]:
+                            return [[key, value] for key, value in store.canonical_accounts.items()]
+                    return AccountsResult()
+                if sql == "RAW UPSERT":
+                    self.pending["raw_rows"].append(params)
+                if "UPDATE plaid_items" in sql:
+                    assert params is not None
+                    if "transactions_cursor =" in sql:
+                        self.pending["cursor"] = params[0]
+                        self.cursor_dirty = True
+                    if "metadata" in sql:
+                        if _PENDING_RECONCILIATION in params and " - " in sql:
+                            self.pending["metadata"].pop(_PENDING_RECONCILIATION, None)
+                        for param in params:
+                            if isinstance(param, str) and param.startswith("{"):
+                                self.pending["metadata"].update(json.loads(param))
+                    if "SET last_error = %s" in sql:
+                        self.pending["last_error"] = params[0]
+                    elif "last_error = NULL" in sql or ("THEN NULL ELSE last_error" in sql and True in [p for p in params if isinstance(p, bool)]) or ("THEN last_error ELSE NULL" in sql and False in [p for p in params if isinstance(p, bool)]):
+                        self.pending["last_error"] = None
+                return result
+
+            def commit(self) -> None:
+                if self.cursor_dirty and store.fail_cursor_commit:
+                    raise RuntimeError("cursor commit failed")
+                store.state = deepcopy(self.pending)
+                self.cursor_dirty = False
+                super().commit()
+
+            def rollback(self) -> None:
+                self.pending = deepcopy(store.state)
+                self.cursor_dirty = False
+                super().rollback()
+
+        yield Session()
+
+
+def _durable_sync_service(monkeypatch, store: _DurablePlaidStorage, response, requests: list[str]) -> PlaidService:
+    service = _service()
+    service.storage = store
+    service.cipher = SimpleNamespace(decrypt=lambda _: "test")
+    # Deliberately stale enumeration: the item lock must reload persisted state.
+    monkeypatch.setattr(service, "_load_items", lambda **_: [{"item_id": "item-1", "access_token_ciphertext": "encrypted", "transactions_cursor": "stale", "metadata": {}}])
+    monkeypatch.setattr(service, "_load_config", lambda: None)
+    monkeypatch.setattr(service, "_ensure_sync_document", lambda **_: "doc")
+    monkeypatch.setattr(service, "_upsert_accounts", lambda **_: 1)
+
+    def upsert(**kwargs):
+        transaction = kwargs["transaction"]
+        kwargs["conn"].execute("RAW UPSERT", [transaction["transaction_id"]])
+        return store.canonical_accounts[transaction["account_id"]]
+
+    def sync(request):
+        requests.append(request.cursor)
+        return response
+
+    monkeypatch.setattr(service, "_upsert_transaction", upsert)
+    monkeypatch.setattr(service, "_client", lambda _: SimpleNamespace(accounts_balance_get=lambda _: {"accounts": []}, transactions_sync=sync))
+    return service
 
 
 class _RetirementSnapshotConnection(_RecordingConnection):
@@ -893,6 +988,107 @@ def test_reconciliation_failure_reports_saved_cursor_without_replaying_provider_
     assert result_errors[0] == {"item_id": "item-1", "detail": message}
 
 
+def test_pending_reconciliation_survives_fresh_service_and_zero_delta_sync(monkeypatch) -> None:
+    store = _DurablePlaidStorage()
+    requests: list[str] = []
+    attempts = []
+
+    def reconcile(**kwargs):
+        attempts.append(kwargs)
+        assert store.state["cursor"] == "saved-cursor"
+        assert store.state["raw_rows"] == [["txn-1"]]
+        if len(attempts) == 1:
+            raise RuntimeError("owner unavailable")
+        assert store.state["last_error"] is not None
+        return {"removed": 4}
+
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _: SimpleNamespace(dedupe_transactions=reconcile))
+    first = _durable_sync_service(monkeypatch, store, _page(added=[_transaction(date="2026-07-10")], cursor="saved-cursor"), requests)
+    first_result = first.sync_items()
+    pending_after_failure = deepcopy(store.state["metadata"])
+    assert first_result["errors"]
+    second = _durable_sync_service(monkeypatch, store, _page(cursor="saved-cursor"), requests)
+    second_result = second.sync_items()
+    assert requests == ["", "saved-cursor"]
+    assert attempts == [{"household_account_ids": ["canonical-cma"], "date_start": date(2026, 7, 10), "date_end": date(2026, 7, 10)}] * 2
+    assert pending_after_failure[_PENDING_RECONCILIATION] == {"account-1": {"date_start": "2026-07-10", "date_end": "2026-07-10"}}
+    assert second_result["transaction_added_count"] == 0
+    assert second_result["transaction_deduplicated_count"] == 4
+    assert second_result["errors"] == []
+    assert store.state["last_error"] is None
+    assert store.state["metadata"] == {"link_metadata": {"institution": "keep"}}
+
+
+def test_pending_reconciliation_retries_only_failed_scope_after_partial_success(monkeypatch) -> None:
+    store = _DurablePlaidStorage()
+    requests: list[str] = []
+    attempts = []
+
+    def reconcile(**kwargs):
+        attempts.append(kwargs)
+        if len(attempts) == 2:
+            raise RuntimeError("second account unavailable")
+        return {"removed": 4 if kwargs["household_account_ids"] == ["canonical-cma"] else 3}
+
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _: SimpleNamespace(dedupe_transactions=reconcile))
+    first = _durable_sync_service(monkeypatch, store, _page(added=[_transaction(date="2026-07-10"), _transaction(transaction_id="txn-2", account_id="account-2", date="2026-08-02")], cursor="saved-cursor"), requests)
+    assert first.sync_items()["errors"]
+    marker = deepcopy(store.state["metadata"])
+    second = _durable_sync_service(monkeypatch, store, _page(cursor="saved-cursor"), requests)
+    result = second.sync_items()
+    assert [scope["household_account_ids"] for scope in attempts] == [["canonical-cma"], ["canonical-card"], ["canonical-card"]]
+    assert marker[_PENDING_RECONCILIATION] == {"account-2": {"date_start": "2026-08-02", "date_end": "2026-08-02"}}
+    assert result["transaction_deduplicated_count"] == 3
+    assert result["errors"] == []
+    assert store.state["metadata"] == {"link_metadata": {"institution": "keep"}}
+
+
+def test_pending_reconciliation_resolves_merged_accounts_and_groups_union_window(monkeypatch) -> None:
+    store = _DurablePlaidStorage()
+    requests: list[str] = []
+    attempts = []
+
+    def reconcile(**kwargs):
+        attempts.append(kwargs)
+        if len(attempts) == 1:
+            raise RuntimeError("owner unavailable")
+        return {"removed": 2}
+
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _: SimpleNamespace(dedupe_transactions=reconcile))
+    first = _durable_sync_service(monkeypatch, store, _page(added=[_transaction(date="2026-07-10"), _transaction(transaction_id="txn-2", account_id="account-2", date="2026-10-05")], cursor="saved-cursor"), requests)
+    assert first.sync_items()["errors"]
+    store.canonical_accounts = {"account-1": "merged-canonical", "account-2": "merged-canonical"}
+    second = _durable_sync_service(monkeypatch, store, _page(cursor="saved-cursor"), requests)
+    result = second.sync_items()
+    assert attempts[-1] == {"household_account_ids": ["merged-canonical"], "date_start": date(2026, 7, 10), "date_end": date(2026, 10, 5)}
+    assert len(attempts) == 2
+    assert result["transaction_deduplicated_count"] == 2
+    assert store.state["metadata"] == {"link_metadata": {"institution": "keep"}}
+
+
+def test_fresh_noop_does_not_create_pending_reconciliation_marker(monkeypatch) -> None:
+    store = _DurablePlaidStorage()
+    requests: list[str] = []
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _: pytest.fail("No pending/imported window requires reconciliation"))
+    service = _durable_sync_service(monkeypatch, store, _page(), requests)
+    assert service.sync_items()["errors"] == []
+    assert store.state["metadata"] == {"link_metadata": {"institution": "keep"}}
+    assert store.state["raw_rows"] == []
+
+
+def test_failed_cursor_commit_does_not_persist_pending_reconciliation_marker(monkeypatch) -> None:
+    store = _DurablePlaidStorage()
+    store.fail_cursor_commit = True
+    requests: list[str] = []
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _: pytest.fail("Uncommitted rows cannot be reconciled"))
+    service = _durable_sync_service(monkeypatch, store, _page(added=[_transaction(date="2026-07-10")]), requests)
+    with pytest.raises(RuntimeError, match="cursor commit failed"):
+        service.sync_items()
+    assert store.state["cursor"] == ""
+    assert store.state["raw_rows"] == []
+    assert store.state["metadata"] == {"link_metadata": {"institution": "keep"}}
+
+
 @pytest.mark.parametrize("field,value", [("date", "bad-date"), ("date", None), ("amount", "NaN"), ("amount", "Infinity"), ("amount", None), ("account_id", "  "), ("account_id", None)])
 @pytest.mark.parametrize("kind", ["added", "modified"])
 def test_invalid_transaction_prevents_all_writes_and_cursor_advance(field, value, kind, monkeypatch):
@@ -993,7 +1189,7 @@ def test_single_item_sync_reloads_cursor_under_session_lock_and_releases_on_fail
             if "pg_try_advisory_lock" in sql:
                 return _RecordingResult([True])
             if "SELECT transactions_cursor" in sql:
-                return _RecordingResult(["persisted"])
+                return _RecordingResult(["persisted", {}])
             return _RecordingResult()
         def rollback(self):
             self.calls.append(("ROLLBACK", None))
@@ -1036,7 +1232,7 @@ def test_overlapping_item_syncs_are_excluded_and_later_sync_reloads_committed_cu
                 with mutex:
                     state["locked"] = False
             if "SELECT transactions_cursor" in sql:
-                return _RecordingResult([state["cursor"]])
+                return _RecordingResult([state["cursor"], {}])
             if "UPDATE plaid_items" in sql:
                 assert params is not None
                 cursor = params[0]

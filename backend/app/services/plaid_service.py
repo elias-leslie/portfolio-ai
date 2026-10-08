@@ -51,6 +51,7 @@ from app.storage import get_storage
 logger = get_logger(__name__)
 
 _PLAID_SOURCE_ID = "plaid"
+_PENDING_RECONCILIATION_KEY = "pending_transaction_reconciliation"
 _DEFAULT_PRODUCTS = ["transactions"]
 _DEFAULT_COUNTRY_CODES = ["US"]
 _VALID_ENVIRONMENTS = {"sandbox", "production"}
@@ -200,6 +201,31 @@ def _validate_sync_transaction(transaction: object, *, removed: bool) -> None:
         )
     if not valid:
         raise PlaidIntegrationError("Transaction response is incomplete; coverage is unverified")
+
+
+def _pending_reconciliation_windows(metadata: object) -> dict[str, tuple[date, date]]:
+    marker = _as_json_object(metadata).get(_PENDING_RECONCILIATION_KEY, {})
+    if not isinstance(marker, dict):
+        raise PlaidIntegrationError("Pending Plaid reconciliation metadata is invalid.")
+    windows: dict[str, tuple[date, date]] = {}
+    for account_id, window in marker.items():
+        if not isinstance(account_id, str) or not account_id.strip() or not isinstance(window, dict):
+            raise PlaidIntegrationError("Pending Plaid reconciliation metadata is invalid.")
+        start = _parse_date(window.get("date_start"))
+        end = _parse_date(window.get("date_end"))
+        if start is None or end is None or start > end:
+            raise PlaidIntegrationError("Pending Plaid reconciliation metadata is invalid.")
+        windows[account_id] = (start, end)
+    return windows
+
+
+def _reconciliation_metadata_patch(windows: dict[str, tuple[date, date]]) -> dict[str, object]:
+    return {
+        _PENDING_RECONCILIATION_KEY: {
+            account_id: {"date_start": start.isoformat(), "date_end": end.isoformat()}
+            for account_id, (start, end) in windows.items()
+        }
+    } if windows else {}
 
 
 def _plaid_error_payload(exc: plaid.ApiException) -> dict[str, object]:
@@ -718,6 +744,7 @@ class PlaidService:
         config = self._load_config()
         client = self._client(config)
         deduplicated_count = 0
+        reconciliation_completed = False
 
         for item in items:
             totals["item_count"] = int(totals["item_count"]) + 1
@@ -756,8 +783,9 @@ class PlaidService:
                 item_result["transaction_removed_count"]
             )
             deduplicated_count += int(item_result.get("transaction_deduplicated_count", 0))
+            reconciliation_completed |= "transaction_deduplicated_count" in item_result
 
-        if int(totals["transaction_added_count"]) > 0:
+        if int(totals["transaction_added_count"]) > 0 or reconciliation_completed:
             totals["transaction_deduplicated_count"] = deduplicated_count
 
         return totals
@@ -966,12 +994,12 @@ class PlaidService:
                 raise PlaidIntegrationError("A sync is already running for this Plaid connection.")
             try:
                 row = conn.execute(
-                    "SELECT transactions_cursor FROM plaid_items WHERE item_id = %s AND status = 'active'",
+                    "SELECT transactions_cursor, metadata FROM plaid_items WHERE item_id = %s AND status = 'active'",
                     [item_id],
                 ).fetchone()
                 if row is None:
                     raise PlaidIntegrationError("This Plaid connection is no longer active.")
-                current_item = {**item, "transactions_cursor": row[0] or ""}
+                current_item = {**item, "transactions_cursor": row[0] or "", "metadata": _as_json_object(row[1])}
                 # End the read transaction before potentially slow network IO.
                 conn.commit()
                 return self._sync_single_item_locked(client=client, item=current_item, conn=conn)
@@ -1487,7 +1515,7 @@ class PlaidService:
         else:
             raise PlaidIntegrationError("Transaction history exceeded bounded pagination; coverage is unverified")
 
-        added_windows: dict[str, tuple[date, date]] = {}
+        pending_windows = _pending_reconciliation_windows(item.get("metadata"))
         for transactions, is_removed, reconcile_added in (
             (added, False, True), (modified, False, False), (removed, True, False),
         ):
@@ -1500,10 +1528,11 @@ class PlaidService:
                     removed=is_removed,
                 )
                 if reconcile_added and household_account_id:
+                    source_account_id = str(transaction["account_id"])
                     transaction_date = _parse_date(transaction.get("date"))
                     assert transaction_date is not None
-                    previous_window = added_windows.get(household_account_id)
-                    added_windows[household_account_id] = (
+                    previous_window = pending_windows.get(source_account_id)
+                    pending_windows[source_account_id] = (
                         min(previous_window[0], transaction_date),
                         max(previous_window[1], transaction_date),
                     ) if previous_window else (transaction_date, transaction_date)
@@ -1512,44 +1541,71 @@ class PlaidService:
             UPDATE plaid_items
             SET transactions_cursor = %s,
                 last_successful_sync_at = %s,
-                last_error = NULL,
+                metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
+                last_error = CASE WHEN %s THEN last_error ELSE NULL END,
                 updated_at = %s
             WHERE item_id = %s
             """,
-            [next_cursor, _now(), _now(), item["item_id"]],
+            [next_cursor, _now(), _json(_reconciliation_metadata_patch(pending_windows)), bool(pending_windows), _now(), item["item_id"]],
         )
         conn.commit()
-        deduplicated_count = 0
-        if added_windows:
-            # Reconcile only the actual committed backfill for each canonical
-            # account. The owner service pads edges by its fuzzy date tolerance
-            # and preserves raw provider rows and reviewed classifications.
-            try:
-                dedup_service = HouseholdTransactionDedupService(self.storage)
-                for household_account_id, (date_start, date_end) in added_windows.items():
-                    summary = dedup_service.dedupe_transactions(
-                        household_account_ids=[household_account_id],
-                        date_start=date_start,
-                        date_end=date_end,
-                    )
-                    deduplicated_count += int(summary.get("removed", 0))
-            except Exception as exc:
-                logger.warning(
-                    "plaid_committed_backfill_reconciliation_failed",
-                    item_id=item["item_id"], error_type=type(exc).__name__,
+        counts = {
+            "transaction_added_count": len(added),
+            "transaction_modified_count": len(modified),
+            "transaction_removed_count": len(removed),
+        }
+        if pending_windows:
+            counts["transaction_deduplicated_count"] = self._reconcile_pending_transactions(
+                conn=conn, item_id=str(item["item_id"]), windows=pending_windows,
+            )
+        return counts, next_cursor or None
+
+    def _reconcile_pending_transactions(
+        self, *, conn: Any, item_id: str, windows: dict[str, tuple[date, date]],
+    ) -> int:
+        try:
+            rows = conn.execute(
+                "SELECT account_id, household_account_id FROM plaid_accounts WHERE item_id = %s AND account_id = ANY(%s)",
+                [item_id, list(windows)],
+            ).fetchall()
+            mappings = {str(row[0]): str(row[1]) for row in rows if row[0] and row[1]}
+            if any(account_id not in mappings for account_id in windows):
+                raise ValueError("Pending source account has no canonical mapping")
+            scopes: dict[str, tuple[list[str], date, date]] = {}
+            for source_id, (start, end) in windows.items():
+                canonical_id = mappings[source_id]
+                previous = scopes.get(canonical_id)
+                scopes[canonical_id] = (
+                    [*previous[0], source_id], min(start, previous[1]), max(end, previous[2]),
+                ) if previous else ([source_id], start, end)
+            conn.commit()
+            dedup_service = HouseholdTransactionDedupService(self.storage)
+            remaining = dict(windows)
+            removed = 0
+            for canonical_id, (source_ids, start, end) in scopes.items():
+                summary = dedup_service.dedupe_transactions(
+                    household_account_ids=[canonical_id], date_start=start, date_end=end,
                 )
-                raise PlaidIntegrationError(
-                    "Transactions and sync cursor were saved, but duplicate reconciliation failed."
-                ) from exc
-        return (
-            {
-                "transaction_added_count": len(added),
-                "transaction_modified_count": len(modified),
-                "transaction_removed_count": len(removed),
-                "transaction_deduplicated_count": deduplicated_count,
-            },
-            next_cursor or None,
-        )
+                removed += int(summary.get("removed", 0))
+                for source_id in source_ids:
+                    remaining.pop(source_id)
+                conn.execute(
+                    """
+                    UPDATE plaid_items
+                    SET metadata = (COALESCE(metadata, '{}'::jsonb) - %s) || %s::jsonb,
+                        last_error = CASE WHEN %s THEN NULL ELSE last_error END,
+                        updated_at = %s
+                    WHERE item_id = %s
+                    """,
+                    [_PENDING_RECONCILIATION_KEY, _json(_reconciliation_metadata_patch(remaining)), not remaining, _now(), item_id],
+                )
+                conn.commit()
+            return removed
+        except Exception as exc:
+            logger.warning("plaid_committed_backfill_reconciliation_failed", item_id=item_id, error_type=type(exc).__name__)
+            raise PlaidIntegrationError(
+                "Transactions and sync cursor were saved, but duplicate reconciliation failed."
+            ) from exc
 
     def _upsert_transaction(
         self,
