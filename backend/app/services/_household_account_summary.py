@@ -303,7 +303,7 @@ def _compute_freshness(
     activity_sync = _parse_datetime((source_account_value or {}).get("transaction_synced_at")) if source_owned else None
     if activity_sync and (coverage_dt is None or activity_sync > coverage_dt):
         coverage_dt = activity_sync
-        coverage_source = str((source_account_value or {}).get("source", "Account")).title() + " sync"
+        coverage_source = _source_transaction_coverage_label(source_account_value)
     days_since_transaction = (
         (datetime.now(UTC).date() - coverage_dt.date()).days if coverage_dt is not None else None
     )
@@ -752,7 +752,7 @@ def _build_portfolio_summary(
         balance_freshness_label=balance_label,
         last_transaction_at=None,
         transaction_coverage_at=activity_dt.isoformat() if activity_dt else None,
-        transaction_coverage_source=str((source_account_value or {}).get("source", "Account")).title()+" sync" if activity_dt else None,
+        transaction_coverage_source=_source_transaction_coverage_label(source_account_value) if activity_dt else None,
         days_since_transaction=activity_days,
         transaction_freshness_status=activity_status,
         transaction_freshness_label=activity_label,
@@ -762,6 +762,12 @@ def _build_portfolio_summary(
         match_confidence=None,
         **_quote_fields(portfolio_valuation, has_live_pricing=has_live_pricing),
     )
+
+
+def _source_transaction_coverage_label(source_account_value: dict[str, Any] | None) -> str:
+    values = source_account_value or {}
+    source = values.get("transaction_coverage_source") or values.get("source", "Account")
+    return str(source).title() + " sync"
 
 
 def _portfolio_source_balance_dt(

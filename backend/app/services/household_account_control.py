@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
+from itertools import combinations
 from typing import Any
 
 from app.models.household_finance import (
@@ -15,6 +16,12 @@ from app.models.household_finance import (
     HouseholdAccountSummary,
     HouseholdInboxItem,
 )
+from app.services._household_account_summary_utils import (
+    _BALANCE_FRESHNESS_THRESHOLDS,
+    _FRESHNESS_SEVERITY,
+    _freshness_state_from_thresholds,
+)
+from app.services.household_account_identity import account_masks_conflict, normalize_text
 
 _MATERIALITY = Decimal("0.01")
 
@@ -33,6 +40,7 @@ class SourceAccountRow:
     currency: str | None
     last_synced_at: datetime | None
     transaction_synced_at: datetime | None = None
+    asset_group: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +74,7 @@ def _timestamp(value: object) -> datetime | None:
 
 
 def _normalized(value: object) -> str:
-    return " ".join(str(value or "").strip().lower().split())
+    return normalize_text(value)
 
 
 def _money_key(value: Decimal | None) -> str:
@@ -76,22 +84,73 @@ def _money_key(value: Decimal | None) -> str:
 
 
 def _is_material(value: Decimal | None) -> bool:
-    return value is not None and abs(value) >= _MATERIALITY
+    return value is not None and value.is_finite() and abs(value) >= _MATERIALITY
 
 
 def _effective_value(row: SourceAccountRow) -> Decimal | None:
     return row.current_value if row.current_value is not None else row.cash_balance
 
 
+def _finite_value(value: Decimal | None) -> Decimal | None:
+    return value if value is not None and value.is_finite() else None
+
+
 def _source_value(row: SourceAccountRow) -> dict[str, Any]:
     return {
-        "current_value": row.current_value,
-        "cash_balance": row.cash_balance,
+        "current_value": _finite_value(row.current_value),
+        "cash_balance": _finite_value(row.cash_balance),
         "last_synced_at": row.last_synced_at,
         "account_mask": row.account_mask,
         "transaction_synced_at": row.transaction_synced_at,
+        "transaction_coverage_source": row.source if row.transaction_synced_at else None,
         "source": row.source,
     }
+
+
+def _has_usable_balance(row: SourceAccountRow) -> bool:
+    # Cash is only one component of an investment valuation, not a complete total.
+    return _finite_value(row.current_value) is not None and (
+        row.cash_balance is None or _finite_value(row.cash_balance) is not None
+    )
+
+
+def _balance_freshness_rank(row: SourceAccountRow, today: date) -> int:
+    days_since = (today - row.last_synced_at.date()).days if row.last_synced_at else None
+    status, _ = _freshness_state_from_thresholds(
+        _BALANCE_FRESHNESS_THRESHOLDS,
+        _normalized(row.asset_group),
+        days_since=days_since,
+    )
+    return _FRESHNESS_SEVERITY[status]
+
+
+def _source_values_conflict(rows: list[SourceAccountRow]) -> bool:
+    # Missing detail is not a contradictory value. Compare totals and cash
+    # independently so a feed without cash detail can corroborate the total.
+    current_values = {
+        _money_key(row.current_value)
+        for row in rows
+        if row.current_value is not None and row.current_value.is_finite()
+    }
+    cash_values = {
+        _money_key(row.cash_balance)
+        for row in rows
+        if row.cash_balance is not None and row.cash_balance.is_finite()
+    }
+    currencies = {_normalized(row.currency) for row in rows if _normalized(row.currency)}
+    return len(current_values) > 1 or len(cash_values) > 1 or len(currencies) > 1
+
+
+def _source_identities_conflict(rows: list[SourceAccountRow]) -> bool:
+    institutions = {
+        _normalized(row.institution_name) for row in rows if _normalized(row.institution_name)
+    }
+    labels = {_normalized(row.account_label) for row in rows if _normalized(row.account_label)}
+    masks_conflict = any(
+        account_masks_conflict(left.account_mask, right.account_mask)
+        for left, right in combinations(rows, 2)
+    )
+    return len(institutions) > 1 or len(labels) > 1 or masks_conflict
 
 
 def _issue_id(code: str, *parts: object) -> str:
@@ -116,7 +175,8 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
                 sa.currency,
                 sa.last_synced_at,
                 CASE WHEN sa.metadata->'activity_coverage'->>'complete' = 'true'
-                     THEN sa.metadata->'activity_coverage'->>'through' END AS transaction_synced_at
+                     THEN sa.metadata->'activity_coverage'->>'through' END AS transaction_synced_at,
+                ha.asset_group
             FROM snaptrade_accounts sa
             JOIN snaptrade_connections sc
               ON sc.authorization_id = sa.authorization_id
@@ -141,7 +201,8 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
                 pa.iso_currency_code AS currency,
                 pa.last_synced_at,
                 CASE WHEN pi.last_error IS NULL AND NULLIF(pi.transactions_cursor, '') IS NOT NULL
-                     THEN pi.last_successful_sync_at::text END AS transaction_synced_at
+                     THEN pi.last_successful_sync_at::text END AS transaction_synced_at,
+                ha.asset_group
             FROM plaid_accounts pa
             LEFT JOIN plaid_items pi ON pi.item_id = pa.item_id
             LEFT JOIN household_accounts ha ON ha.id = pa.household_account_id
@@ -166,6 +227,7 @@ def _source_rows(storage: Any) -> list[SourceAccountRow]:
             currency=str(row[9]) if row[9] is not None else None,
             last_synced_at=_timestamp(row[10]),
             transaction_synced_at=_timestamp(row[11]),
+            asset_group=str(row[12]) if row[12] is not None else None,
         )
         for row in rows
     ]
@@ -294,41 +356,42 @@ def _collapse_source_rows(
         by_household_account[row.household_account_id].append(row)
         source_owned_ids.add(row.household_account_id)
 
+    today = datetime.now(UTC).date()
     for household_account_id, account_rows in by_household_account.items():
         ordered = sorted(
             account_rows,
             key=lambda row: row.last_synced_at or datetime.min.replace(tzinfo=UTC),
         )
-        chosen = ordered[-1]
+        usable_rows = [row for row in ordered if _has_usable_balance(row)]
+        # If no intact snapshot exists, retain finite totals before partial cash
+        # snapshots. _source_value removes invalid components from either fallback.
+        candidates = (
+            usable_rows
+            or [row for row in ordered if _finite_value(row.current_value) is not None]
+            or ordered
+        )
+        freshness_ranks = [_balance_freshness_rank(row, today) for row in candidates]
+        best_rank = min(freshness_ranks)
+        freshest_rows = [
+            row for row, rank in zip(candidates, freshness_ranks, strict=True) if rank == best_rank
+        ]
+        # Prefer SnapTrade's cash and holdings detail within the same existing
+        # freshness tier, while a fresher tier from Plaid remains useful backup.
+        snaptrade_rows = [row for row in freshest_rows if row.source == "snaptrade"]
+        chosen = (snaptrade_rows or freshest_rows)[-1]
         values[household_account_id] = _source_value(chosen)
         activity_rows = [r for r in account_rows if r.transaction_synced_at]
         if activity_rows:
             coverage = max(activity_rows, key=lambda r: r.transaction_synced_at or datetime.min.replace(tzinfo=UTC))
             values[household_account_id]["transaction_synced_at"] = coverage.transaction_synced_at
-            values[household_account_id]["source"] = coverage.source
+            values[household_account_id]["transaction_coverage_source"] = coverage.source
         if len(account_rows) <= 1:
             continue
 
-        value_keys = {
-            (
-                _money_key(row.current_value),
-                _money_key(row.cash_balance),
-                _normalized(row.currency),
-            )
-            for row in account_rows
-        }
-        identity_keys = {
-            (
-                _normalized(row.source),
-                _normalized(row.institution_name),
-                _normalized(row.account_label),
-                _normalized(row.account_mask),
-            )
-            for row in account_rows
-        }
+        identities_conflict = _source_identities_conflict(account_rows)
         source_account_ids = [row.source_account_id for row in ordered]
         connection_count = len({row.connection_id for row in account_rows if row.connection_id})
-        if len(value_keys) > 1:
+        if _source_values_conflict(account_rows):
             issues.append(
                 HouseholdAccountControlIssue(
                     id=_issue_id("source_value_conflict", household_account_id),
@@ -337,7 +400,7 @@ def _collapse_source_rows(
                     title="Source balances conflict",
                     detail=(
                         f"{chosen.account_label} has {len(account_rows)} source rows "
-                        "with different balances. Totals use the latest row but need "
+                        "with different balances. Totals use one source balance but need "
                         "reconciliation before they should be trusted."
                     ),
                     household_account_id=household_account_id,
@@ -347,7 +410,11 @@ def _collapse_source_rows(
                     affects_totals=True,
                 )
             )
-        elif len(identity_keys) == 1 and connection_count > 1:
+        elif not identities_conflict and len({row.source for row in account_rows}) > 1:
+            # Complementary providers intentionally cover the same mapped account.
+            # Keeping both feeds does not require removing either connection.
+            continue
+        elif not identities_conflict and connection_count > 1:
             # Same account legitimately surfaced by more than one connection — for
             # example a joint account that appears under each owner's separate
             # login. Totals already count it once, and there is nothing to remove:
@@ -371,7 +438,7 @@ def _collapse_source_rows(
                     affects_totals=False,
                 )
             )
-        elif len(identity_keys) > 1:
+        elif identities_conflict:
             issues.append(
                 HouseholdAccountControlIssue(
                     id=_issue_id("source_identity_collision", household_account_id),

@@ -9,6 +9,7 @@ from app.services.household_transaction_dedup_service import (
     DEDUP_SOURCE_SYSTEMS,
     SOURCE_PRIORITY,
     HouseholdTransactionDedupService,
+    _rows_joined,
     cluster_rows,
     cross_account_document_twins,
     find_flow_contradictions,
@@ -37,6 +38,7 @@ def _row(
         "transaction_date": on,
         "amount": 132.08,
         "flow_type": "expense",
+        "currency": "USD",
         "raw_merchant": raw_merchant,
         "description": raw_merchant,
         "categorization_source": categorization_source,
@@ -183,10 +185,10 @@ def test_cross_account_exact_document_pair_soft_removes_only_pdf_copy() -> None:
     rows = [
         ("pdf", "doc-pdf", "acct-pdf", "bank_statement", date(2026, 1, 2), 506.31,
          "income", description, description, "parser", "Income", "essential",
-         None, None, None, now),
+         None, None, None, now, "USD"),
         ("csv", "doc-csv", "acct-csv", "statement_csv", date(2026, 1, 2), 506.31,
          "income", description.upper(), description.upper(), "parser", "Income", "essential",
-         None, None, None, now),
+         None, None, None, now, "USD"),
     ]
 
     class FakeConnection:
@@ -426,10 +428,10 @@ def test_flow_contradiction_is_reported_without_guessing_which_row_to_remove() -
     rows = [
         ("income", "doc-income", "acct-1", "statement_csv", date(2026, 1, 2), 132.08,
          "income", "PROG SELECT INS", "PROG SELECT INS", "parser", "Income", "essential",
-         None, None, None, now),
+         None, None, None, now, "USD"),
         ("expense", "doc-expense", "acct-2", "bank_statement", date(2026, 1, 2), 132.08,
          "expense", "PROG SELECT INS", "PROG SELECT INS", "parser", "Insurance", "essential",
-         None, None, None, now),
+         None, None, None, now, "USD"),
     ]
 
     class FakeConnection:
@@ -503,3 +505,196 @@ def test_cluster_cross_document_same_date_still_joins_compatible_merchants() -> 
     second = _row(row_id="b", document_id="doc-b", raw_merchant="All Smiles Ortho")
 
     assert len(cluster_rows([first, second])) == 1
+
+
+def _bank_feed_row(row_id: str, source: str) -> dict:
+    row = _row(
+        row_id=row_id,
+        document_id=f"{source}-document",
+        source_system=source,
+        raw_merchant="North alias" if source == "plaid" else "South label",
+        category="Utilities",
+    )
+    row.update(
+        household_account_id="synthetic-account",
+        amount=41.25,
+        description="BANK DEBIT EXAMPLE BILLER REF 0042",
+        created_at=datetime(2026, 1, 2 if source == "snaptrade" else 3, tzinfo=UTC),
+    )
+    return row
+
+
+def test_exact_bank_description_matches_cross_feed_merchant_aliases() -> None:
+    plaid = _bank_feed_row("p", "plaid")
+    snap = _bank_feed_row("s", "snaptrade")
+    plaid["description"] = " bank  debit\nEXAMPLE biller ref 0042 "
+    assert not merchants_compatible(merchant_key(plaid), merchant_key(snap))
+    assert len(cluster_rows([plaid, snap])) == 1
+    plan = plan_cluster(cluster_rows([plaid, snap])[0])
+    assert plan is not None
+    assert [row["id"] for row in plan["survivors"]] == ["s"]
+    assert [row["id"] for row in plan["removed"]] == ["p"]
+    assert plaid["raw_merchant"] == "North alias"
+    assert snap["raw_merchant"] == "South label"
+
+
+def test_exact_bank_match_preserves_older_reviewed_snaptrade_survivor() -> None:
+    plaid = _bank_feed_row("p", "plaid")
+    snap = _bank_feed_row("reviewed", "snaptrade")
+    snap["categorization_source"] = "transaction_audit"
+    snap["category"] = "Reviewed household bill"
+    plan = plan_cluster(cluster_rows([plaid, snap])[0])
+    assert plan is not None
+    assert [row["id"] for row in plan["survivors"]] == ["reviewed"]
+    assert plan["survivors"][0]["category"] == "Reviewed household bill"
+    assert plan["category_copies"] == []
+
+
+def test_exact_bank_match_keeps_audited_loser_guard() -> None:
+    plaid = _bank_feed_row("p", "plaid")
+    plaid["created_at"] = datetime(2026, 1, 1, tzinfo=UTC)
+    snap = _bank_feed_row("reviewed", "snaptrade")
+    snap["categorization_source"] = "transaction_audit"
+    assert plan_cluster(cluster_rows([plaid, snap])[0]) is None
+
+
+def test_exact_bank_matches_preserve_two_real_events_mirrored_by_two_feeds() -> None:
+    rows = [_bank_feed_row(f"{source}-{index}", source) for source in ("plaid", "snaptrade") for index in range(2)]
+    clusters = cluster_rows(rows)
+    assert len(clusters) == 1
+    plan = plan_cluster(clusters[0])
+    assert plan is not None
+    assert len(plan["survivors"]) == len(plan["removed"]) == 2
+    assert {row["source_system"] for row in plan["survivors"]} == {"snaptrade"}
+
+
+def test_exact_bank_match_can_copy_manual_category_from_losing_feed() -> None:
+    first = _bank_feed_row("p-1", "plaid")
+    second = _bank_feed_row("p-2", "plaid")
+    manual = _bank_feed_row("manual", "snaptrade")
+    manual["categorization_source"] = "manual"
+    manual["category"] = "User chosen bill category"
+    plan = plan_cluster(cluster_rows([first, second, manual])[0])
+    assert plan is not None
+    assert len(plan["category_copies"]) == 1
+    assert plan["category_copies"][0][1]["id"] == "manual"
+
+
+def test_exact_bank_match_does_not_relax_description_facts_or_direction() -> None:
+    plaid = _bank_feed_row("p", "plaid")
+    snap = _bank_feed_row("s", "snaptrade")
+    for changed in [
+        {"description": "BANK DEBIT EXAMPLE BILLER REF 0043"},
+        {"description": "BANK CREDIT EXAMPLE BILLER REF 0042"},
+        {"description": ""},
+        {"currency": "EUR"},
+        {"currency": None},
+        {"flow_type": "income"},
+        {"amount": 41.26},
+        {"household_account_id": "another-synthetic-account"},
+        {"transaction_date": date(2026, 1, 3)},
+        {"source_system": "bank_statement"},
+    ]:
+        assert not _rows_joined(plaid, dict(snap, **changed))
+
+
+def test_currency_separates_existing_merchant_matches() -> None:
+    first = _row(row_id="usd", document_id="usd-doc")
+    second = dict(_row(row_id="eur", document_id="eur-doc"), currency="EUR")
+    assert len(cluster_rows([first, second])) == 2
+
+
+def _core_feed_row(row_id: str, source: str, description: str) -> dict:
+    return dict(
+        _bank_feed_row(row_id, source),
+        flow_type="investment",
+        description=description,
+        raw_merchant="SPAXX" if source == "plaid" else "SPAXX synthetic fund",
+    )
+
+
+def test_dividend_and_reinvestment_are_distinct_core_activity_legs() -> None:
+    dividend = _core_feed_row("dividend", "plaid", "DIVIDEND RECEIVED SYNTHETIC FUND (SPAXX) (Cash)")
+    reinvestment = _core_feed_row("reinvestment", "snaptrade", "REINVESTMENT SYNTHETIC FUND (SPAXX) (Cash)")
+    assert merchants_compatible(merchant_key(dividend), merchant_key(reinvestment))
+    assert not _rows_joined(dividend, reinvestment)
+    assert len(cluster_rows([dividend, reinvestment])) == 2
+
+
+def test_purchase_into_core_cannot_absorb_external_payroll_with_same_facts() -> None:
+    purchase = _core_feed_row("purchase", "plaid", "PURCHASE INTO CORE ACCOUNT SYNTHETIC FUND (SPAXX) (Cash)")
+    payroll = _core_feed_row("payroll", "snaptrade", "DIRECT DEPOSIT EXAMPLE EMPLOYER PAYROLL (Cash)")
+    purchase["raw_merchant"] = "Fidelity synthetic"
+    payroll["raw_merchant"] = "Fidelity synthetic payroll"
+    assert merchants_compatible(merchant_key(purchase), merchant_key(payroll))
+    assert not _rows_joined(purchase, payroll)
+    assert len(cluster_rows([purchase, payroll])) == 2
+
+
+def test_redemption_from_core_cannot_absorb_external_debit_with_same_facts() -> None:
+    redemption = _core_feed_row("redemption", "plaid", "REDEMPTION FROM CORE ACCOUNT SYNTHETIC FUND (SPAXX) (Cash)")
+    debit = _core_feed_row("debit", "snaptrade", "DIRECT DEBIT EXAMPLE BILLER (Cash)")
+    assert merchants_compatible(merchant_key(redemption), merchant_key(debit))
+    assert not _rows_joined(redemption, debit)
+    assert len(cluster_rows([redemption, debit])) == 2
+
+
+def test_identical_core_legs_mirrored_across_feeds_still_collapse() -> None:
+    for description in (
+        "DIVIDEND RECEIVED SYNTHETIC FUND (SPAXX) (Cash)",
+        "REINVESTMENT SYNTHETIC FUND (SPAXX) (Cash)",
+        "PURCHASE INTO CORE ACCOUNT SYNTHETIC FUND (SPAXX) (Cash)",
+        "REDEMPTION FROM CORE ACCOUNT SYNTHETIC FUND (SPAXX) (Cash)",
+    ):
+        plaid = _core_feed_row("p", "plaid", description)
+        snap = _core_feed_row("s", "snaptrade", description.lower())
+        assert len(cluster_rows([plaid, snap])) == 1
+        plan = plan_cluster(cluster_rows([plaid, snap])[0])
+        assert plan is not None
+        assert len(plan["survivors"]) == len(plan["removed"]) == 1
+
+
+def test_same_document_links_cannot_merge_distinct_core_legs_transitively() -> None:
+    dividend = "DIVIDEND RECEIVED SYNTHETIC FUND (SPAXX) (Cash)"
+    rows = [
+        _core_feed_row("p-dividend", "plaid", dividend),
+        _core_feed_row("p-purchase", "plaid", "PURCHASE INTO CORE ACCOUNT SYNTHETIC FUND (SPAXX) (Cash)"),
+        _core_feed_row("s-dividend", "snaptrade", dividend),
+        _core_feed_row("s-payroll", "snaptrade", "DIRECT DEPOSIT EXAMPLE EMPLOYER PAYROLL (Cash)"),
+    ]
+    clusters = cluster_rows(rows)
+    assert sorted(len(cluster) for cluster in clusters) == [1, 1, 2]
+    plans = [plan for cluster in clusters if (plan := plan_cluster(cluster)) is not None]
+    assert len(plans) == 1
+    assert {row["id"] for row in plans[0]["removed"]} == {"p-dividend"}
+    assert {row["id"] for row in plans[0]["survivors"]} == {"s-dividend"}
+
+
+def test_cross_account_exact_document_twins_require_matching_currency() -> None:
+    description = "BANK DEBIT EXAMPLE BILLER REFERENCE 0042"
+    pdf = dict(_row(row_id="pdf", document_id="pdf-doc", source_system="bank_statement", raw_merchant=description), household_account_id="pdf-account")
+    csv = dict(_row(row_id="csv", document_id="csv-doc", source_system="statement_csv", raw_merchant=description), household_account_id="csv-account", currency="EUR")
+    assert cross_account_document_twins([pdf, csv]) == []
+    csv["currency"] = "usd"
+    assert cross_account_document_twins([pdf, csv]) == [(pdf, csv)]
+
+
+def test_document_sources_cannot_bridge_distinct_cross_feed_core_legs() -> None:
+    dividend = _core_feed_row("p-dividend", "plaid", "DIVIDEND RECEIVED SYNTHETIC FUND (SPAXX) (Cash)")
+    reinvestment = _core_feed_row("s-reinvestment", "snaptrade", "REINVESTMENT SYNTHETIC FUND (SPAXX) (Cash)")
+    for source in ("statement_csv", "bank_statement", "statement_activity"):
+        bridge = _core_feed_row("document", source, "SYNTHETIC FUND SPAXX ACTIVITY")
+        assert merchants_compatible(merchant_key(dividend), merchant_key(bridge))
+        assert merchants_compatible(merchant_key(reinvestment), merchant_key(bridge))
+        assert len(cluster_rows([dividend, bridge, reinvestment])) == 3
+
+
+def test_identical_core_description_matches_across_feeds_and_statement_csv() -> None:
+    description = "DIVIDEND RECEIVED SYNTHETIC FUND (SPAXX) (Cash)"
+    rows = [_core_feed_row(source, source, description) for source in ("plaid", "snaptrade", "statement_csv")]
+    clusters = cluster_rows(rows)
+    assert len(clusters) == 1
+    plan = plan_cluster(clusters[0])
+    assert plan is not None
+    assert len(plan["survivors"]) == 1
+    assert len(plan["removed"]) == 2

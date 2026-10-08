@@ -7,7 +7,7 @@ import json
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -33,6 +33,7 @@ from app.services._household_merchants import (
     _is_property_payment_income,
 )
 from app.services._household_taxonomy import canonical_classification
+from app.services._household_transaction_parsers import _classify_statement_csv_flow
 from app.services.credential_crypto import (
     CredentialCipher,
     SecretDecryptionError,
@@ -54,7 +55,17 @@ _DEFAULT_PRODUCTS = ["transactions"]
 _DEFAULT_COUNTRY_CODES = ["US"]
 _VALID_ENVIRONMENTS = {"sandbox", "production"}
 _GENERIC_PLAID_ACCOUNT_NAMES = {"account", "credit card"}
+_INVESTMENT_RETIREMENT_TYPES = {
+    "ira": "ira",
+    "roth": "roth_ira",
+    "roth_ira": "roth_ira",
+    "401k": "401k",
+    "hsa": "hsa",
+}
 _CARD_PAYMENT_DESCRIPTION = re.compile(r"^\s*(?:automatic\s+)?payment[\s-]+thank\b", re.IGNORECASE)
+_CMA_CORE_SWEEP_DESCRIPTION = re.compile(
+    r"^\s*(?:purchase\s+into\s+core|redemption\s+from\s+core)\b", re.IGNORECASE,
+)
 _MASK_IDENTITY_PREFIXES = (
     "institution-mask::",
     "mask::",
@@ -221,10 +232,32 @@ def _account_kind(account_type: str | None, subtype: str | None) -> tuple[str, s
     if normalized_type == "depository":
         return "cash", "bank", normalized_subtype or "depository"
     if normalized_type == "investment":
+        retirement_type = _INVESTMENT_RETIREMENT_TYPES.get(normalized_subtype)
+        if retirement_type:
+            return "retirement", "retirement", retirement_type
         return "taxable", "brokerage", normalized_subtype or "investment"
     if normalized_type == "loan":
         return "debt", "loan", normalized_subtype or "loan"
     return "other", "plaid", normalized_subtype or normalized_type or "account"
+
+
+def _preserved_investment_kind(
+    conn: Any, household_account_id: str, kind: tuple[str, str, str],
+) -> tuple[str, str, str]:
+    """Generic investment data cannot erase an established retirement kind."""
+    if kind[:2] != ("taxable", "brokerage"):
+        return kind
+    row = conn.execute(
+        "SELECT asset_group, source_type, account_type FROM household_accounts WHERE id = %s",
+        [household_account_id],
+    ).fetchone()
+    if (
+        row and row[0] == "retirement"
+        and row[1] in {"retirement", "brokerage"}
+        and row[2] in _INVESTMENT_RETIREMENT_TYPES.values()
+    ):
+        return str(row[0]), str(row[1]), str(row[2])
+    return kind
 
 
 def _plaid_account_name(account: dict[str, Any]) -> str:
@@ -293,6 +326,31 @@ def _transaction_category(personal_finance_category: dict[str, object]) -> tuple
     return canonical_classification(str(raw))
 
 
+def _cash_management_transaction_classification(
+    amount: Decimal, *, description: str, merchant_name: str | None,
+) -> tuple[str, str, str]:
+    # CMA movements follow the cash-book owner semantics used by brokerage
+    # CSV imports and the SnapTrade bridge. Plaid signs are reversed, and its
+    # transfer taxonomy must not turn checks or peer payments into transfers.
+    category, essentiality = _classify_merchant(
+        raw_merchant=merchant_name or description,
+        description=description,
+        amount=float(abs(amount)),
+    )
+    classification = _classify_statement_csv_flow(
+        description=description,
+        source_type="brokerage",
+        signed_amount=-amount,
+        category=category,
+        essentiality=essentiality,
+    )
+    # These observed core sweep legs move money between cash and the core
+    # investment; neither leg is additional household income or spending.
+    if _CMA_CORE_SWEEP_DESCRIPTION.search(description):
+        return "investment", "Transfers", "mixed"
+    return classification
+
+
 def _transaction_classification(
     amount: Decimal,
     personal_finance_category: dict[str, object],
@@ -300,7 +358,15 @@ def _transaction_classification(
     account_type: str | None,
     description: str,
     merchant_name: str | None = None,
+    account_subtype: str | None = None,
 ) -> tuple[str, str, str]:
+    if (
+        (account_type or "").strip().lower() == "depository"
+        and (account_subtype or "").strip().lower().replace("_", " ") == "cash management"
+    ):
+        return _cash_management_transaction_classification(
+            amount, description=description, merchant_name=merchant_name,
+        )
     flow_type = _transaction_flow(
         amount,
         personal_finance_category,
@@ -651,6 +717,7 @@ class PlaidService:
         }
         config = self._load_config()
         client = self._client(config)
+        deduplicated_count = 0
 
         for item in items:
             totals["item_count"] = int(totals["item_count"]) + 1
@@ -688,17 +755,10 @@ class PlaidService:
             totals["transaction_removed_count"] = int(totals["transaction_removed_count"]) + int(
                 item_result["transaction_removed_count"]
             )
+            deduplicated_count += int(item_result.get("transaction_deduplicated_count", 0))
 
-        # Plaid re-delivers charges that statement imports already hold (often
-        # with a 1-2 day posted-date skew); collapse cross-source duplicates
-        # over the recent sync window.
         if int(totals["transaction_added_count"]) > 0:
-            dedup_summary = HouseholdTransactionDedupService(
-                self.storage
-            ).dedupe_transactions(
-                date_start=datetime.now(UTC).date() - timedelta(days=45),
-            )
-            totals["transaction_deduplicated_count"] = int(dedup_summary.get("removed", 0))
+            totals["transaction_deduplicated_count"] = deduplicated_count
 
         return totals
 
@@ -1080,6 +1140,9 @@ class PlaidService:
                     institution_name=institution_name,
                     mask=mask,
                 )
+                asset_group, source_type, normalized_account_type = _preserved_investment_kind(
+                    conn, household_account_id, (asset_group, source_type, normalized_account_type),
+                )
                 conn.execute(
                     """
                     INSERT INTO plaid_accounts (
@@ -1176,26 +1239,40 @@ class PlaidService:
         mask: str | None,
     ) -> str:
         identity_key = f"plaid_account:{account_id}"
-        mask_identity_keys = [
-            key
-            for key in account_identity_candidates(
-                source_type=source_type,
-                asset_group=asset_group,
-                account_type=account_type,
-                institution_name=institution_name,
-                account_name=label,
-                owner_name=None,
-                account_mask=mask,
-            )
-            if key.startswith(_MASK_IDENTITY_PREFIXES)
-        ]
         household_account_id = self._match_household_account_identity(
-            conn=conn,
-            identity_keys=mask_identity_keys,
-        ) or self._match_household_account_identity(
             conn=conn,
             identity_keys=[identity_key],
         )
+        if household_account_id:
+            asset_group, source_type, account_type = _preserved_investment_kind(
+                conn, household_account_id, (asset_group, source_type, account_type),
+            )
+
+        def mask_candidates() -> list[str]:
+            return [
+                key
+                for key in account_identity_candidates(
+                    source_type=source_type,
+                    asset_group=asset_group,
+                    account_type=account_type,
+                    institution_name=institution_name,
+                    account_name=label,
+                    owner_name=None,
+                    account_mask=mask,
+                )
+                if key.startswith(_MASK_IDENTITY_PREFIXES)
+            ]
+
+        mask_identity_keys = mask_candidates()
+        if not household_account_id:
+            household_account_id = self._match_household_account_identity(
+                conn=conn, identity_keys=mask_identity_keys,
+            )
+            if household_account_id:
+                asset_group, source_type, account_type = _preserved_investment_kind(
+                    conn, household_account_id, (asset_group, source_type, account_type),
+                )
+                mask_identity_keys = mask_candidates()
 
         if household_account_id:
             conn.execute(
@@ -1410,15 +1487,26 @@ class PlaidService:
         else:
             raise PlaidIntegrationError("Transaction history exceeded bounded pagination; coverage is unverified")
 
-        for transactions, is_removed in ((added, False), (modified, False), (removed, True)):
+        added_windows: dict[str, tuple[date, date]] = {}
+        for transactions, is_removed, reconcile_added in (
+            (added, False, True), (modified, False, False), (removed, True, False),
+        ):
             for transaction in transactions:
-                self._upsert_transaction(
+                household_account_id = self._upsert_transaction(
                     conn=conn,
                     item=item,
                     document_id=document_id,
                     transaction=transaction,
                     removed=is_removed,
                 )
+                if reconcile_added and household_account_id:
+                    transaction_date = _parse_date(transaction.get("date"))
+                    assert transaction_date is not None
+                    previous_window = added_windows.get(household_account_id)
+                    added_windows[household_account_id] = (
+                        min(previous_window[0], transaction_date),
+                        max(previous_window[1], transaction_date),
+                    ) if previous_window else (transaction_date, transaction_date)
         conn.execute(
             """
             UPDATE plaid_items
@@ -1431,11 +1519,34 @@ class PlaidService:
             [next_cursor, _now(), _now(), item["item_id"]],
         )
         conn.commit()
+        deduplicated_count = 0
+        if added_windows:
+            # Reconcile only the actual committed backfill for each canonical
+            # account. The owner service pads edges by its fuzzy date tolerance
+            # and preserves raw provider rows and reviewed classifications.
+            try:
+                dedup_service = HouseholdTransactionDedupService(self.storage)
+                for household_account_id, (date_start, date_end) in added_windows.items():
+                    summary = dedup_service.dedupe_transactions(
+                        household_account_ids=[household_account_id],
+                        date_start=date_start,
+                        date_end=date_end,
+                    )
+                    deduplicated_count += int(summary.get("removed", 0))
+            except Exception as exc:
+                logger.warning(
+                    "plaid_committed_backfill_reconciliation_failed",
+                    item_id=item["item_id"], error_type=type(exc).__name__,
+                )
+                raise PlaidIntegrationError(
+                    "Transactions and sync cursor were saved, but duplicate reconciliation failed."
+                ) from exc
         return (
             {
                 "transaction_added_count": len(added),
                 "transaction_modified_count": len(modified),
                 "transaction_removed_count": len(removed),
+                "transaction_deduplicated_count": deduplicated_count,
             },
             next_cursor or None,
         )
@@ -1448,7 +1559,7 @@ class PlaidService:
         document_id: str,
         transaction: dict[str, object],
         removed: bool,
-    ) -> None:
+    ) -> str | None:
         _validate_sync_transaction(transaction, removed=removed)
         transaction_id = str(transaction["transaction_id"])
         item_id = str(item["item_id"])
@@ -1477,7 +1588,7 @@ class PlaidService:
                     transaction_id,
                 ],
             )
-            return
+            return None
 
         transaction_date = _parse_date(transaction.get("date"))
         amount = _money(transaction.get("amount"))
@@ -1493,7 +1604,7 @@ class PlaidService:
         household_amount = abs(amount)
         account_row = conn.execute(
             """
-            SELECT household_account_id, name, type
+            SELECT household_account_id, name, type, subtype
             FROM plaid_accounts
             WHERE account_id = %s
             """,
@@ -1507,6 +1618,7 @@ class PlaidService:
             account_type=str(account_row[2]) if account_row and account_row[2] else None,
             description=str(transaction.get("name") or merchant),
             merchant_name=str(transaction.get("merchant_name") or merchant),
+            account_subtype=str(account_row[3]) if account_row and account_row[3] else None,
         )
         merchant_id, canonical_name, category, essentiality, has_manual_rule, rule_id = (
             self.transaction_service._resolve_merchant(
@@ -1692,6 +1804,7 @@ class PlaidService:
             merchant=canonical_name,
             description=str(transaction.get("name") or merchant),
         )
+        return household_account_id
 
     def _record_item_error(self, item_id: str, message: str) -> None:
         with self.storage.connection() as conn:

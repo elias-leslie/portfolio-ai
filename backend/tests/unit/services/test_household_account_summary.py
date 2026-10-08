@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+import pytest
 
 from app.models.household_finance import (
     HouseholdDiscoveredAccount,
@@ -24,6 +28,7 @@ from app.services._money_workspace_routes import (
     money_account_focus_route,
     money_question_focus_route,
 )
+from app.services.household_account_control import SourceAccountRow, _collapse_source_rows
 
 
 def _iso(days_ago: int) -> str:
@@ -2075,6 +2080,159 @@ def test_source_sync_refreshes_transaction_freshness_for_spend_driver() -> None:
     assert summary.transaction_freshness_status == "fresh"
     assert summary.freshness_status == "fresh"
     assert not any(gap.code == "stale_transactions" for gap in summary.gap_flags)
+
+
+@pytest.mark.parametrize("with_evidence", [False, True])
+@pytest.mark.parametrize("transaction_source", [None, "plaid"])
+def test_summary_keeps_balance_and_transaction_coverage_attribution_independent(
+    with_evidence: bool,
+    transaction_source: str | None,
+) -> None:
+    balance_synced_at = datetime.now(UTC) - timedelta(days=4)
+    transaction_synced_at = datetime.now(UTC)
+    source_value = {
+        "current_value": 41840.64,
+        "cash_balance": 1200.0,
+        "last_synced_at": balance_synced_at,
+        "transaction_synced_at": transaction_synced_at,
+        "source": "snaptrade",
+    }
+    if transaction_source is not None:
+        source_value["transaction_coverage_source"] = transaction_source
+    portfolio_account = Account(
+        id="portfolio-cma",
+        name="Cash Management (Joint WROS)",
+        account_type="Taxable",
+        household_account_id="household-cma",
+        cash_balance=1000.0,
+        updated_at=datetime.now(UTC),
+    )
+    evidence = HouseholdEvidenceAccount(
+        id="acct-cma",
+        document_id="doc-cma",
+        household_account_id="household-cma",
+        source_type="brokerage",
+        asset_group="taxable",
+        account_type="brokerage",
+        institution_name="Fidelity",
+        account_name="Cash Management (Joint WROS)",
+        account_mask="1234",
+        currency="USD",
+        balance=39000.0,
+        cash_balance=1000.0,
+        as_of_date=_iso(20),
+        confidence=0.95,
+        metadata={},
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[evidence] if with_evidence else [],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        source_owned_household_account_ids={"household-cma"},
+        source_owned_account_values={"household-cma": source_value},
+        holdings_by_account={},
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.current_value == 41840.64
+    assert summary.cash_balance == 1200.0
+    assert summary.last_balance_at == balance_synced_at.isoformat()
+    assert summary.transaction_coverage_at == transaction_synced_at.isoformat()
+    assert summary.transaction_coverage_source == (
+        "Plaid sync" if transaction_source else "Snaptrade sync"
+    )
+    assert summary.transaction_freshness_status == "fresh"
+    assert source_value["source"] == "snaptrade"
+
+
+@pytest.mark.parametrize("with_evidence", [False, True])
+@pytest.mark.parametrize("partial_snapshot", ["cash_only", "nan_cash", "infinite_cash"])
+def test_partial_snaptrade_snapshot_does_not_hide_complete_plaid_total_in_summary(
+    with_evidence: bool,
+    partial_snapshot: str,
+) -> None:
+    now = datetime.now(UTC)
+    snaptrade = SourceAccountRow(
+        source="snaptrade",
+        source_account_id="snaptrade-account",
+        connection_id="snaptrade-connection",
+        household_account_id="household-cma",
+        account_label="Cash Management",
+        institution_name="Fidelity",
+        account_mask="1234",
+        current_value=None if partial_snapshot == "cash_only" else Decimal("1200"),
+        cash_balance={
+            "cash_only": Decimal("200"),
+            "nan_cash": Decimal("NaN"),
+            "infinite_cash": Decimal("Infinity"),
+        }[partial_snapshot],
+        currency="USD",
+        last_synced_at=now - timedelta(days=1),
+        asset_group="cash",
+    )
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        connection_id="plaid-item",
+        current_value=Decimal("1200"),
+        cash_balance=None,
+        last_synced_at=now,
+    )
+    source_values, source_owned_ids, issues = _collapse_source_rows([snaptrade, plaid])
+    evidence = HouseholdEvidenceAccount(
+        id="acct-cma",
+        document_id="doc-cma",
+        household_account_id="household-cma",
+        source_type="brokerage",
+        asset_group="cash",
+        account_type="brokerage",
+        institution_name="Fidelity",
+        account_name="Cash Management",
+        account_mask="1234",
+        balance=1000.0,
+        cash_balance=100.0,
+        as_of_date=_iso(20),
+    )
+    portfolio_account = Account(
+        id="portfolio-cma",
+        name="Cash Management",
+        account_type="Taxable",
+        household_account_id="household-cma",
+        cash_balance=100.0,
+        updated_at=now,
+    )
+
+    summaries = build_account_summaries(
+        evidence_accounts=[evidence] if with_evidence else [],
+        documents=[],
+        portfolio_accounts=[portfolio_account],
+        tracked_accounts=[],
+        holdings_by_account={"portfolio-cma": 900.0},
+        source_owned_household_account_ids=source_owned_ids,
+        source_owned_account_values=source_values,
+        statement_freshness={"coverage_months": 1, "gap_months": []},
+    )
+
+    assert issues == []
+    assert source_values["household-cma"]["source"] == "plaid"
+    assert source_values["household-cma"]["cash_balance"] is None
+    assert len(summaries) == 1
+    assert summaries[0].current_value == 1200.0
+    # Evidence summaries require a portfolio valuation to supply cash when the
+    # selected source omits it; old evidence/Account cash remains unconfirmed.
+    # Portfolio-only summaries retain their established Account cash fallback.
+    if with_evidence:
+        assert summaries[0].cash_balance is None
+        assert summaries[0].holdings_value == 1200.0
+    else:
+        assert summaries[0].cash_balance == 100.0
+        assert summaries[0].holdings_value == 1100.0
+    assert summaries[0].last_balance_at == now.isoformat()
 
 
 def test_build_account_summaries_reprices_source_owned_symbol_account() -> None:

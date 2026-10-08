@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, contextmanager
+from datetime import date
 from decimal import Decimal
 from threading import Event, Lock
 from types import SimpleNamespace
@@ -136,6 +137,21 @@ def test_account_kind_uses_household_credit_card_taxonomy() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("subtype", "expected_type"),
+    [("ira", "ira"), ("roth", "roth_ira"), (" IRA ", "ira"), ("ROTH", "roth_ira")],
+)
+def test_investment_retirement_subtypes_use_canonical_owner_taxonomy(
+    subtype: str, expected_type: str,
+) -> None:
+    assert _account_kind("investment", subtype) == ("retirement", "retirement", expected_type)
+
+
+def test_generic_investment_does_not_infer_retirement_from_display_names() -> None:
+    assert _account_kind("investment", None) == ("taxable", "brokerage", "investment")
+    assert _account_kind("investment", "brokerage") == ("taxable", "brokerage", "brokerage")
+
+
 def test_transaction_category_maps_plaid_taxonomy_to_household_taxonomy() -> None:
     assert _transaction_category(
         {"primary": "FOOD_AND_DRINK", "detailed": "FOOD_AND_DRINK_RESTAURANT"}
@@ -233,6 +249,79 @@ def test_card_credit_uses_plaid_merchant_name_when_transaction_name_is_generic()
     ) == ("refund", "Retail", "discretionary")
 
 
+@pytest.mark.parametrize(
+    ("description", "amount", "primary", "expected"),
+    [
+        ("DIRECT DEBIT CHASE CREDIT CEPAY (Cash)", "6243.47", "GENERAL_SERVICES", ("transfer_out", "Transfers", "mixed")),
+        ("Check Paid (Cash)", "125", "TRANSFER_OUT", ("expense", "Household", "mixed")),
+        ("DIRECT DEBIT VENMO PAYMENT (Cash)", "50", "TRANSFER_OUT", ("expense", "Peer Payments", "mixed")),
+        ("DIRECT DEBIT CASHAPP PAYMENT (Cash)", "25", "TRANSFER_OUT", ("expense", "Peer Payments", "mixed")),
+        ("DIRECT DEBIT DUKEENERGY BILL PAY (Cash)", "170.43", "TRANSFER_OUT", ("expense", "Bills", "essential")),
+        ("DIRECT DEPOSIT EMPLOYER PAYROLL (Cash)", "-1500", "TRANSFER_IN", ("income", "Income", "essential")),
+        ("PURCHASE INTO CORE FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)", "1500", "GENERAL_SERVICES", ("investment", "Transfers", "mixed")),
+        ("REDEMPTION FROM CORE FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)", "-1500", "INCOME", ("investment", "Transfers", "mixed")),
+        ("REINVESTMENT FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)", "103.29", "GENERAL_SERVICES", ("investment", "Transfers", "mixed")),
+        ("DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX) (Cash)", "-103.29", "INCOME", ("investment", "Investments", "mixed")),
+    ],
+)
+def test_cash_management_upsert_uses_owner_cash_flows_and_preserves_raw_provider_facts(
+    monkeypatch, description: str, amount: str, primary: str, expected: tuple[str, str, str],
+) -> None:
+    service = _service()
+    service.transaction_service = SimpleNamespace(
+        _resolve_merchant=lambda **kwargs: (None, description, kwargs["category"], kwargs["essentiality"], False, None),
+    )
+    monkeypatch.setattr(plaid_service.SoftChargeReconciler, "try_match", lambda **_: None)
+
+    class Connection(_RecordingConnection):
+        def execute(self, sql: str, params: list[object] | None = None) -> _RecordingResult:
+            result = super().execute(sql, params)
+            if "FROM plaid_accounts" in sql:
+                return _RecordingResult(["canonical-cma", "Generic account", "depository", "cash management"])
+            return result
+
+    conn = Connection()
+    service._upsert_transaction(
+        conn=conn, item={"item_id": "item-1"}, document_id="doc", removed=False,
+        transaction={"transaction_id": "txn-1", "account_id": "account-1", "date": "2026-10-05", "amount": Decimal(amount), "name": description, "personal_finance_category": {"primary": primary}},
+    )
+    household = next(params for sql, params in conn.calls if "INSERT INTO household_transactions" in sql)
+    raw_provider = next(params for sql, params in conn.calls if "INSERT INTO plaid_transactions" in sql)
+    assert household is not None and raw_provider is not None
+    assert tuple(household[12:15]) == expected
+    assert household[7] == description
+    assert household[10] == abs(Decimal(amount))
+    assert raw_provider[4] == description
+    assert raw_provider[6] == Decimal(amount)
+
+
+@pytest.mark.parametrize("account_type,subtype", [("depository", "checking"), ("depository", None), ("credit", "cash management"), ("investment", "cash management")])
+def test_owner_cash_classifier_is_scoped_to_actual_depository_cash_management_subtype(
+    monkeypatch, account_type: str, subtype: str | None,
+) -> None:
+    service = _service()
+    service.transaction_service = SimpleNamespace(
+        _resolve_merchant=lambda **kwargs: (None, "Card payment", kwargs["category"], kwargs["essentiality"], False, None),
+    )
+    monkeypatch.setattr(plaid_service.SoftChargeReconciler, "try_match", lambda **_: None)
+
+    class Connection(_RecordingConnection):
+        def execute(self, sql: str, params: list[object] | None = None) -> _RecordingResult:
+            result = super().execute(sql, params)
+            if "FROM plaid_accounts" in sql:
+                return _RecordingResult(["account", "CASH MANAGEMENT", account_type, subtype])
+            return result
+
+    conn = Connection()
+    service._upsert_transaction(
+        conn=conn, item={"item_id": "item-1"}, document_id="doc", removed=False,
+        transaction={"transaction_id": "txn-1", "account_id": "account-1", "date": "2026-10-05", "amount": Decimal("6243.47"), "name": "DIRECT DEBIT CHASE CREDIT CEPAY (Cash)", "personal_finance_category": {"primary": "GENERAL_SERVICES"}},
+    )
+    household = next(params for sql, params in conn.calls if "INSERT INTO household_transactions" in sql)
+    assert household is not None
+    assert household[12] == "expense"
+
+
 def test_plaid_replay_upsert_preserves_reviewed_flow_and_dedup_removal(monkeypatch) -> None:
     service = _service()
     service.transaction_service = SimpleNamespace(
@@ -243,7 +332,7 @@ def test_plaid_replay_upsert_preserves_reviewed_flow_and_dedup_removal(monkeypat
 
     class FakeResult:
         def fetchone(self):
-            return ("household-account", "Card", "credit")
+            return ("household-account", "Card", "credit", "credit card")
 
     # Exercise the actual placeholder-rewriting wrapper and psycopg binder,
     # without opening a database or contacting Plaid.
@@ -386,6 +475,96 @@ class _RecordingStorage(AbstractContextManager[_RecordingConnection]):
 
     def __exit__(self, *args: object) -> None:
         return None
+
+
+class _RetirementSnapshotConnection(_RecordingConnection):
+    """In-memory row effects for the real Plaid account upsert path."""
+
+    def __init__(self, canonical_type: str, *, linked: bool = True) -> None:
+        super().__init__()
+        self.kind = ("retirement", "retirement", canonical_type)
+        self.identities = {f"mask::1234|retirement|{canonical_type}": "canonical-retirement"}
+        if linked:
+            self.identities["plaid_account:account-1"] = "canonical-retirement"
+        self.evidence_kinds: list[tuple[object, object, object]] = []
+        self.inserted_shells = 0
+
+    def execute(self, sql: str, params: list[object] | None = None) -> _RecordingResult:
+        result = super().execute(sql, params)
+        if "FROM household_account_identities" in sql:
+            assert params is not None and isinstance(params[0], list)
+            keys = params[0]
+            rows = [[key, self.identities[key]] for key in keys if key in self.identities]
+
+            class IdentityResult(_RecordingResult):
+                def fetchall(self) -> list[list[object]]:
+                    return rows
+
+            return IdentityResult()
+        if "FROM household_accounts" in sql:
+            return _RecordingResult(list(self.kind))
+        if "UPDATE household_accounts" in sql:
+            assert params is not None
+            kind = (params[1], params[3], params[2])
+            assert all(isinstance(value, str) for value in kind)
+            self.kind = (str(kind[0]), str(kind[1]), str(kind[2]))
+        elif "INSERT INTO household_accounts" in sql:
+            self.inserted_shells += 1
+            return _RecordingResult(["duplicate-shell"])
+        elif "INSERT INTO household_account_identities" in sql:
+            assert params is not None
+            self.identities[str(params[2])] = str(params[1])
+        elif "INSERT INTO household_evidence_accounts" in sql:
+            assert params is not None
+            self.evidence_kinds.append((params[4], params[3], params[5]))
+        return result
+
+
+@pytest.mark.parametrize("subtype,canonical_type", [("ira", "ira"), ("roth", "roth_ira")])
+def test_plaid_retirement_snapshot_reuses_compatible_mask_identity_and_repeat_link(
+    subtype: str, canonical_type: str,
+) -> None:
+    service = _service()
+    conn = _RetirementSnapshotConnection(canonical_type, linked=False)
+    service.storage = _RecordingStorage(conn)
+    snapshot = [{"account_id": "account-1", "type": "investment", "subtype": subtype, "name": "Account", "mask": "1234", "balances": {"current": 12}}]
+    for _ in range(2):
+        assert service._upsert_accounts(item={"item_id": "item-1", "institution_name": "Fidelity"}, document_id="doc", accounts=snapshot) == 1
+    assert conn.inserted_shells == 0
+    assert conn.identities["plaid_account:account-1"] == "canonical-retirement"
+    assert conn.kind == ("retirement", "retirement", canonical_type)
+    assert conn.evidence_kinds == [conn.kind, conn.kind]
+
+
+@pytest.mark.parametrize("canonical_type", ["ira", "roth_ira", "401k", "hsa"])
+@pytest.mark.parametrize("subtype", [None, "brokerage", "other"])
+def test_generic_plaid_investment_snapshot_preserves_linked_retirement_facts(
+    canonical_type: str, subtype: str | None,
+) -> None:
+    service = _service()
+    conn = _RetirementSnapshotConnection(canonical_type)
+    # A weaker mask match must not replace an established provider link.
+    conn.identities["institution-mask::fidelity|1234"] = "unrelated-shell"
+    service.storage = _RecordingStorage(conn)
+    snapshot = [{"account_id": "account-1", "type": "investment", "subtype": subtype, "name": "Account", "mask": "1234", "balances": {"current": 12}}]
+    for _ in range(2):
+        assert service._upsert_accounts(item={"item_id": "item-1", "institution_name": "Fidelity"}, document_id="doc", accounts=snapshot) == 1
+    assert conn.inserted_shells == 0
+    assert conn.identities["plaid_account:account-1"] == "canonical-retirement"
+    assert conn.kind == ("retirement", "retirement", canonical_type)
+    assert conn.evidence_kinds == [conn.kind, conn.kind]
+
+
+def test_generic_investment_does_not_preserve_unrecognized_retirement_type_or_infer_name() -> None:
+    service = _service()
+    conn = _RetirementSnapshotConnection("unknown")
+    service.storage = _RecordingStorage(conn)
+    service._upsert_accounts(
+        item={"item_id": "item-1", "institution_name": "Fidelity"}, document_id="doc",
+        accounts=[{"account_id": "account-1", "type": "investment", "subtype": "brokerage", "name": "ROTH IRA", "mask": "1234", "balances": {"current": 12}}],
+    )
+    assert conn.kind == ("taxable", "brokerage", "brokerage")
+    assert conn.evidence_kinds == [conn.kind]
 
 
 def test_authoritative_empty_plaid_snapshot_deactivates_prior_accounts() -> None:
@@ -612,6 +791,108 @@ def _mutation_error():
     return error
 
 
+def test_backfill_reconciles_actual_committed_window_per_canonical_account(monkeypatch) -> None:
+    service = _service()
+    conn = _RecordingConnection()
+    service.storage = _RecordingStorage(conn)
+    monkeypatch.setattr(service, "_upsert_transaction", lambda **kwargs: {
+        "cma": "canonical-cma", "card": "canonical-card",
+    }[kwargs["transaction"]["account_id"]])
+    reconciled = []
+
+    def reconcile(**kwargs):
+        assert conn.calls[-1] == ("COMMIT", None)
+        reconciled.append(kwargs)
+        return {"removed": 8 if kwargs["household_account_ids"] == ["canonical-cma"] else 1}
+
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _storage: SimpleNamespace(dedupe_transactions=reconcile))
+    client = SimpleNamespace(transactions_sync=lambda _: _page(added=[
+        _transaction(transaction_id="old", account_id="cma", date="2026-07-10"),
+        _transaction(transaction_id="new", account_id="cma", date="2026-10-05"),
+        _transaction(transaction_id="card", account_id="card", date="2026-08-02"),
+    ]))
+    counts, cursor = service._sync_transactions(client=client, item={"item_id": "item-1"}, document_id="doc", access_token="test")
+    assert counts["transaction_added_count"] == 3
+    assert counts["transaction_deduplicated_count"] == 9
+    assert cursor == "next"
+    assert reconciled == [
+        {"household_account_ids": ["canonical-cma"], "date_start": date(2026, 7, 10), "date_end": date(2026, 10, 5)},
+        {"household_account_ids": ["canonical-card"], "date_start": date(2026, 8, 2), "date_end": date(2026, 8, 2)},
+    ]
+
+
+def test_failed_cursor_commit_does_not_reconcile_an_uncommitted_backfill(monkeypatch) -> None:
+    service = _service()
+
+    class FailingCommit(_RecordingConnection):
+        def commit(self) -> None:
+            raise RuntimeError("commit failed")
+
+    conn = FailingCommit()
+    service.storage = _RecordingStorage(conn)
+    monkeypatch.setattr(service, "_upsert_transaction", lambda **_: "canonical-cma")
+    reconciled = []
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _storage: SimpleNamespace(dedupe_transactions=lambda **kwargs: reconciled.append(kwargs)))
+    with pytest.raises(RuntimeError, match="commit failed"):
+        service._sync_transactions(client=SimpleNamespace(transactions_sync=lambda _: _page(added=[_transaction(date="2026-07-10")])), item={"item_id": "item-1"}, document_id="doc", access_token="test")
+    assert reconciled == []
+
+
+def test_sync_response_aggregates_existing_reconciliation_count_without_global_scan(monkeypatch) -> None:
+    service = _service()
+    monkeypatch.setattr(service, "_load_items", lambda **_: [{"item_id": "item-1"}, {"item_id": "item-2"}])
+    monkeypatch.setattr(service, "_load_config", lambda: None)
+    monkeypatch.setattr(service, "_client", lambda _: object())
+    monkeypatch.setattr(service, "_sync_single_item", lambda **_: {
+        "account_count": 1, "transaction_added_count": 2, "transaction_modified_count": 0,
+        "transaction_removed_count": 0, "transaction_deduplicated_count": 4,
+    })
+    def unexpected_global_scan(_storage):
+        pytest.fail("Reconciliation must stay within each item's imported account/date windows")
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", unexpected_global_scan)
+    result = service.sync_items()
+    assert result["transaction_deduplicated_count"] == 8
+    assert result["transaction_added_count"] == 4
+    assert result["errors"] == []
+
+
+def test_reconciliation_failure_reports_saved_cursor_without_replaying_provider_rows(monkeypatch) -> None:
+    service = _service()
+    conn = _RecordingConnection()
+    service.storage = _RecordingStorage(conn)
+    service.cipher = SimpleNamespace(decrypt=lambda _: "test")
+    item = {"item_id": "item-1", "access_token_ciphertext": "encrypted"}
+    monkeypatch.setattr(service, "_load_items", lambda **_: [item])
+    monkeypatch.setattr(service, "_load_config", lambda: None)
+    monkeypatch.setattr(service, "_ensure_sync_document", lambda **_: "doc")
+    monkeypatch.setattr(service, "_upsert_accounts", lambda **_: 1)
+    monkeypatch.setattr(service, "_upsert_transaction", lambda **_: "canonical-cma")
+    requests, errors = [], []
+
+    def sync(request):
+        requests.append(request.cursor)
+        return _page(added=[_transaction(date="2026-07-10")], cursor="saved-cursor")
+
+    client = SimpleNamespace(accounts_balance_get=lambda _: {"accounts": []}, transactions_sync=sync)
+    monkeypatch.setattr(service, "_client", lambda _: client)
+    monkeypatch.setattr(service, "_record_item_error", lambda item_id, message: errors.append((item_id, message)))
+
+    def reconcile(**_kwargs):
+        assert conn.calls[-1] == ("COMMIT", None)
+        cursor_write = next(params for sql, params in conn.calls if "UPDATE plaid_items" in sql)
+        assert cursor_write is not None and cursor_write[0] == "saved-cursor"
+        raise RuntimeError("owner reconciliation unavailable")
+
+    monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _storage: SimpleNamespace(dedupe_transactions=reconcile))
+    result = service.sync_items()
+    assert requests == [""]
+    message = "Transactions and sync cursor were saved, but duplicate reconciliation failed."
+    assert errors == [("item-1", message)]
+    result_errors = result["errors"]
+    assert isinstance(result_errors, list) and len(result_errors) == 1
+    assert result_errors[0] == {"item_id": "item-1", "detail": message}
+
+
 @pytest.mark.parametrize("field,value", [("date", "bad-date"), ("date", None), ("amount", "NaN"), ("amount", "Infinity"), ("amount", None), ("account_id", "  "), ("account_id", None)])
 @pytest.mark.parametrize("kind", ["added", "modified"])
 def test_invalid_transaction_prevents_all_writes_and_cursor_advance(field, value, kind, monkeypatch):
@@ -631,7 +912,9 @@ def test_sync_commits_transaction_rows_and_cursor_once_in_same_connection(monkey
     service = _service()
     conn = _RecordingConnection()
     service.storage = _RecordingStorage(conn)
-    monkeypatch.setattr(service, "_upsert_transaction", lambda **kwargs: kwargs["conn"].execute("TRANSACTION ROW", []))
+    def record_write(**kwargs) -> None:
+        kwargs["conn"].execute("TRANSACTION ROW", [])
+    monkeypatch.setattr(service, "_upsert_transaction", record_write)
     service._sync_transactions(client=SimpleNamespace(transactions_sync=lambda _: _page(added=[_transaction()])), item={"item_id": "item-1", "transactions_cursor": "original"}, document_id="doc", access_token="test")
     queries = [sql for sql, _ in conn.calls]
     assert queries[-1] == "COMMIT"
@@ -648,7 +931,9 @@ def test_cursor_write_failure_never_commits_transaction_rows(monkeypatch):
             return super().execute(sql, params)
     conn = FailingConnection()
     service.storage = _RecordingStorage(conn)
-    monkeypatch.setattr(service, "_upsert_transaction", lambda **kwargs: kwargs["conn"].execute("TRANSACTION ROW", []))
+    def record_write(**kwargs) -> None:
+        kwargs["conn"].execute("TRANSACTION ROW", [])
+    monkeypatch.setattr(service, "_upsert_transaction", record_write)
     with pytest.raises(RuntimeError, match="cursor write failed"):
         service._sync_transactions(client=SimpleNamespace(transactions_sync=lambda _: _page(added=[_transaction()])), item={"item_id": "item-1", "transactions_cursor": "original"}, document_id="doc", access_token="test")
     assert ("COMMIT", None) not in conn.calls

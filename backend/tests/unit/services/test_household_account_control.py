@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+
+import pytest
 
 from app.models.household_finance import (
     HouseholdAccountControl,
     HouseholdAccountControlIssue,
     HouseholdAccountSummary,
 )
+from app.services._household_account_summary_utils import _BALANCE_FRESHNESS_THRESHOLDS
 from app.services.household_account_control import (
     SourceAccountRow,
     _collapse_source_rows,
@@ -19,14 +23,18 @@ from app.services.household_account_control import (
 )
 
 
-class _EmptyResult:
+class _QueryResult:
+    def __init__(self, rows: list[list[object]]) -> None:
+        self.rows = rows
+
     def fetchall(self) -> list[list[object]]:
-        return []
+        return self.rows
 
 
 class _QueryRecordingStorage:
-    def __init__(self) -> None:
+    def __init__(self, rows: list[list[object]] | None = None) -> None:
         self.query = ""
+        self.rows = rows or []
 
     def connection(self) -> _QueryRecordingStorage:
         return self
@@ -37,9 +45,9 @@ class _QueryRecordingStorage:
     def __exit__(self, *args: object) -> None:
         return None
 
-    def execute(self, query: str) -> _EmptyResult:
+    def execute(self, query: str) -> _QueryResult:
         self.query = " ".join(query.split())
-        return _EmptyResult()
+        return _QueryResult(self.rows)
 
 
 def _source_row(
@@ -167,6 +175,337 @@ def test_current_source_values_exclude_removed_provider_snapshots() -> None:
     assert "sc.is_active = true" in storage.query
     assert "pa.is_active = true" in storage.query
     assert "pi.status = 'active'" in storage.query
+    assert storage.query.count("ha.asset_group") == 2
+
+
+def test_source_rows_carry_canonical_asset_group_for_freshness_selection() -> None:
+    synced_at = datetime(2026, 5, 16, tzinfo=UTC)
+    storage = _QueryRecordingStorage(
+        [
+            [
+                "snaptrade",
+                "snaptrade-account",
+                "authorization",
+                "household-retirement",
+                "Traditional IRA",
+                "Fidelity",
+                "1234",
+                Decimal("1200"),
+                Decimal("200"),
+                "USD",
+                synced_at,
+                None,
+                "retirement",
+            ]
+        ]
+    )
+
+    rows = _source_rows(storage)
+
+    assert len(rows) == 1
+    assert rows[0].asset_group == "retirement"
+    assert rows[0].last_synced_at == synced_at
+
+
+def test_later_plaid_total_preserves_freshest_snaptrade_balance_and_cash() -> None:
+    older = replace(
+        _source_row("snaptrade-older", cash_balance="1200"),
+        last_synced_at=datetime(2026, 5, 15, tzinfo=UTC),
+    )
+    snaptrade = _source_row("snaptrade-current", cash_balance="1200", account_mask="Z00001234")
+    plaid = replace(
+        _source_row("plaid-account", cash_balance=None),
+        source="plaid",
+        connection_id="plaid-item",
+        last_synced_at=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+    incomplete = replace(
+        snaptrade,
+        source_account_id="snaptrade-incomplete",
+        current_value=None,
+        cash_balance=None,
+        last_synced_at=datetime(2026, 5, 18, tzinfo=UTC),
+    )
+
+    values, source_owned_ids, issues = _collapse_source_rows([plaid, older, snaptrade, incomplete])
+
+    assert source_owned_ids == {"household-cash"}
+    assert values["household-cash"]["current_value"] == Decimal("41840.64")
+    assert values["household-cash"]["cash_balance"] == Decimal("1200")
+    assert values["household-cash"]["last_synced_at"] == snaptrade.last_synced_at
+    assert values["household-cash"]["source"] == "snaptrade"
+    assert issues == []
+
+
+@pytest.mark.parametrize(
+    "changed_field,changed_value",
+    [
+        ("current_value", Decimal("41841.64")),
+        ("cash_balance", Decimal("1201")),
+        ("currency", "EUR"),
+    ],
+)
+def test_comparable_provider_disagreements_still_block_totals(
+    changed_field: str, changed_value: object
+) -> None:
+    snaptrade = _source_row("snaptrade-account", cash_balance="1200")
+    plaid = replace(snaptrade, source="plaid", source_account_id="plaid-account")
+    plaid = replace(plaid, **{changed_field: changed_value})
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "snaptrade"
+    assert len(issues) == 1
+    assert issues[0].code == "source_value_conflict"
+    assert issues[0].affects_totals is True
+
+
+def test_missing_provider_details_do_not_contradict_known_values() -> None:
+    snaptrade = _source_row("snaptrade-account", cash_balance="1200")
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        cash_balance=None,
+        currency=None,
+        account_mask=None,
+        institution_name=None,
+    )
+
+    _, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert issues == []
+
+
+@pytest.mark.parametrize("invalid_balance", [None, Decimal("NaN"), Decimal("Infinity")])
+def test_plaid_is_balance_fallback_when_snaptrade_has_no_usable_snapshot(
+    invalid_balance: Decimal | None,
+) -> None:
+    snaptrade = replace(
+        _source_row("snaptrade-account", cash_balance=None),
+        current_value=invalid_balance,
+        last_synced_at=datetime(2026, 5, 18, tzinfo=UTC),
+        transaction_synced_at=datetime(2026, 5, 18, tzinfo=UTC),
+    )
+    plaid = replace(
+        _source_row("plaid-account", cash_balance=None),
+        source="plaid",
+        last_synced_at=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "plaid"
+    assert values["household-cash"]["current_value"] == plaid.current_value
+    assert values["household-cash"]["last_synced_at"] == plaid.last_synced_at
+    assert values["household-cash"]["transaction_synced_at"] == snaptrade.transaction_synced_at
+    assert values["household-cash"]["transaction_coverage_source"] == "snaptrade"
+    assert issues == []
+
+
+def test_plaid_only_account_uses_freshest_usable_balance() -> None:
+    older = replace(_source_row("plaid-older", cash_balance=None), source="plaid")
+    newer = replace(
+        older,
+        source_account_id="plaid-current",
+        current_value=Decimal("42000"),
+        last_synced_at=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+
+    values, source_owned_ids, _ = _collapse_source_rows([older, newer])
+
+    assert source_owned_ids == {"household-cash"}
+    assert values["household-cash"]["source"] == "plaid"
+    assert values["household-cash"]["current_value"] == Decimal("42000")
+    assert values["household-cash"]["last_synced_at"] == newer.last_synced_at
+
+
+def test_complete_plaid_total_takes_priority_over_partial_snaptrade_cash() -> None:
+    snaptrade = replace(
+        _source_row("snaptrade-account", cash_balance="200"),
+        current_value=None,
+    )
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        current_value=Decimal("1200"),
+        cash_balance=None,
+        last_synced_at=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "plaid"
+    assert values["household-cash"]["current_value"] == Decimal("1200")
+    assert values["household-cash"]["cash_balance"] is None
+    assert issues == []
+
+
+@pytest.mark.parametrize("invalid_cash", [Decimal("NaN"), Decimal("Infinity")])
+@pytest.mark.parametrize("with_plaid", [False, True])
+def test_invalid_cash_never_reaches_selected_source_values(
+    invalid_cash: Decimal,
+    with_plaid: bool,
+) -> None:
+    snaptrade = replace(_source_row("snaptrade-account"), cash_balance=invalid_cash)
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        cash_balance=None,
+    )
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid] if with_plaid else [snaptrade])
+
+    assert values["household-cash"]["source"] == ("plaid" if with_plaid else "snaptrade")
+    assert values["household-cash"]["current_value"] == snaptrade.current_value
+    assert values["household-cash"]["cash_balance"] is None
+    assert issues == []
+
+
+def test_invalid_total_and_cash_are_omitted_when_no_valid_provider_snapshot_exists() -> None:
+    snaptrade = replace(
+        _source_row("snaptrade-account"),
+        current_value=Decimal("NaN"),
+        cash_balance=Decimal("Infinity"),
+    )
+
+    values, source_owned_ids, _ = _collapse_source_rows([snaptrade])
+
+    assert source_owned_ids == {"household-cash"}
+    assert values["household-cash"]["current_value"] is None
+    assert values["household-cash"]["cash_balance"] is None
+
+
+@pytest.mark.parametrize("asset_group", ["cash", "taxable", "retirement"])
+@pytest.mark.parametrize("older_tier", ["aging", "stale", "unknown"])
+def test_fresher_plaid_tier_is_primary_over_older_snaptrade(
+    asset_group: str,
+    older_tier: str,
+) -> None:
+    now = datetime.now(UTC)
+    fresh_days, aging_days = _BALANCE_FRESHNESS_THRESHOLDS[asset_group]
+    older_days = fresh_days + 1 if older_tier == "aging" else aging_days + 1
+    snaptrade = replace(
+        _source_row("snaptrade-account", cash_balance="1200"),
+        asset_group=asset_group,
+        last_synced_at=None if older_tier == "unknown" else now - timedelta(days=older_days),
+    )
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        cash_balance=None,
+        last_synced_at=now - timedelta(days=fresh_days),
+    )
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "plaid"
+    assert values["household-cash"]["last_synced_at"] == plaid.last_synced_at
+    assert issues == []
+
+
+@pytest.mark.parametrize("asset_group", ["cash", "taxable", "retirement"])
+def test_snaptrade_detail_stays_primary_within_the_same_freshness_tier(asset_group: str) -> None:
+    now = datetime.now(UTC)
+    fresh_days, _ = _BALANCE_FRESHNESS_THRESHOLDS[asset_group]
+    snaptrade = replace(
+        _source_row("snaptrade-account", cash_balance="1200"),
+        asset_group=asset_group,
+        last_synced_at=now - timedelta(days=fresh_days),
+    )
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        cash_balance=None,
+        last_synced_at=now,
+    )
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "snaptrade"
+    assert values["household-cash"]["cash_balance"] == Decimal("1200")
+    assert values["household-cash"]["last_synced_at"] == snaptrade.last_synced_at
+    assert issues == []
+
+
+def test_zero_snaptrade_balance_is_usable_primary_snapshot() -> None:
+    snaptrade = _source_row("snaptrade-account", balance="0", cash_balance="0")
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        cash_balance=None,
+        last_synced_at=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+
+    values, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "snaptrade"
+    assert values["household-cash"]["cash_balance"] == Decimal("0")
+    assert issues == []
+
+
+@pytest.mark.parametrize("coverage_source", ["plaid", "snaptrade"])
+def test_transaction_coverage_uses_freshest_activity_independently_of_balance(
+    coverage_source: str,
+) -> None:
+    latest_activity = datetime(2026, 5, 18, tzinfo=UTC)
+    older_activity = datetime(2026, 5, 14, tzinfo=UTC)
+    snaptrade = replace(
+        _source_row("snaptrade-account", cash_balance="1200"),
+        transaction_synced_at=latest_activity if coverage_source == "snaptrade" else older_activity,
+    )
+    plaid = replace(
+        _source_row("plaid-account", cash_balance=None),
+        source="plaid",
+        last_synced_at=datetime(2026, 5, 17, tzinfo=UTC),
+        transaction_synced_at=latest_activity if coverage_source == "plaid" else older_activity,
+    )
+
+    values, _, _ = _collapse_source_rows([snaptrade, plaid])
+
+    assert values["household-cash"]["source"] == "snaptrade"
+    assert values["household-cash"]["last_synced_at"] == snaptrade.last_synced_at
+    assert values["household-cash"]["transaction_synced_at"] == latest_activity
+    assert values["household-cash"]["transaction_coverage_source"] == coverage_source
+
+
+def test_balance_refresh_does_not_invent_transaction_coverage() -> None:
+    values, _, _ = _collapse_source_rows([_source_row("snaptrade-account")])
+
+    assert values["household-cash"]["transaction_synced_at"] is None
+    assert values["household-cash"]["transaction_coverage_source"] is None
+
+
+@pytest.mark.parametrize(
+    "changed_field,changed_value",
+    [
+        ("account_mask", "9999"),
+        ("account_mask", "Y00001234"),
+        ("institution_name", "Other Bank"),
+    ],
+)
+def test_cross_provider_identity_disagreements_still_block_totals(
+    changed_field: str, changed_value: str
+) -> None:
+    snaptrade = _source_row("snaptrade-account", account_mask="Z00001234")
+    plaid = replace(
+        snaptrade,
+        source="plaid",
+        source_account_id="plaid-account",
+        account_mask="1234",
+    )
+    plaid = replace(plaid, **{changed_field: changed_value})
+
+    _, _, issues = _collapse_source_rows([snaptrade, plaid])
+
+    assert len(issues) == 1
+    assert issues[0].code == "source_identity_collision"
+    assert issues[0].affects_totals is True
 
 
 def _account_summary() -> HouseholdAccountSummary:

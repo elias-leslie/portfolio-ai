@@ -9,10 +9,12 @@ existed.
 
 Design:
 
-- Rows cluster when they share (household_account_id, amount, flow_type)
+- Rows cluster when they share (household_account_id, amount, flow_type, currency)
   and either land on the same calendar date, or come from *different*
   source systems within ``FUZZY_DATE_TOLERANCE_DAYS`` with compatible
   merchant strings (Plaid posts can lag statement dates by a day or two).
+- Plaid/SnapTrade observations with identical full bank descriptions and
+  account/date/amount/direction/currency also join when merchant aliases differ.
 - The true charge count for a cluster is the row count of its most
   complete provenance unit (= document_id): an export that contains the
   date twice proves two real charges, so legitimate same-day same-amount
@@ -169,7 +171,59 @@ def merchants_compatible(a: str, b: str) -> bool:
     return common >= _MERCHANT_MIN_PREFIX and common >= 0.6 * min(len(a), len(b))
 
 
+def _currency_key(row: dict[str, Any]) -> str:
+    return str(row.get("currency") or "").strip().upper()
+
+
+def _bank_description(row: dict[str, Any]) -> str:
+    return " ".join(str(row.get("description") or "").split()).casefold()
+
+
+def _is_core_activity(description: str) -> bool:
+    return description.startswith(("purchase into core", "redemption from core")) or (
+        "spaxx" in description
+        and description.startswith(("dividend received", "reinvestment"))
+    )
+
+
+def _exact_cross_feed_bank_event(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Prove one bank event independently of provider merchant aliases."""
+    if {a.get("source_system"), b.get("source_system")} != {"plaid", "snaptrade"}:
+        return False
+    currency = _currency_key(a)
+    if not currency or currency != _currency_key(b):
+        return False
+    if any(a.get(field) != b.get(field) for field in (
+        "household_account_id", "transaction_date", "amount", "flow_type",
+    )):
+        return False
+    # Keep every reference number and punctuation mark: removing these would
+    # turn similar labels for distinct bank events into apparent twins.
+    description_a = _bank_description(a)
+    description_b = _bank_description(b)
+    return bool(description_a) and description_a == description_b
+
+
 def _rows_joined(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    if _currency_key(a) != _currency_key(b):
+        return False
+    description_a, description_b = _bank_description(a), _bank_description(b)
+    if (
+        (_is_core_activity(description_a) or _is_core_activity(description_b))
+        and description_a != description_b
+    ):
+        # Core purchases/redemptions and dividend/reinvestment legs are
+        # separate events even with the same fund alias and absolute value.
+        # Apply to every eligible source before loose document/merchant joins,
+        # so a statement row cannot transitively bridge distinct feed legs.
+        return False
+    if _exact_cross_feed_bank_event(a, b):
+        return True
+    return _merchant_or_document_match(a, b)
+
+
+def _merchant_or_document_match(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Apply the established document-multiplicity and fuzzy merchant rules."""
     if a["transaction_date"] == b["transaction_date"]:
         if a["document_id"] == b["document_id"]:
             # Within one document, merchant text is allowed to disagree wildly:
@@ -194,7 +248,7 @@ def _rows_joined(a: dict[str, Any], b: dict[str, Any]) -> bool:
 
 
 def cluster_rows(rows: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    """Union-find clustering within one (account, amount, flow_type) group."""
+    """Union-find clustering within one (account, amount, flow_type, currency) group."""
     parent = list(range(len(rows)))
 
     def find(i: int) -> int:
@@ -262,7 +316,7 @@ def plan_cluster(cluster: list[dict[str, Any]]) -> dict[str, Any] | None:
             s
             for s in best
             if s.get("categorization_source") not in _MANUAL_SOURCES
-            and merchants_compatible(merchant_key(s), donor_key)
+            and (merchants_compatible(merchant_key(s), donor_key) or _exact_cross_feed_bank_event(s, donor))
         ]
         if candidates:
             category_copies.append((candidates[0], donor))
@@ -346,10 +400,10 @@ def cross_account_document_twins(
     """One PDF row and one CSV row with the same full transaction text.
 
     Some Wells PDF and CSV imports resolve to different household account IDs.
-    Exact date, amount, flow and full alphanumeric description are required;
+    Exact date, amount, flow, currency and full alphanumeric description are required;
     repeated same-key rows are left alone because pairing is ambiguous.
     """
-    grouped: dict[tuple[date, str, str, str], list[dict[str, Any]]] = {}
+    grouped: dict[tuple[date, str, str, str, str], list[dict[str, Any]]] = {}
     for row in rows:
         if row["source_system"] not in _PDF_SOURCES | {"statement_csv"}:
             continue
@@ -360,6 +414,7 @@ def cross_account_document_twins(
             row["transaction_date"],
             f"{row['amount']:.4f}",
             row["flow_type"],
+            _currency_key(row),
             description,
         )
         grouped.setdefault(key, []).append(row)
@@ -437,14 +492,14 @@ class HouseholdTransactionDedupService:
                        transaction_date::date, amount, flow_type, raw_merchant,
                        description, categorization_source, category, essentiality,
                        category_updated_at, category_updated_by,
-                       transaction_rule_id, created_at
+                       transaction_rule_id, created_at, currency
                 FROM household_transactions
                 WHERE {' AND '.join(where)}
                 """,
                 params,
             ).fetchall()
             summary["examined"] = len(rows)
-            groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+            groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
             # The contradiction pass has to see across the (account, flow) grouping
             # that dedup keys on, because the whole point is that its two sides
             # disagree on both.
@@ -467,11 +522,13 @@ class HouseholdTransactionDedupService:
                     "category_updated_by": row[13],
                     "transaction_rule_id": row[14],
                     "created_at": row[15],
+                    "currency": str(row[16] or "").strip().upper(),
                 }
                 key = (
                     record["household_account_id"],
                     f"{record['amount']:.4f}",
                     record["flow_type"],
+                    record["currency"],
                 )
                 groups.setdefault(key, []).append(record)
                 all_records.append(record)
