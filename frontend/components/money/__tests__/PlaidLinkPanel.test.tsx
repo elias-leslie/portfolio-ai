@@ -1,7 +1,8 @@
 'use client'
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { usePlaidLink } from 'react-plaid-link'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlaidLinkPanel } from '../PlaidLinkPanel'
 
@@ -12,12 +13,16 @@ const exchangePublicTokenMutateAsync = vi.fn()
 const syncPlaidMutateAsync = vi.fn()
 const removeItemMutateAsync = vi.fn()
 const openPlaidMock = vi.fn()
+let plaidOptions: Parameters<typeof usePlaidLink>[0]
 
 vi.mock('react-plaid-link', () => ({
-  usePlaidLink: () => ({
-    open: openPlaidMock,
-    ready: true,
-  }),
+  usePlaidLink: (options: Parameters<typeof usePlaidLink>[0]) => {
+    plaidOptions = options
+    return {
+      open: openPlaidMock,
+      ready: true,
+    }
+  },
 }))
 
 vi.mock('@/lib/hooks/usePlaid', () => ({
@@ -64,14 +69,16 @@ const configuredStatus = {
 describe('PlaidLinkPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/money')
     usePlaidStatusMock.mockReturnValue({
       data: configuredStatus,
       isLoading: false,
     })
     configurePlaidMutateAsync.mockResolvedValue(configuredStatus)
     createLinkTokenMutateAsync.mockResolvedValue({ linkToken: 'link-token' })
-    exchangePublicTokenMutateAsync.mockResolvedValue({})
-    syncPlaidMutateAsync.mockResolvedValue({})
+    exchangePublicTokenMutateAsync.mockResolvedValue({ sync: { errors: [] } })
+    syncPlaidMutateAsync.mockResolvedValue({ errors: [] })
     removeItemMutateAsync.mockResolvedValue({})
   })
 
@@ -155,5 +162,108 @@ describe('PlaidLinkPanel', () => {
 
     expect(createLinkTokenMutateAsync).toHaveBeenCalled()
     await waitFor(() => expect(openPlaidMock).toHaveBeenCalled())
+  })
+
+  it('syncs the existing item on update success without exchanging a token', async () => {
+    usePlaidStatusMock.mockReturnValue({
+      data: {
+        ...configuredStatus,
+        itemCount: 1,
+        items: [
+          {
+            itemId: 'item-1',
+            institutionName: 'Bank',
+            status: 'active',
+            lastSuccessfulSyncAt: null,
+            lastError: null,
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    render(<PlaidLinkPanel />)
+    await userEvent.click(screen.getByRole('button', { name: 'Add accounts' }))
+    await waitFor(() => expect(openPlaidMock).toHaveBeenCalled())
+    await act(async () => {
+      await plaidOptions.onSuccess?.(
+        'unused-update-token',
+        {} as Parameters<NonNullable<typeof plaidOptions.onSuccess>>[1],
+      )
+    })
+    expect(syncPlaidMutateAsync).toHaveBeenCalledWith({ itemId: 'item-1' })
+    expect(exchangePublicTokenMutateAsync).not.toHaveBeenCalled()
+    expect(
+      window.localStorage.getItem('portfolio-ai.plaid.link_token'),
+    ).toBeNull()
+  })
+
+  it('retains update mode across an OAuth redirect', async () => {
+    window.localStorage.setItem('portfolio-ai.plaid.link_token', 'saved-token')
+    window.localStorage.setItem(
+      'portfolio-ai.plaid.link_context',
+      JSON.stringify({ mode: 'update', itemId: 'item-1' }),
+    )
+    window.history.replaceState({}, '', '/money?oauth_state_id=test')
+    render(<PlaidLinkPanel />)
+    await waitFor(() => expect(openPlaidMock).toHaveBeenCalled())
+    expect(
+      'receivedRedirectUri' in plaidOptions && plaidOptions.receivedRedirectUri,
+    ).toContain('oauth_state_id=test')
+    await act(async () => {
+      await plaidOptions.onSuccess?.(
+        'unused-update-token',
+        {} as Parameters<NonNullable<typeof plaidOptions.onSuccess>>[1],
+      )
+    })
+    expect(syncPlaidMutateAsync).toHaveBeenCalledWith({ itemId: 'item-1' })
+    expect(exchangePublicTokenMutateAsync).not.toHaveBeenCalled()
+    expect(
+      window.localStorage.getItem('portfolio-ai.plaid.link_context'),
+    ).toBeNull()
+  })
+
+  it('shows a linked item with no successful sync distinctly', () => {
+    usePlaidStatusMock.mockReturnValue({
+      data: {
+        ...configuredStatus,
+        itemCount: 1,
+        items: [
+          {
+            itemId: 'item-1',
+            institutionName: 'Bank',
+            status: 'active',
+            lastSuccessfulSyncAt: null,
+            lastError: null,
+          },
+        ],
+      },
+      isLoading: false,
+    })
+    render(<PlaidLinkPanel />)
+    expect(screen.getByText('Connected; sync pending')).toBeInTheDocument()
+    expect(screen.queryByText('Sync enabled')).not.toBeInTheDocument()
+  })
+
+  it('retains a visible sync error after a successful account update', async () => {
+    window.localStorage.setItem('portfolio-ai.plaid.link_token', 'saved-token')
+    window.localStorage.setItem(
+      'portfolio-ai.plaid.link_context',
+      JSON.stringify({ mode: 'update', itemId: 'item-1' }),
+    )
+    window.history.replaceState({}, '', '/money?oauth_state_id=test')
+    syncPlaidMutateAsync.mockResolvedValue({
+      errors: [{ errorMessage: 'Transactions unavailable' }],
+    })
+    render(<PlaidLinkPanel />)
+    await waitFor(() => expect(openPlaidMock).toHaveBeenCalled())
+    await act(async () => {
+      await plaidOptions.onSuccess?.(
+        'unused-update-token',
+        {} as Parameters<NonNullable<typeof plaidOptions.onSuccess>>[1],
+      )
+    })
+    expect(
+      screen.getByText(/Accounts updated; sync has 1 issue/),
+    ).toBeInTheDocument()
   })
 })

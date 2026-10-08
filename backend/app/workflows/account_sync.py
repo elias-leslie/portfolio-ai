@@ -87,4 +87,15 @@ async def sync_accounts_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:
         logger.warning("account_sync_budget_alerts_failed", error=str(exc))
         results["budget_alerts"] = {"status": "error", "error": str(exc)}
 
+    failed_providers = [
+        provider
+        for provider in ("snaptrade", "plaid")
+        if results[provider].get("status") in {"error", "partial"}
+        or results[provider].get("errors")
+    ]
+    if failed_providers:
+        # Attempt both feeds first, then let Hatchet record failure and apply
+        # the task's existing retry policy instead of marking stale data green.
+        raise RuntimeError(f"Account sync failed: {', '.join(failed_providers)}")
+
     return results

@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { plaidSyncIssues } from '@/lib/api/plaid'
 import {
   useConfigurePlaid,
   useCreatePlaidLinkToken,
@@ -52,6 +53,30 @@ import {
 } from '@/lib/hooks/usePlaid'
 
 const LINK_TOKEN_STORAGE_KEY = 'portfolio-ai.plaid.link_token'
+const LINK_CONTEXT_STORAGE_KEY = 'portfolio-ai.plaid.link_context'
+type LinkContext = { mode: 'new' } | { mode: 'update'; itemId: string }
+
+function parseLinkContext(value: string | null): LinkContext | null {
+  // Older fresh-connection sessions stored only the token.
+  if (value === null) return { mode: 'new' }
+  try {
+    const context: unknown = JSON.parse(value)
+    if (typeof context !== 'object' || context === null || !('mode' in context))
+      return null
+    if (context.mode === 'new') return { mode: 'new' }
+    if (
+      context.mode === 'update' &&
+      'itemId' in context &&
+      typeof context.itemId === 'string' &&
+      context.itemId.trim()
+    ) {
+      return { mode: 'update', itemId: context.itemId }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
 
 function defaultRedirectUri() {
   if (typeof window === 'undefined') return ''
@@ -72,6 +97,7 @@ export function PlaidLinkPanel() {
   const removeItem = useRemovePlaidItem()
   const [configOpen, setConfigOpen] = useState(false)
   const [linkToken, setLinkToken] = useState<string | null>(null)
+  const [linkContext, setLinkContext] = useState<LinkContext>({ mode: 'new' })
   const [pendingOpen, setPendingOpen] = useState(false)
   const [linkError, setLinkError] = useState<string | null>(null)
   const [receivedRedirectUri, setReceivedRedirectUri] = useState<
@@ -115,6 +141,14 @@ export function PlaidLinkPanel() {
     if (!window.location.href.includes('oauth_state_id=')) return
     const storedToken = window.localStorage.getItem(LINK_TOKEN_STORAGE_KEY)
     if (!storedToken) return
+    const context = parseLinkContext(
+      window.localStorage.getItem(LINK_CONTEXT_STORAGE_KEY),
+    )
+    if (!context) {
+      setLinkError('Plaid session is incomplete. Start the connection again.')
+      return
+    }
+    setLinkContext(context)
     setLinkToken(storedToken)
     setReceivedRedirectUri(window.location.href)
     setPendingOpen(true)
@@ -135,16 +169,38 @@ export function PlaidLinkPanel() {
   const onSuccess = useCallback(
     async (publicToken: string, metadata: PlaidLinkOnSuccessMetadata) => {
       setLinkError(null)
-      await exchangePublicToken.mutateAsync({
-        publicToken,
-        metadata: metadata as unknown as Record<string, unknown>,
-      })
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(LINK_TOKEN_STORAGE_KEY)
-        window.history.replaceState(window.history.state, '', '/money')
+      const updating = linkContext.mode === 'update'
+      try {
+        const syncResult =
+          linkContext.mode === 'update'
+            ? await syncPlaid.mutateAsync({ itemId: linkContext.itemId })
+            : (
+                await exchangePublicToken.mutateAsync({
+                  publicToken,
+                  metadata: metadata as unknown as Record<string, unknown>,
+                })
+              ).sync
+        const issues = plaidSyncIssues(syncResult)
+        if (issues) {
+          setLinkError(
+            `${updating ? 'Accounts updated' : 'Account linked'}; sync has ${issues.count} issue${issues.count === 1 ? '' : 's'}. ${issues.description}`,
+          )
+        }
+      } catch (error) {
+        setLinkError(
+          `${updating ? 'Accounts updated; sync failed' : 'Plaid connection could not be completed'}. ${error instanceof Error ? error.message : 'Try syncing again.'}`,
+        )
+      } finally {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(LINK_TOKEN_STORAGE_KEY)
+          window.localStorage.removeItem(LINK_CONTEXT_STORAGE_KEY)
+          window.history.replaceState(window.history.state, '', '/money')
+        }
+        setReceivedRedirectUri(undefined)
+        setLinkToken(null)
       }
     },
-    [exchangePublicToken],
+    [exchangePublicToken, linkContext, syncPlaid],
   )
 
   const onExit = useCallback(
@@ -178,9 +234,18 @@ export function PlaidLinkPanel() {
     // itemId opens Link in update mode against an existing connection, which is
     // how an additional card at an already-linked institution gets authorised.
     const response = await createLinkToken.mutateAsync(itemId ? { itemId } : {})
+    const context: LinkContext = itemId
+      ? { mode: 'update', itemId }
+      : { mode: 'new' }
+    setLinkContext(context)
     setLinkToken(response.linkToken)
+    setReceivedRedirectUri(undefined)
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(LINK_TOKEN_STORAGE_KEY, response.linkToken)
+      window.localStorage.setItem(
+        LINK_CONTEXT_STORAGE_KEY,
+        JSON.stringify(context),
+      )
     }
     setPendingOpen(true)
   }
@@ -222,8 +287,18 @@ export function PlaidLinkPanel() {
     : institutionReady
       ? 'Ready'
       : 'Pending'
+  const syncPending =
+    hasLinkedInstitution &&
+    status?.items.some((item) => !item.lastSuccessfulSyncAt)
+  const syncHasErrors =
+    hasLinkedInstitution &&
+    status?.items.some((item) => Boolean(item.lastError))
   const institutionDetail = hasLinkedInstitution
-    ? 'Sync enabled'
+    ? syncHasErrors
+      ? 'Connected; sync needs attention'
+      : syncPending
+        ? 'Connected; sync pending'
+        : 'Sync enabled'
     : !configured
       ? 'Connect credentials first'
       : !productionReady
@@ -273,11 +348,14 @@ export function PlaidLinkPanel() {
       ),
       badge: {
         label: institutionStatus,
-        variant: hasLinkedInstitution
-          ? 'success'
-          : institutionReady
+        variant:
+          syncHasErrors || syncPending
             ? 'warning'
-            : 'secondary',
+            : hasLinkedInstitution
+              ? 'success'
+              : institutionReady
+                ? 'warning'
+                : 'secondary',
       },
     },
   ]
@@ -455,7 +533,9 @@ export function PlaidLinkPanel() {
                     {item.institutionName ?? 'Plaid item'}
                   </p>
                   <p className="text-xs text-text-muted">
-                    {formatDataServiceTime(item.lastSuccessfulSyncAt)}
+                    {item.lastSuccessfulSyncAt
+                      ? formatDataServiceTime(item.lastSuccessfulSyncAt)
+                      : 'Sync pending'}
                   </p>
                   {item.lastError ? (
                     <p className="text-xs text-destructive">{item.lastError}</p>

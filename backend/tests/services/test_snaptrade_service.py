@@ -917,7 +917,7 @@ class _SyncConnectionsApi:
 
 def _sync_test_service(client: object) -> SnapTradeService:
     service = object.__new__(SnapTradeService)
-    service.storage = object()
+    service.storage = _QueuedStorage(_QueuedConnection([_QueuedResult([[True]])]))
     service._load_config = SimpleNamespace
     service._client = lambda _config: client
     service._load_user = lambda: SnapTradeUser(
@@ -927,6 +927,7 @@ def _sync_test_service(client: object) -> SnapTradeService:
     service._reconcile_account_ownership = lambda: None
     service._record_user_sync = lambda *_args, **_kwargs: None
     service._record_user_error = lambda *_args, **_kwargs: None
+    service._complete_ledger_coverage = lambda *_args: None
     return service
 
 
@@ -1274,7 +1275,7 @@ def test_activity_sync_pages_all_rows_before_claiming_coverage(monkeypatch):
     assert [call['offset'] for call in calls]==[0,2]
     assert calls[0]['end_date'] >= calls[0]['start_date']
     coverage=next(params for sql,params in conn.calls if 'activity_coverage' in sql)
-    assert coverage is not None and json.loads(str(coverage[0]))['complete'] is True
+    assert coverage is not None and json.loads(str(coverage[0]))['complete'] is False
 
 
 def test_activity_pagination_failure_never_marks_partial_history_complete(monkeypatch):
@@ -1295,9 +1296,122 @@ def test_empty_activity_sync_is_complete_but_malformed_response_is_not():
     assert service._sync_activities(client=client, user=user, account_id='account') == 0
     coverage = next(params for sql, params in conn.calls if 'activity_coverage' in sql)
     assert coverage is not None
-    assert json.loads(str(coverage[0]))['complete'] is True
+    assert json.loads(str(coverage[0]))['complete'] is False
     conn.calls.clear()
     client.account_information.get_account_activities = lambda **_: {}
     with pytest.raises(SnapTradeIntegrationError, match='malformed'):
         service._sync_activities(client=client, user=user, account_id='account')
     assert conn.calls == []
+
+
+@pytest.mark.parametrize("response", [{}, None, {"data": []}, [None], [{"status": "FILLED"}], [{"id": "same"}, {"id": "same"}]])
+def test_invalid_orders_preserve_previous_snapshot(response: object) -> None:
+    conn = _RecordingConnection()
+    service = SnapTradeService(storage=_RecordingStorage(conn))
+    client = SimpleNamespace(account_information=SimpleNamespace(get_user_account_orders=lambda **_: response))
+    with pytest.raises(SnapTradeIntegrationError, match="order|Order"):
+        service._sync_orders(client=client, user=SnapTradeUser("user", "secret"), account_id="account")
+    assert conn.calls == []
+
+
+def test_empty_order_snapshot_is_valid() -> None:
+    conn = _RecordingConnection()
+    service = SnapTradeService(storage=_RecordingStorage(conn))
+    assert service._sync_orders(client=_FakeOrderClient([]), user=SnapTradeUser("user", "secret"), account_id="account") == 0
+
+
+def test_bridge_failure_is_recorded_as_partial_without_success_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(connections=_SyncConnectionsApi(connections=[]))
+    service = _sync_test_service(client)
+    monkeypatch.setattr(service, "_reconcile_snaptrade_connections", lambda **_: (0, 0))
+    recorded: list[list[dict[str, object]]] = []
+    completed: list[set[str]] = []
+    monkeypatch.setattr(service, "_record_user_sync", lambda _user_id, *, errors: recorded.append(errors))
+    monkeypatch.setattr(service, "_complete_ledger_coverage", completed.append)
+
+    def fail_bridge(_storage):
+        raise RuntimeError("ledger unavailable")
+
+    monkeypatch.setattr(snaptrade_service, "bridge_cash_activities", fail_bridge)
+    result = service.sync()
+    assert result["status"] == "partial"
+    assert result["error_count"] == 1
+    errors = result["errors"]
+    assert isinstance(errors, list)
+    assert isinstance(errors[0], dict)
+    assert errors[0]["surface"] == "ledger_bridge"
+    assert recorded == [result["errors"]]
+    assert completed == []
+
+
+def test_overlapping_sync_does_not_call_provider_or_write_sync_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider_calls: list[str] = []
+    client = SimpleNamespace(connections=SimpleNamespace(list_brokerage_authorizations=lambda **_: provider_calls.append("connections")))
+    service = _sync_test_service(client)
+    conn = _QueuedConnection([_QueuedResult([[False]])])
+    service.storage = _QueuedStorage(conn)
+    recorded: list[str] = []
+    monkeypatch.setattr(service, "_record_user_error", lambda *_args, **_kwargs: recorded.append("error"))
+    monkeypatch.setattr(service, "_record_user_sync", lambda *_args, **_kwargs: recorded.append("sync"))
+    with pytest.raises(SnapTradeIntegrationError, match="already in progress") as error:
+        service.sync()
+    assert error.value.status_code == 409
+    assert provider_calls == recorded == []
+    assert conn.calls[0][1] == ["user-1"]
+    assert "pg_try_advisory_lock" in conn.calls[0][0]
+    assert not any("pg_advisory_unlock" in sql for sql, _ in conn.calls)
+
+
+def test_sync_lock_is_released_when_provider_fails(monkeypatch) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(connections=_SyncConnectionsApi(connections=[], connection_error=snaptrade_service.ApiException(status=502, reason="unavailable")))
+    service = _sync_test_service(client)
+    with pytest.raises(SnapTradeIntegrationError):
+        service.sync()
+    calls = service.storage.conn.calls
+    assert "pg_try_advisory_lock" in calls[0][0]
+    assert any("pg_advisory_unlock" in sql and params == ["user-1"] for sql, params in calls)
+
+
+def test_successful_bridge_promotes_only_retrieved_accounts_while_lock_is_held(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_sync_tail(monkeypatch)
+    client = SimpleNamespace(
+        connections=_SyncConnectionsApi(connections=[{"id": "auth-1"}], accounts=[{"id": "good"}, {"id": "failed"}]),
+        account_information=SimpleNamespace(get_user_account_balance=lambda **_: []),
+    )
+    service = _sync_test_service(client)
+    monkeypatch.setattr(service, "_sync_account", lambda **kwargs: _positions_account(str(kwargs["raw_account"]["id"])))
+    monkeypatch.setattr(service, "_sync_positions", lambda **_: (0, 0, set()))
+    monkeypatch.setattr(service, "_sync_orders", lambda **_: 0)
+    monkeypatch.setattr(service, "_reconcile_snaptrade_accounts_for_connection", lambda **_: 0)
+    monkeypatch.setattr(service, "_reconcile_snaptrade_connections", lambda **_: (0, 0))
+
+    def retrieve(**kwargs):
+        if kwargs["account_id"] == "failed":
+            raise SnapTradeIntegrationError("activities unavailable")
+        return 1
+
+    monkeypatch.setattr(service, "_sync_activities", retrieve)
+    completed: list[set[str]] = []
+
+    def bridge(_storage):
+        assert not any("pg_advisory_unlock" in sql for sql, _ in service.storage.conn.calls)
+        return {}
+
+    monkeypatch.setattr(snaptrade_service, "bridge_cash_activities", bridge)
+    monkeypatch.setattr(service, "_complete_ledger_coverage", completed.append)
+    result = service.sync()
+    assert completed == [{"good"}]
+    assert result["status"] == "partial"
+    assert any("pg_advisory_unlock" in sql for sql, _ in service.storage.conn.calls)
+
+
+def test_ledger_coverage_promotion_is_scoped_to_successful_retrieval() -> None:
+    conn = _RecordingConnection()
+    service = SnapTradeService(storage=_RecordingStorage(conn))
+    service._complete_ledger_coverage({"good"})
+    sql, params = conn.calls[0]
+    assert "{activity_coverage,complete}" in sql
+    assert "WHERE account_id = ANY(%s)" in sql
+    assert params == [["good"]]

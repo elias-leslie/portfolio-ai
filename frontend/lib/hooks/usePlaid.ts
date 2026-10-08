@@ -6,6 +6,7 @@ import {
   exchangePlaidPublicToken,
   fetchPlaidStatus,
   type PlaidConfigurePayload,
+  plaidSyncIssues,
   removePlaidItem,
   syncPlaidItems,
 } from '@/lib/api/plaid'
@@ -66,9 +67,17 @@ export function useExchangePlaidPublicToken() {
       publicToken: string
       metadata?: Record<string, unknown>
     }) => exchangePlaidPublicToken(payload),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await refreshPlaid(queryClient)
-      toast.success('Plaid account linked.')
+      const issues = plaidSyncIssues(result.sync)
+      if (issues) {
+        toast.warning(
+          `Plaid account linked; sync has ${issues.count} issue${issues.count === 1 ? '' : 's'}.`,
+          { description: issues.description },
+        )
+      } else {
+        toast.success('Plaid account linked.')
+      }
     },
     onError: (error) => {
       toast.error(
@@ -83,9 +92,17 @@ export function useSyncPlaidItems() {
   return useMutation({
     mutationFn: (payload: { itemId?: string | null } = {}) =>
       syncPlaidItems(payload),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await refreshPlaid(queryClient)
-      toast.success('Plaid sync finished.')
+      const issues = plaidSyncIssues(result)
+      if (issues) {
+        toast.warning(
+          `Plaid sync finished with ${issues.count} issue${issues.count === 1 ? '' : 's'}.`,
+          { description: issues.description },
+        )
+      } else {
+        toast.success('Plaid sync finished.')
+      }
     },
     onError: (error) => {
       toast.error(

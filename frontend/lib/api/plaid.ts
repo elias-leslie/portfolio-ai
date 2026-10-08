@@ -55,6 +55,37 @@ export interface PlaidExchangeResult {
   sync: PlaidSyncResult
 }
 
+export function plaidSyncIssues(result: unknown): {
+  count: number
+  description: string
+} | null {
+  if (
+    typeof result !== 'object' ||
+    result === null ||
+    !('errors' in result) ||
+    !Array.isArray(result.errors)
+  ) {
+    return { count: 1, description: 'Sync status is unavailable.' }
+  }
+  if (result.errors.length === 0) return null
+  const first: unknown = result.errors[0]
+  const detail =
+    typeof first === 'object' && first !== null
+      ? ['errorMessage', 'error_message', 'detail']
+          .map((key) => (first as Record<string, unknown>)[key])
+          .find(
+            (value): value is string =>
+              typeof value === 'string' && value.trim().length > 0,
+          )
+      : undefined
+  return {
+    count: result.errors.length,
+    description: `${detail ?? 'Some Plaid data could not be refreshed.'}${
+      result.errors.length > 1 ? ` (+${result.errors.length - 1} more)` : ''
+    }`,
+  }
+}
+
 export function fetchPlaidStatus(): Promise<PlaidStatus> {
   return get<PlaidStatus>('/api/plaid/status')
 }

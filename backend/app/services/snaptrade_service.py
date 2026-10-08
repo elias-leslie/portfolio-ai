@@ -826,6 +826,31 @@ class SnapTradeService:
         config = self._load_config()
         client = self._client(config)
         user = self._load_user()
+        # Manual and scheduled syncs share a provider user. Keep a dedicated
+        # session lock while the sync's individual write transactions commit.
+        with self.storage.connection() as lock_conn:
+            row = lock_conn.execute(
+                "SELECT pg_try_advisory_lock(hashtext('portfolio-ai:snaptrade-sync'), hashtext(%s))",
+                [user.user_id],
+            ).fetchone()
+            if not row or not row[0]:
+                raise SnapTradeIntegrationError(
+                    "SnapTrade sync is already in progress for this user.",
+                    status_code=409,
+                )
+            try:
+                lock_conn.commit()
+                return self._sync_locked(client=client, user=user)
+            finally:
+                lock_conn.execute(
+                    "SELECT pg_advisory_unlock(hashtext('portfolio-ai:snaptrade-sync'), hashtext(%s))",
+                    [user.user_id],
+                )
+                lock_conn.commit()
+
+    def _sync_locked(
+        self, *, client: SnapTradeReadOnlyClient, user: SnapTradeUser
+    ) -> dict[str, object]:
         sync_errors: list[dict[str, object]] = []
         totals: dict[str, object] = {
             "status": "success",
@@ -842,6 +867,7 @@ class SnapTradeService:
             "errors": sync_errors,
         }
         symbols: set[str] = set()
+        retrieved_activity_accounts: set[str] = set()
         try:
             connections_payload = _body(
                 client.connections.list_brokerage_authorizations(
@@ -1059,6 +1085,7 @@ class SnapTradeService:
                     )
                 else:
                     totals["activity_count"] = int(totals["activity_count"]) + activity_count
+                    retrieved_activity_accounts.add(account.account_id)
 
                 try:
                     order_count = self._sync_orders(
@@ -1104,12 +1131,23 @@ class SnapTradeService:
         self._reconcile_account_ownership()
         # Mirror cash-management activities into the household ledger so
         # payroll deposits and bill-pay debits reach Money without manual
-        # CSV exports. Bridge failure must not fail the vendor sync.
+        # CSV exports. Retrieval coverage becomes ledger coverage only after
+        # this write succeeds; failure leaves the provider sync partial.
         try:
             totals["ledger_bridge"] = bridge_cash_activities(self.storage)
-        except Exception as exc:  # pragma: no cover - defensive seam
+            self._complete_ledger_coverage(retrieved_activity_accounts)
+        except Exception as exc:
             logger.warning("snaptrade_ledger_bridge_failed", error=str(exc))
-            totals["ledger_bridge"] = {"status": "error", "error": str(exc)}
+            message = "SnapTrade household ledger update failed."
+            totals["ledger_bridge"] = {"status": "error", "error": message}
+            sync_errors.append(
+                {
+                    "surface": "ledger_bridge",
+                    "error_type": "SNAPTRADE_INTEGRATION_ERROR",
+                    "error_code": "LEDGER_BRIDGE_FAILED",
+                    "error_message": message,
+                }
+            )
         totals["status"] = "partial" if sync_errors else "success"
         totals["error_count"] = len(sync_errors)
         self._record_user_sync(user.user_id, errors=sync_errors)
@@ -1117,6 +1155,21 @@ class SnapTradeService:
             logger.warning("snaptrade_sync_partial", error_count=len(sync_errors))
         ensure_symbols_in_watchlist(self.storage, sorted(symbols), source="snaptrade")
         return totals
+
+    def _complete_ledger_coverage(self, account_ids: set[str]) -> None:
+        if not account_ids:
+            return
+        with self.storage.connection() as conn:
+            conn.execute(
+                """
+                UPDATE snaptrade_accounts
+                SET metadata = jsonb_set(metadata, '{activity_coverage,complete}', 'true'::jsonb)
+                WHERE account_id = ANY(%s)
+                  AND metadata->'activity_coverage'->>'source' = 'paginated_provider_history'
+                """,
+                [sorted(account_ids)],
+            )
+            conn.commit()
 
     def _reconcile_snaptrade_accounts_for_connection(
         self,
@@ -1865,7 +1918,7 @@ class SnapTradeService:
             conn.execute("""UPDATE snaptrade_accounts SET metadata=jsonb_set(COALESCE(metadata,'{}'::jsonb),
                 '{activity_coverage}',%s::jsonb) WHERE account_id=%s""",
                 [_json({"from":coverage_start.isoformat(),"through":coverage_end.isoformat(),
-                        "complete":True,"checked_at":synced_at.isoformat(),"source":"paginated_provider_history"}),account_id])
+                        "complete":False,"checked_at":synced_at.isoformat(),"source":"paginated_provider_history"}),account_id])
             conn.commit()
         return count
 
@@ -1876,21 +1929,24 @@ class SnapTradeService:
         user: SnapTradeUser,
         account_id: str,
     ) -> int:
-        orders = [
-            order
-            for raw_order in _list(
-                _body(
-                    client.account_information.get_user_account_orders(
-                        account_id=account_id,
-                        user_id=user.user_id,
-                        user_secret=user.user_secret,
-                        state="all",
-                        days=_SYNC_ORDER_LOOKBACK_DAYS,
-                    )
-                )
-            )
-            if (order := self._normalize_order(_dict(raw_order))) is not None
-        ]
+        provider_response = client.account_information.get_user_account_orders(
+            account_id=account_id,
+            user_id=user.user_id,
+            user_secret=user.user_secret,
+            state="all",
+            days=_SYNC_ORDER_LOOKBACK_DAYS,
+        )
+        raw_orders = getattr(provider_response, "body", provider_response)
+        # Generic _body/_plain list conversion drops null elements. Preserve
+        # every entry here so malformed records cannot look like an empty list.
+        response = [_plain(item) for item in raw_orders] if isinstance(raw_orders, list) else None
+        if not isinstance(response, list) or any(not isinstance(item, dict) for item in response):
+            raise SnapTradeIntegrationError("SnapTrade returned a malformed order snapshot.")
+        # Validate the entire snapshot before writing any rows, preserving the
+        # previous observations if one record is incomplete or ambiguous.
+        orders = [self._normalize_order(_dict(raw_order)) for raw_order in response]
+        if len({order.brokerage_order_id for order in orders}) != len(orders):
+            raise SnapTradeIntegrationError("SnapTrade returned duplicate order identities.")
         synced_at = _now()
         with self.storage.connection() as conn:
             for order in orders:
@@ -2553,12 +2609,12 @@ class SnapTradeService:
     def _normalize_order(
         self,
         raw_order: dict[str, object],
-    ) -> SnapTradeNormalizedOrder | None:
+    ) -> SnapTradeNormalizedOrder:
         brokerage_order_id = _string(raw_order.get("brokerage_order_id")) or _string(
             raw_order.get("id")
         )
         if not brokerage_order_id:
-            return None
+            raise SnapTradeIntegrationError("SnapTrade returned an order without an identity.")
 
         universal_symbol = _dict(raw_order.get("universal_symbol"))
         nested_symbol = _dict(raw_order.get("symbol"))

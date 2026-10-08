@@ -20,6 +20,7 @@ from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 from plaid.model.item_remove_request import ItemRemoveRequest
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_create_request_update import LinkTokenCreateRequestUpdate
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
@@ -167,6 +168,27 @@ def _money(value: object) -> Decimal | None:
         return Decimal(str(value))
     except Exception:
         return None
+
+
+def _validate_sync_transaction(transaction: object, *, removed: bool) -> None:
+    """Reject incomplete provider rows before any part of a batch is written."""
+    if not isinstance(transaction, dict):
+        raise PlaidIntegrationError("Transaction response is incomplete; coverage is unverified")
+    transaction_id = transaction.get("transaction_id")
+    valid = isinstance(transaction_id, str) and bool(transaction_id.strip())
+    if not removed:
+        account_id = transaction.get("account_id")
+        amount = _money(transaction.get("amount"))
+        valid = (
+            valid
+            and isinstance(account_id, str)
+            and bool(account_id.strip())
+            and _parse_date(transaction.get("date")) is not None
+            and amount is not None
+            and amount.is_finite()
+        )
+    if not valid:
+        raise PlaidIntegrationError("Transaction response is incomplete; coverage is unverified")
 
 
 def _plaid_error_payload(exc: plaid.ApiException) -> dict[str, object]:
@@ -514,6 +536,7 @@ class PlaidService:
                 language="en",
                 user=LinkTokenCreateRequestUser(client_user_id="portfolio-ai-household"),
                 access_token=update_access_token,
+                update=LinkTokenCreateRequestUpdate(account_selection_enabled=True),
             )
         else:
             request = LinkTokenCreateRequest(
@@ -871,6 +894,43 @@ class PlaidService:
         item: dict[str, object],
     ) -> dict[str, int]:
         item_id = str(item["item_id"])
+        # Keep a session lock across provider requests and the independently
+        # committed account snapshot. It survives transaction commits and is
+        # explicitly released before the pooled connection is returned.
+        with self.storage.connection() as conn:
+            lock = conn.execute(
+                "SELECT pg_try_advisory_lock(hashtext('portfolio-ai:plaid-sync'), hashtext(%s))",
+                [item_id],
+            ).fetchone()
+            if not lock or not lock[0]:
+                raise PlaidIntegrationError("A sync is already running for this Plaid connection.")
+            try:
+                row = conn.execute(
+                    "SELECT transactions_cursor FROM plaid_items WHERE item_id = %s AND status = 'active'",
+                    [item_id],
+                ).fetchone()
+                if row is None:
+                    raise PlaidIntegrationError("This Plaid connection is no longer active.")
+                current_item = {**item, "transactions_cursor": row[0] or ""}
+                # End the read transaction before potentially slow network IO.
+                conn.commit()
+                return self._sync_single_item_locked(client=client, item=current_item, conn=conn)
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.execute(
+                    "SELECT pg_advisory_unlock(hashtext('portfolio-ai:plaid-sync'), hashtext(%s))",
+                    [item_id],
+                )
+
+    def _sync_single_item_locked(
+        self,
+        *,
+        client: plaid_api.PlaidApi,
+        item: dict[str, object],
+        conn: Any,
+    ) -> dict[str, int]:
         access_token = self.cipher.decrypt(str(item["access_token_ciphertext"]))
         accounts_response = _to_dict(
             client.accounts_balance_get(AccountsBalanceGetRequest(access_token=access_token))
@@ -884,25 +944,13 @@ class PlaidService:
             document_id=document_id,
             accounts=accounts,
         )
-        transaction_counts, next_cursor = self._sync_transactions(
+        transaction_counts, _next_cursor = self._sync_transactions(
             client=client,
             item=item,
             document_id=document_id,
             access_token=access_token,
+            conn=conn,
         )
-        with self.storage.connection() as conn:
-            conn.execute(
-                """
-                UPDATE plaid_items
-                SET transactions_cursor = COALESCE(%s, transactions_cursor),
-                    last_successful_sync_at = %s,
-                    last_error = NULL,
-                    updated_at = %s
-                WHERE item_id = %s
-                """,
-                [next_cursor, _now(), _now(), item_id],
-            )
-            conn.commit()
         return {"account_count": account_count, **transaction_counts}
 
     def _ensure_sync_document(self, *, item: dict[str, object]) -> str:
@@ -1301,7 +1349,18 @@ class PlaidService:
         item: dict[str, object],
         document_id: str,
         access_token: str,
+        conn: Any = None,
     ) -> tuple[dict[str, int], str | None]:
+        if conn is None:
+            with self.storage.connection() as connection:
+                try:
+                    return self._sync_transactions(
+                        client=client, item=item, document_id=document_id,
+                        access_token=access_token, conn=connection,
+                    )
+                except Exception:
+                    connection.rollback()
+                    raise
         cursor = str(item.get("transactions_cursor") or "")
         added: list[dict[str, object]] = []
         modified: list[dict[str, object]] = []
@@ -1309,18 +1368,35 @@ class PlaidService:
         has_more = True
         next_cursor: str | None = cursor
         seen_cursors = {cursor}
+        restarts = 0
+        # A total request bound also caps mutation-driven restarts.
         for _page_index in range(100):
-            response = _to_dict(
-                client.transactions_sync(
-                    TransactionsSyncRequest(access_token=access_token, cursor=next_cursor or "")
+            try:
+                response = _to_dict(
+                    client.transactions_sync(
+                        TransactionsSyncRequest(access_token=access_token, cursor=next_cursor or "")
+                    )
                 )
-            )
+            except plaid.ApiException as exc:
+                payload = _plaid_error_payload(exc)
+                if payload.get("error_code") != "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION" or restarts >= 2:
+                    raise
+                restarts += 1
+                added.clear()
+                modified.clear()
+                removed.clear()
+                next_cursor = cursor
+                seen_cursors = {cursor}
+                continue
             if (not isinstance(response.get("has_more"), bool)
                     or not isinstance(response.get("next_cursor"), str) or not response["next_cursor"]
                     or any(not isinstance(response.get(key), list) for key in ("added", "modified", "removed"))
                     or any(not isinstance(row, dict) or not row.get("transaction_id")
                            for key in ("added", "modified", "removed") for row in response.get(key, []))):
                 raise PlaidIntegrationError("Transaction response is incomplete; coverage is unverified")
+            for key in ("added", "modified", "removed"):
+                for transaction in response[key]:
+                    _validate_sync_transaction(transaction, removed=key == "removed")
             added.extend(response["added"])
             modified.extend(response["modified"])
             removed.extend(response["removed"])
@@ -1334,32 +1410,27 @@ class PlaidService:
         else:
             raise PlaidIntegrationError("Transaction history exceeded bounded pagination; coverage is unverified")
 
-        with self.storage.connection() as conn:
-            for transaction in added:
+        for transactions, is_removed in ((added, False), (modified, False), (removed, True)):
+            for transaction in transactions:
                 self._upsert_transaction(
                     conn=conn,
                     item=item,
                     document_id=document_id,
                     transaction=transaction,
-                    removed=False,
+                    removed=is_removed,
                 )
-            for transaction in modified:
-                self._upsert_transaction(
-                    conn=conn,
-                    item=item,
-                    document_id=document_id,
-                    transaction=transaction,
-                    removed=False,
-                )
-            for transaction in removed:
-                self._upsert_transaction(
-                    conn=conn,
-                    item=item,
-                    document_id=document_id,
-                    transaction=transaction,
-                    removed=True,
-                )
-            conn.commit()
+        conn.execute(
+            """
+            UPDATE plaid_items
+            SET transactions_cursor = %s,
+                last_successful_sync_at = %s,
+                last_error = NULL,
+                updated_at = %s
+            WHERE item_id = %s
+            """,
+            [next_cursor, _now(), _now(), item["item_id"]],
+        )
+        conn.commit()
         return (
             {
                 "transaction_added_count": len(added),
@@ -1378,9 +1449,8 @@ class PlaidService:
         transaction: dict[str, object],
         removed: bool,
     ) -> None:
-        transaction_id = str(transaction.get("transaction_id") or "")
-        if not transaction_id:
-            return
+        _validate_sync_transaction(transaction, removed=removed)
+        transaction_id = str(transaction["transaction_id"])
         item_id = str(item["item_id"])
         if removed:
             row_hash = hashlib.sha256(f"plaid|{transaction_id}".encode()).hexdigest()
@@ -1410,11 +1480,8 @@ class PlaidService:
             return
 
         transaction_date = _parse_date(transaction.get("date"))
-        if transaction_date is None:
-            return
         amount = _money(transaction.get("amount"))
-        if amount is None:
-            return
+        assert transaction_date is not None and amount is not None
         account_id = str(transaction.get("account_id") or "")
         personal_finance_category = _as_json_object(transaction.get("personal_finance_category"))
         merchant = str(
@@ -1573,7 +1640,7 @@ class PlaidService:
                 END,
                 pending = EXCLUDED.pending,
                 removed = CASE
-                    WHEN household_transactions.metadata ? 'dedup'
+                    WHEN jsonb_exists(household_transactions.metadata, 'dedup')
                       OR household_transactions.categorization_source IN (
                           'manual', 'manual_rule', 'merchant_rule',
                           'transaction_audit', 'transaction_audit_agent'
