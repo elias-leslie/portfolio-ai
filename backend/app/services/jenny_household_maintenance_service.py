@@ -180,12 +180,22 @@ class JennyHouseholdMaintenanceService:
         missing_source = 0
         unresolved = 0
 
+        upload_root = household_upload_root(service.household_service)
+        # A missing or empty upload root means storage is misconfigured (e.g. the
+        # service runs from a code-only release snapshot), not that every file
+        # vanished. Never turn that into per-document "file is gone" verdicts.
+        storage_available = upload_root.is_dir() and any(upload_root.iterdir())
+        if not storage_available:
+            logger.error("household_upload_root_unavailable", upload_root=str(upload_root))
         for document_id, stored_path, prior_status, prior_review_status in rows:
             path = resolve_upload_path(
                 str(stored_path) if stored_path else None,
-                household_upload_root(service.household_service),
+                upload_root,
                 allow_legacy_absolute=False,
             )
+            if path is None and not storage_available:
+                unresolved += 1
+                continue
             if path is None:
                 if self._recover_document_without_source(service, str(document_id)):
                     recovered += 1

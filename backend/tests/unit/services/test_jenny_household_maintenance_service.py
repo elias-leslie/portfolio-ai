@@ -2,11 +2,54 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock
 
+import pytest
+
+from app.services import jenny_household_maintenance_service as maintenance_module
 from app.services.jenny_household_maintenance_service import JennyHouseholdMaintenanceService
+
+
+@pytest.fixture(autouse=True)
+def _populated_upload_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    root = tmp_path / "household_uploads"
+    root.mkdir()
+    (root / "other-document.pdf").write_bytes(b"%PDF-")
+    monkeypatch.setattr(maintenance_module, "household_upload_root", lambda _service=None: root)
+    return root
+
+
+@pytest.mark.parametrize("create_root", [False, True])
+def test_unavailable_upload_storage_never_marks_documents_lost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, create_root: bool
+) -> None:
+    """A missing or empty upload root is misconfiguration, not lost files.
+
+    Managed releases are code-only snapshots; resolving uploads inside one made
+    every intact receipt look deleted and told the household to re-upload it.
+    """
+    root = tmp_path / "release" / "data" / "household_uploads"
+    if create_root:
+        root.mkdir(parents=True)
+    monkeypatch.setattr(maintenance_module, "household_upload_root", lambda _service=None: root)
+    maintenance = JennyHouseholdMaintenanceService()
+    service = MagicMock()
+    connection = service.storage.connection.return_value.__enter__.return_value
+    connection.execute.return_value.fetchall.return_value = [
+        ("doc-1", "doc-1.pdf", "needs_review", "failed")
+    ]
+
+    result = maintenance._replay_candidate_documents(service)
+
+    assert result == {"attempted": 0, "recovered": 0, "missing_source": 0, "unresolved": 1}
+    service.household_service.review_document.assert_not_called()
+    assert not any(
+        "source_missing" in str(call.args[1:]) or "review_status = 'complete'" in call.args[0]
+        for call in connection.execute.call_args_list
+    )
 
 
 def test_replay_candidate_documents_targets_weak_docs_not_all_add_anything() -> None:
