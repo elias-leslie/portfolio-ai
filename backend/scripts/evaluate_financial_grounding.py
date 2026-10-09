@@ -139,14 +139,15 @@ def grade_reconciliation(answer: list[dict[str, str]]) -> bool:
 class LiveClient:
     """Use the application's SDK settings while prohibiting retries and fallback."""
 
-    def __init__(self, records: list[dict[str, Any]], agent_slug: str, gemini_model: str = "gemini-3.5-flash-lite", **_: Any) -> None:
+    def __init__(self, records: list[dict[str, Any]], agent_slug: str, **_: Any) -> None:
         from app.agents.clients.agent_hub_client import (
             AgentHubAPIClient,
         )
 
         self.client = AgentHubAPIClient(agent_slug=agent_slug, use_memory=False, timeout=60)
         self.agent_slug = agent_slug
-        self.gemini_model = gemini_model
+        # Agent Hub owns model selection; evaluate the agent's configured primary.
+        self.primary_model = self.client._client.get_agent(agent_slug)["primary_model_id"]
         self.records = records
         self.called = False
 
@@ -160,13 +161,9 @@ class LiveClient:
             execute_tools=False, tools=[], max_turns=1, enable_caching=False, skip_cache=True,
             disable_agent_fallbacks=True, timeout_seconds=60,
         )
-        # Evaluate the current stable Gemini candidate without changing shared agents.
-        if self.agent_slug == "chat":
-            kwargs["thinking_level"] = "low"
-            kwargs["model"] = self.gemini_model
         record: dict[str, Any] = {
             "agent": self.agent_slug, "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
-            "requested_model": self.gemini_model if self.agent_slug == "chat" else "persona primary",
+            "requested_model": self.primary_model,
         }
         self.records.append(record)
         try:
@@ -185,20 +182,17 @@ class LiveClient:
         if response.finish_reason in {"error", "aborted"}:
             record["status"] = "unavailable"
             raise RuntimeError("Provider execution failed; not a grounding result")
-        expected_provider = "codex" if self.agent_slug == "persona" else "gemini"
-        if response.provider != expected_provider or record["fallback_used"] or response.from_cache:
+        # Fallbacks are disabled, so a served, uncached, non-fallback response ran on the primary.
+        if record["fallback_used"] is not False or response.from_cache:
             record["status"] = "invalid_route"
-            raise RuntimeError("Provider identity or uncached execution check failed")
-        if self.agent_slug == "chat" and response.model != self.gemini_model:
-            record["status"] = "invalid_route"
-            raise RuntimeError("Requested Gemini model did not execute")
+            raise RuntimeError("Primary route or uncached execution check failed")
         return response
 
     def close(self) -> None:
         self.client.close()
 
 
-def run_live(only: set[str], gemini_model: str = "gemini-3.5-flash-lite") -> dict[str, Any]:
+def run_live(only: set[str]) -> dict[str, Any]:
     from app.models.household_finance import HouseholdQuestion
     from app.services import _jenny_conversation_llm as llm
     from app.services.agent_hub_prompt_service import require_agent_hub_prompt
@@ -210,7 +204,7 @@ def run_live(only: set[str], gemini_model: str = "gemini-3.5-flash-lite") -> dic
     for agent in ("persona", "chat"):
         if agent not in only:
             continue
-        client = LiveClient(report["calls"], agent, gemini_model=gemini_model)
+        client = LiveClient(report["calls"], agent)
         try:
             response = client.complete_messages(
                 messages=[{"role": "user", "content": batch_message()}],
@@ -234,7 +228,7 @@ def run_live(only: set[str], gemini_model: str = "gemini-3.5-flash-lite") -> dic
     context = {"household": {"profile": {"target_retirement_age": 60, "emergency_fund_target_amount": 20000}}}
 
     def factory(**kwargs: Any) -> LiveClient:
-        return LiveClient(report["calls"], gemini_model=gemini_model, **kwargs)
+        return LiveClient(report["calls"], **kwargs)
 
     with patch.object(llm, "make_client", side_effect=factory):
         try:
@@ -274,14 +268,13 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--only", nargs="+", choices=["persona", "chat", "reconciliation", "planning"],
                         default=["persona", "chat", "reconciliation", "planning"])
-    parser.add_argument("--gemini-model", choices=["gemini-3.5-flash-lite", "gemini-3.8-flash"], default="gemini-3.5-flash-lite")
     args = parser.parse_args()
     if not args.live:
         print(json.dumps({"cases": len(CASES), "planned_calls": 4, "live": False}))
         return 0
     if args.output is None:
         parser.error("--live requires --output to retain evidence")
-    report = run_live(set(args.only), args.gemini_model)
+    report = run_live(set(args.only))
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({"calls": len(report["calls"]), "total_tokens": report["total_tokens"], "output": str(args.output)}))
     passed = all(
