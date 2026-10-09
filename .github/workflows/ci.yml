@@ -21,7 +21,8 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        # Google's Docker Hub cache: same digests, no anonymous Docker Hub pull limit.
+        image: mirror.gcr.io/pgvector/pgvector:pg16
         env:
           POSTGRES_USER: portfolio_app
           POSTGRES_PASSWORD: secret
@@ -68,7 +69,8 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        # Google's Docker Hub cache: same digests, no anonymous Docker Hub pull limit.
+        image: mirror.gcr.io/pgvector/pgvector:pg16
         env:
           POSTGRES_USER: portfolio_app
           POSTGRES_PASSWORD: secret
@@ -138,7 +140,8 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        # Google's Docker Hub cache: same digests, no anonymous Docker Hub pull limit.
+        image: mirror.gcr.io/pgvector/pgvector:pg16
         env:
           POSTGRES_USER: portfolio_app
           POSTGRES_PASSWORD: secret
@@ -151,7 +154,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7-alpine
+        # Google's Docker Hub cache: same digests, no anonymous Docker Hub pull limit.
+        image: mirror.gcr.io/library/redis:7-alpine
         ports:
           - 6379:6379
         options: >-
