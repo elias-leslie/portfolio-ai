@@ -10,7 +10,6 @@ import time
 from typing import Any
 
 from agent_hub import AgentHubClient as SDKClient
-from agent_hub import AsyncAgentHubClient as AsyncSDKClient
 from agent_hub.exceptions import AgentHubError
 
 from ...config import settings
@@ -83,7 +82,6 @@ class AgentHubAPIClient(LLMClient):
             "request_source": PORTFOLIO_REQUEST_SOURCE,
         }
         self._client = SDKClient(**self._sdk_kwargs)
-        self._async_client: AsyncSDKClient | None = None
 
         self.provider = "agent_hub"
 
@@ -94,6 +92,11 @@ class AgentHubAPIClient(LLMClient):
             provider=self.provider,
         )
 
+    @property
+    def sdk(self) -> SDKClient:
+        """The configured canonical Agent Hub SDK client."""
+        return self._client
+
     def is_available(self) -> bool:
         """Check if Agent Hub service is available.
 
@@ -101,9 +104,8 @@ class AgentHubAPIClient(LLMClient):
             True if service is reachable
         """
         try:
-            # Simple health check - try to list models
-            response = self._client._get_client().get("/health")
-            return bool(response.is_success)
+            self._client.health()
+            return True
         except Exception as e:
             logger.debug("agent_hub_health_check_failed", error=str(e))
             return False
@@ -132,7 +134,7 @@ class AgentHubAPIClient(LLMClient):
             system: System prompt (optional)
             tools: Tool definitions for function calling
             temperature: Sampling temperature
-            purpose: Purpose of this request for session tracking
+            purpose: Portfolio-side label for logs; not sent to Agent Hub
             **kwargs: Additional options
 
         Returns:
@@ -238,7 +240,6 @@ class AgentHubAPIClient(LLMClient):
             "messages": messages,
             "temperature": temperature,
             "project_id": "portfolio-ai",
-            "purpose": purpose,
         }
         if tools is not None:
             request_kwargs["tools"] = tools
@@ -263,85 +264,21 @@ class AgentHubAPIClient(LLMClient):
             request_kwargs["task_type"] = task_type
         if disable_agent_fallbacks:
             request_kwargs["disable_agent_fallbacks"] = True
-        return self._client.complete(**request_kwargs)
-
-    def _get_async_client(self) -> AsyncSDKClient:
-        """Return a lazily-constructed async SDK client.
-
-        For callers that fan several requests out with ``asyncio.gather`` and
-        want real I/O parallelism. The sync client and async client share the
-        same configuration but maintain independent ``httpx`` connection
-        pools. Nothing calls this today; it is constructed only on demand.
-        """
-        if self._async_client is None:
-            self._async_client = AsyncSDKClient(**self._sdk_kwargs)
-        return self._async_client
-
-    async def complete_messages_async(
-        self,
-        *,
-        messages: list[Any],
-        tools: list[dict[str, Any]] | None = None,
-        temperature: float = 1.0,
-        purpose: str | None = None,
-        session_id: str | None = None,
-        max_turns: int = 1,
-        thinking_level: str | None = None,
-        response_format: dict[str, Any] | None = None,
-        system_prompt: str | None = None,
-        use_memory: bool | None = None,
-        execute_tools: bool = False,
-        enable_programmatic_tools: bool = False,
-        agent_slug: str | None = None,
-        task_type: str | None = None,
-        disable_agent_fallbacks: bool = False,
-    ) -> Any:
-        """Async counterpart to ``complete_messages``.
-
-        Mirrors the sync signature; routes through ``AsyncAgentHubClient``
-        so callers using ``asyncio.gather`` see real I/O parallelism.
-        """
-        request_kwargs: dict[str, Any] = {
-            "agent_slug": agent_slug or self.agent_slug,
-            "messages": messages,
-            "temperature": temperature,
-            "project_id": "portfolio-ai",
-            "purpose": purpose,
-        }
-        if tools is not None:
-            request_kwargs["tools"] = tools
-        resolved_memory = self.use_memory if use_memory is None else use_memory
-        if resolved_memory is not None:
-            request_kwargs["use_memory"] = resolved_memory
-        if session_id is not None:
-            request_kwargs["session_id"] = session_id
-        if max_turns != 1:
-            request_kwargs["max_turns"] = max_turns
-        if thinking_level is not None:
-            request_kwargs["thinking_level"] = thinking_level
-        if response_format is not None:
-            request_kwargs["response_format"] = response_format
-        if system_prompt is not None:
-            request_kwargs["system_prompt"] = system_prompt
-        if execute_tools:
-            request_kwargs["execute_tools"] = True
-        if enable_programmatic_tools:
-            request_kwargs["enable_programmatic_tools"] = True
-        if task_type is not None:
-            request_kwargs["task_type"] = task_type
-        if disable_agent_fallbacks:
-            request_kwargs["disable_agent_fallbacks"] = True
-        return await self._get_async_client().complete(**request_kwargs)
+        response = self._client.complete(**request_kwargs)
+        # ``purpose`` is Portfolio-side telemetry; Agent Hub does not accept it.
+        logger.info(
+            "agent_hub_completed",
+            agent_slug=request_kwargs["agent_slug"],
+            purpose=purpose,
+            agent_used=getattr(response, "agent_used", None),
+            model=getattr(response, "model", None),
+            fallback_used=getattr(response, "fallback_used", None),
+        )
+        return response
 
     def close(self) -> None:
         """Close the underlying HTTP client."""
         self._client.close()
-
-    async def aclose(self) -> None:
-        """Close async SDK client if one was lazily created."""
-        if self._async_client is not None:
-            await self._async_client.close()
-            self._async_client = None
 
     def __enter__(self) -> AgentHubAPIClient:
         return self

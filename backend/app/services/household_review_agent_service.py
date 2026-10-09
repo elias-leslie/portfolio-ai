@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agent_hub import AgentHubClient as SDKClient
+from agent_hub.exceptions import AgentHubError
 
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED
 from app.config import settings
@@ -40,15 +41,12 @@ class HouseholdReviewAgentService:
         if not AGENT_HUB_ENABLED or slug in self._ready_slugs:
             return
 
-        client = self._sdk._get_client()
-        headers = self._sdk._inject_tracking_headers("sdk.ensure_household_review_agent")
-        response = client.get(f"/api/agents/{slug}", headers=headers)
-
-        if response.status_code == 404:
-            raise RuntimeError(f"Required Agent Hub agent '{slug}' is missing.")
-
-        response.raise_for_status()
-        current = response.json()
+        try:
+            current = self._sdk.get_agent(slug)
+        except AgentHubError as exc:
+            if exc.status_code == 404:
+                raise RuntimeError(f"Required Agent Hub agent '{slug}' is missing.") from exc
+            raise
         if not bool(current.get("is_active", True)):
             raise RuntimeError(f"Required Agent Hub agent '{slug}' is inactive.")
 

@@ -147,7 +147,7 @@ class LiveClient:
         self.client = AgentHubAPIClient(agent_slug=agent_slug, use_memory=False, timeout=60)
         self.agent_slug = agent_slug
         # Agent Hub owns model selection; evaluate the agent's configured primary.
-        self.primary_model = self.client._client.get_agent(agent_slug)["primary_model_id"]
+        self.primary_model = self.client.sdk.get_agent(agent_slug)["primary_model_id"]
         self.records = records
         self.called = False
 
@@ -156,6 +156,7 @@ class LiveClient:
             raise RuntimeError("Evaluation forbids automatic model retries")
         self.called = True
         prompt = kwargs.get("system_prompt", "")
+        purpose = kwargs.pop("purpose", None)  # Portfolio-side label; Agent Hub does not accept it.
         kwargs.update(
             agent_slug=self.agent_slug, project_id="portfolio-ai", use_memory=False,
             execute_tools=False, tools=[], max_turns=1, enable_caching=False, skip_cache=True,
@@ -163,11 +164,11 @@ class LiveClient:
         )
         record: dict[str, Any] = {
             "agent": self.agent_slug, "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
-            "requested_model": self.primary_model,
+            "requested_model": self.primary_model, "purpose": purpose,
         }
         self.records.append(record)
         try:
-            response = self.client._client.complete(**kwargs)
+            response = self.client.sdk.complete(**kwargs)
         except Exception as exc:
             # Do not persist exception strings that might contain credentials or request context.
             record.update(status="unavailable", error_type=type(exc).__name__, status_code=getattr(exc, "status_code", None))

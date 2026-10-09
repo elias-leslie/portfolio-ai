@@ -14,6 +14,8 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
+from agent_hub import AgentHubClient
+from agent_hub.exceptions import AgentHubError
 from hatchet_sdk import DedupeViolationError, TriggerWorkflowOptions
 from psycopg.errors import LockNotAvailable
 from pydantic import BaseModel, Field
@@ -76,34 +78,37 @@ def legacy_schedule_allowed(profiles: list[dict[str, Any]] | None, workflow_key:
     return bool(matching) and all(row.get("clock_owner") == "legacy" for row in matching)
 
 
-def _headers() -> dict[str, str]:
+PROFILE_LIMIT = 500  # Agent Hub's maximum page size for automation profiles.
+
+
+def _owner_client(timeout: float) -> tuple[AgentHubClient, str]:
+    """Return an SDK client carrying Portfolio's identity, plus the owner secret."""
     secret = settings.agent_hub_internal_secret.get_secret_value()
     if not secret or not settings.portfolio_client_id:
         raise RuntimeError("Agent Hub owner identity is not configured")
-    return {
-        "X-Agent-Hub-Internal": secret,
-        "X-Client-Id": settings.portfolio_client_id,
-        "X-Request-Source": settings.portfolio_request_source,
-    }
+    client = AgentHubClient(
+        base_url=settings.agent_hub_url,
+        timeout=timeout,
+        client_name="portfolio-ai",
+        client_id=settings.portfolio_client_id,
+        request_source=settings.portfolio_request_source,
+    )
+    return client, secret
 
 
 def fetch_project_profiles() -> list[dict[str, Any]] | None:
     """Read clock ownership fresh for every legacy cron; failure closes the gate."""
     try:
-        with httpx.Client(timeout=8) as client:
-            response = client.get(
-                f"{settings.agent_hub_url.rstrip('/')}/api/automations/profiles",
-                params={"project_id": "portfolio-ai", "limit": 500},
-                headers=_headers(),
+        client, secret = _owner_client(timeout=8)
+        with client:
+            items = client.list_automation_profiles(
+                "portfolio-ai", internal_secret=secret, limit=PROFILE_LIMIT
             )
-            response.raise_for_status()
-            body = response.json()
-        if not isinstance(body, dict) or not isinstance(body.get("items"), list):
-            raise ValueError("Invalid Agent Hub profile response")
-        if body.get("total") != len(body["items"]):
+        # A full page may hide more profiles; an incomplete view cannot authorize a cron.
+        if len(items) >= PROFILE_LIMIT:
             raise ValueError("Agent Hub profile response was incomplete")
-        return [row for row in body["items"] if isinstance(row, dict)]
-    except (httpx.HTTPError, RuntimeError, ValueError):
+        return [row for row in items if isinstance(row, dict)]
+    except (AgentHubError, httpx.HTTPError, RuntimeError, ValueError):
         logger.warning("portfolio_automation_clock_unavailable", exc_info=True)
         return None
 
@@ -293,14 +298,14 @@ def _finish(run_id: str, status: str, receipt: dict[str, Any], error: str | None
 
 def _report_complete(run_id: str, status: str, receipt: dict[str, Any], error: str | None) -> None:
     try:
-        with httpx.Client(timeout=15) as client:
-            response = client.post(
-                f"{settings.agent_hub_url.rstrip('/')}/api/automations/runs/{run_id}/complete",
-                headers=_headers(),
-                json={"status": status, "owner_run_id": run_id, "receipt": receipt, "error": error},
+        client, secret = _owner_client(timeout=15)
+        with client:
+            client.complete_automation_run(
+                run_id,
+                {"status": status, "owner_run_id": run_id, "receipt": receipt, "error": error},
+                internal_secret=secret,
             )
-            response.raise_for_status()
-    except (httpx.HTTPError, RuntimeError):
+    except (AgentHubError, httpx.HTTPError, RuntimeError):
         # The terminal local receipt survives; Agent Hub retries the same callback.
         logger.warning("portfolio_automation_completion_report_failed", run_id=run_id, exc_info=True)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from agent_hub import AgentHubClient as SDKClient
+from agent_hub.exceptions import AgentHubError
 
 from app.agents.clients.agent_hub_client import AGENT_HUB_ENABLED
 from app.config import settings
@@ -23,13 +24,12 @@ def require_agent_hub_prompt(slug: str) -> str:
     if not AGENT_HUB_ENABLED:
         raise RuntimeError("Agent Hub is disabled; prompt lookup unavailable.")
 
-    client = _sdk._get_client()
-    headers = _sdk._inject_tracking_headers(f"sdk.fetch_prompt.{slug}")
-    response = client.get(f"/api/prompts/{slug}", headers=headers)
-    if response.status_code == 404:
-        raise RuntimeError(f"Required Agent Hub prompt '{slug}' is missing.")
-    response.raise_for_status()
-    payload = response.json()
+    try:
+        payload = _sdk.get_prompt(slug)
+    except AgentHubError as exc:
+        if exc.status_code == 404:
+            raise RuntimeError(f"Required Agent Hub prompt '{slug}' is missing.") from exc
+        raise
     content = payload.get("content")
     if not isinstance(content, str) or not content.strip():
         raise RuntimeError(f"Required Agent Hub prompt '{slug}' has no content.")

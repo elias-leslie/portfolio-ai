@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+from agent_hub.exceptions import AgentHubError
 
 from app.services.household_review_agent_service import (
     HOUSEHOLD_RECEIPT_VISION_AGENT_SLUG,
@@ -19,39 +20,37 @@ def test_ensure_agent_checks_financial_document_reviewer_by_slug(
     mock_sdk_class: MagicMock,
 ) -> None:
     mock_sdk = MagicMock()
-    mock_http = MagicMock()
-    mock_sdk._get_client.return_value = mock_http
-    mock_sdk._inject_tracking_headers.return_value = {"X-Tool-Name": "test"}
-    mock_http.get.return_value.status_code = 200
-    mock_http.get.return_value.json.return_value = {"slug": HOUSEHOLD_REVIEW_AGENT_SLUG, "is_active": True}
+    mock_sdk.get_agent.return_value = {"slug": HOUSEHOLD_REVIEW_AGENT_SLUG, "is_active": True}
     mock_sdk_class.return_value = mock_sdk
 
     service = HouseholdReviewAgentService()
     service.ensure_agent()
 
-    mock_http.get.assert_called_once()
-    mock_http.post.assert_not_called()
-    mock_http.put.assert_not_called()
+    mock_sdk.get_agent.assert_called_once_with(HOUSEHOLD_REVIEW_AGENT_SLUG)
+
+
+@patch("app.services.household_review_agent_service.AGENT_HUB_ENABLED", True)
+@patch("app.services.household_review_agent_service.SDKClient")
+def test_inactive_reviewer_raises(mock_sdk_class: MagicMock) -> None:
+    mock_sdk_class.return_value.get_agent.return_value = {"is_active": False}
+
+    with pytest.raises(RuntimeError, match="inactive"):
+        HouseholdReviewAgentService().ensure_agent()
 
 
 def _sdk_with_agents(mock_sdk_class: MagicMock, *, missing: set[str] | None = None) -> MagicMock:
     """Agent Hub stub that 404s the slugs named in ``missing``."""
     missing = missing or set()
     mock_sdk = MagicMock()
-    mock_http = MagicMock()
-    mock_sdk._get_client.return_value = mock_http
-    mock_sdk._inject_tracking_headers.return_value = {"X-Tool-Name": "test"}
 
-    def _get(path: str, headers: dict[str, str] | None = None) -> MagicMock:
-        slug = path.rsplit("/", 1)[-1]
-        response = MagicMock()
-        response.status_code = 404 if slug in missing else 200
-        response.json.return_value = {"slug": slug, "is_active": True}
-        return response
+    def _get_agent(slug: str) -> dict[str, object]:
+        if slug in missing:
+            raise AgentHubError("Request failed: Agent not found", status_code=404)
+        return {"slug": slug, "is_active": True}
 
-    mock_http.get.side_effect = _get
+    mock_sdk.get_agent.side_effect = _get_agent
     mock_sdk_class.return_value = mock_sdk
-    return mock_http
+    return mock_sdk
 
 
 @patch("app.services.household_review_agent_service.AGENT_HUB_ENABLED", True)
@@ -99,13 +98,13 @@ def test_missing_general_reviewer_still_raises(mock_sdk_class: MagicMock) -> Non
 @patch("app.services.household_review_agent_service.SDKClient")
 def test_agent_verification_is_cached_per_slug(mock_sdk_class: MagicMock) -> None:
     """Each slug is verified once, and verifying one must not mark the other ready."""
-    mock_http = _sdk_with_agents(mock_sdk_class)
+    mock_sdk = _sdk_with_agents(mock_sdk_class)
     service = HouseholdReviewAgentService()
 
     service.resolve_review_agent_slug(include_image=True)
     service.resolve_review_agent_slug(include_image=True)
 
-    checked = [call.args[0].rsplit("/", 1)[-1] for call in mock_http.get.call_args_list]
+    checked = [call.args[0] for call in mock_sdk.get_agent.call_args_list]
     assert sorted(checked) == sorted(
         [HOUSEHOLD_REVIEW_AGENT_SLUG, HOUSEHOLD_RECEIPT_VISION_AGENT_SLUG]
     )

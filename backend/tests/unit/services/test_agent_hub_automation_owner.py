@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -134,3 +136,66 @@ def test_callback_http_route_uses_service_identity(monkeypatch: pytest.MonkeyPat
     )
     assert response.status_code == 200
     assert response.json() == {"owner_run_id": PAYLOAD.run_id, "status": "accepted"}
+
+
+class _FakeOwnerSDK:
+    """Records SDK owner calls; the real transport is the SDK's concern."""
+
+    profiles: ClassVar[list[dict[str, str]]] = []
+    calls: ClassVar[list[tuple[str, tuple, dict]]] = []
+
+    def __init__(self, **kwargs: object) -> None:
+        self.kwargs = kwargs
+
+    def __enter__(self) -> _FakeOwnerSDK:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def list_automation_profiles(self, *args: object, **kwargs: object) -> list[dict[str, str]]:
+        self.calls.append(("list", args, kwargs))
+        return self.profiles
+
+    def complete_automation_run(self, *args: object, **kwargs: object) -> dict[str, str]:
+        self.calls.append(("complete", args, kwargs))
+        return {}
+
+
+@pytest.fixture
+def owner_sdk(monkeypatch: pytest.MonkeyPatch) -> type[_FakeOwnerSDK]:
+    from app.services import agent_hub_automation_owner as owner
+
+    monkeypatch.setattr(owner.settings, "agent_hub_internal_secret", SecretStr("owner-secret"))
+    monkeypatch.setattr(owner.settings, "portfolio_client_id", "portfolio-client")
+    monkeypatch.setattr(owner, "AgentHubClient", _FakeOwnerSDK)
+    _FakeOwnerSDK.profiles = []
+    _FakeOwnerSDK.calls = []
+    return _FakeOwnerSDK
+
+
+def test_profile_lookup_uses_sdk_with_owner_secret(owner_sdk: type[_FakeOwnerSDK]) -> None:
+    from app.services.agent_hub_automation_owner import fetch_project_profiles
+
+    owner_sdk.profiles = [{"workflow_key": "portfolio-ai/retrain_ml", "clock_owner": "central"}]
+    assert fetch_project_profiles() == owner_sdk.profiles
+    (name, args, kwargs), = owner_sdk.calls
+    assert (name, args) == ("list", ("portfolio-ai",))
+    assert kwargs["internal_secret"] == "owner-secret"
+
+
+def test_full_profile_page_closes_the_legacy_gate(owner_sdk: type[_FakeOwnerSDK]) -> None:
+    from app.services.agent_hub_automation_owner import PROFILE_LIMIT, fetch_project_profiles
+
+    owner_sdk.profiles = [{"workflow_key": f"k{i}", "clock_owner": "legacy"} for i in range(PROFILE_LIMIT)]
+    assert fetch_project_profiles() is None
+
+
+def test_completion_receipt_is_reported_through_sdk(owner_sdk: type[_FakeOwnerSDK]) -> None:
+    from app.services.agent_hub_automation_owner import _report_complete
+
+    _report_complete("ah-run-1", "succeeded", {"ok": True}, None)
+    (name, args, kwargs), = owner_sdk.calls
+    assert name == "complete"
+    assert args == ("ah-run-1", {"status": "succeeded", "owner_run_id": "ah-run-1", "receipt": {"ok": True}, "error": None})
+    assert kwargs == {"internal_secret": "owner-secret"}

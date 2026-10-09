@@ -74,3 +74,22 @@ def test_agent_hub_client_keeps_timeouts_out_of_completion_payload(mock_sdk: Moc
     assert "timeout_seconds" not in call_kwargs
 
 
+
+
+@patch("app.agents.clients.agent_hub_client.SDKClient")
+def test_purpose_stays_portfolio_side(mock_sdk: Mock) -> None:
+    mock_sdk.return_value.complete.return_value = _mock_response()
+
+    with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
+        AgentHubAPIClient(agent_slug="persona").generate(prompt="Review AAPL", purpose="thesis_generation")
+
+    assert "purpose" not in mock_sdk.return_value.complete.call_args.kwargs
+
+
+@patch("app.agents.clients.agent_hub_client.SDKClient")
+def test_availability_uses_public_health(mock_sdk: Mock) -> None:
+    with patch("app.agents.clients.agent_hub_client.AGENT_HUB_ENABLED", True):
+        client = AgentHubAPIClient(agent_slug="persona")
+        assert client.is_available() is True
+        mock_sdk.return_value.health.side_effect = RuntimeError("down")
+        assert client.is_available() is False
