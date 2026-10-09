@@ -84,7 +84,16 @@ export async function uploadCaptureDraft(draft: CaptureDraft): Promise<void> {
   data.set('kind', draft.kind)
   data.set('store_name', draft.storeName)
   data.set('note', draft.note)
-  const response = await fetch('/api/captures', { method: 'POST', body: data })
+  const offlineMessage =
+    'Upload did not finish. The draft is saved; retry when connected.'
+  let response: Response
+  try {
+    response = await fetch('/api/captures', { method: 'POST', body: data })
+  } catch (error) {
+    // fetch rejects with TypeError when the network is unavailable.
+    if (error instanceof TypeError) throw new Error(offlineMessage)
+    throw error
+  }
   if (!response.ok) {
     if (response.status === 409)
       throw new Error(
@@ -98,9 +107,7 @@ export async function uploadCaptureDraft(draft: CaptureDraft): Promise<void> {
       throw new Error('The photo is too large. Use a file smaller than 15 MB.')
     if (response.status === 415)
       throw new Error('Use a JPEG, PNG or WebP photo, or a PDF receipt.')
-    throw new Error(
-      'Upload did not finish. The draft is saved; retry when connected.',
-    )
+    throw new Error(offlineMessage)
   }
   await removeCaptureDraft(draft.id)
 }

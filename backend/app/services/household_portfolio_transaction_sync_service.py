@@ -11,8 +11,8 @@ The ledger handles tax-lot bookkeeping for us:
   transaction, and split LT vs ST holding-period gain.
 
 Idempotency: each row gets a deterministic ``external_id`` derived from
-``(account_number, run_date, action, symbol, shares, amount)`` so re-
-running the sync (or re-uploading the same CSV next month) does not
+``(account_number, run_date, action, symbol, shares, amount)`` plus an
+occurrence index for identical same-file rows, so re-running the sync (or re-uploading the same CSV next month) does not
 create duplicate transactions. The ledger short-circuits when an
 existing row matches.
 
@@ -58,13 +58,21 @@ def _trade_date_sort_key(raw_txn: object) -> tuple[bool, date]:
     return (trade_date is None, trade_date or date.max)
 
 
-def _txn_external_id(*, account_number: str, txn: dict[str, Any]) -> str:
+def _txn_external_id(
+    *, account_number: str, txn: dict[str, Any], occurrence: int = 0
+) -> str:
     """Deterministic dedupe key for one Fidelity activity row.
 
     Fidelity does not include a stable transaction id in the activity
-    export, so we synthesize one from the columns that uniquely
-    identify the trade. The hash is short — 16 hex chars — to fit the
-    128-char ``external_id`` column comfortably.
+    export, so we synthesize one from the columns that identify the
+    trade. Two genuinely identical fills (same day, symbol, shares,
+    amount, action) are distinguished by ``occurrence``: their 0-based
+    position among identical rows in the imported file, mirroring
+    ``_snaptrade_ledger_bridge._row_hash``. Occurrence 0 hashes exactly
+    as before the index existed, so rows already stored under the legacy
+    key keep deduping on re-import; only the 2nd+ identical row gets a
+    suffixed key. The hash is 32 hex chars to fit the 128-char
+    ``external_id`` column comfortably.
     """
     digest = hashlib.sha256()
     digest.update(account_number.encode("utf-8"))
@@ -80,6 +88,9 @@ def _txn_external_id(*, account_number: str, txn: dict[str, Any]) -> str:
     digest.update(str(txn.get("amount", "")).encode("utf-8"))
     digest.update(b"|")
     digest.update(str(txn.get("raw_action", "")).encode("utf-8"))
+    if occurrence > 0:
+        digest.update(b"|occurrence=")
+        digest.update(str(occurrence).encode("utf-8"))
     return f"fidelity:{digest.hexdigest()[:32]}"
 
 
@@ -110,6 +121,10 @@ class HouseholdPortfolioTransactionSyncService:
 
         ledger = self._injected_ledger or TransactionLedger(service.storage)
         summary = self._empty_summary()
+        # Occurrence counters for otherwise-identical rows, per account
+        # across this imported document. Deterministic for a re-import of
+        # the same file, so idempotency is preserved.
+        occurrences: dict[str, int] = {}
 
         for raw_account in raw_accounts:
             if not isinstance(raw_account, dict):
@@ -162,8 +177,13 @@ class HouseholdPortfolioTransactionSyncService:
                     summary["transactions_skipped"] += 1
                     continue
 
-                external_id = _txn_external_id(
+                base_external_id = _txn_external_id(
                     account_number=account_mask, txn=txn
+                )
+                occurrence = occurrences.get(base_external_id, 0)
+                occurrences[base_external_id] = occurrence + 1
+                external_id = _txn_external_id(
+                    account_number=account_mask, txn=txn, occurrence=occurrence
                 )
                 # Idempotency: if a row already exists with this
                 # external_id the ledger returns the existing UUID and

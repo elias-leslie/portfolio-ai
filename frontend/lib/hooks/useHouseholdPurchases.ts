@@ -35,8 +35,11 @@ import {
   updateShoppingList,
   updateVendorProfiles,
 } from '@/lib/api/household/purchases'
+import {
+  HOUSEHOLD_WORKSPACE_STALE_MS,
+  invalidateHouseholdQueries,
+} from './household-query-cache'
 
-const HOUSEHOLD_WORKSPACE_STALE_MS = 1000 * 60 * 5
 const PRICE_CHECK_POLL_MS = 5000
 const PRICE_CHECK_TERMINAL_STATUSES = new Set([
   'completed',
@@ -50,24 +53,6 @@ export function useHouseholdBuyGuide() {
     queryFn: ({ signal }) => fetchHouseholdBuyGuide({ signal }),
     staleTime: HOUSEHOLD_WORKSPACE_STALE_MS,
     refetchOnWindowFocus: false,
-  })
-}
-
-async function refreshHouseholdQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  await queryClient.invalidateQueries({
-    queryKey: ['household'],
-    exact: false,
-  })
-}
-
-async function invalidateHouseholdQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  await queryClient.invalidateQueries({
-    queryKey: ['household'],
-    exact: false,
   })
 }
 
@@ -131,7 +116,7 @@ export function useCategorizePurchaseItem() {
     }: HouseholdPurchaseItemCategoryUpdate & { itemId: string }) =>
       categorizePurchaseItem(itemId, payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Item category saved.')
     },
     onError: (error) => {
@@ -173,7 +158,7 @@ export function useAssignPurchaseItemProduct() {
     }: HouseholdPurchaseItemProductAssignment & { itemId: string }) =>
       assignPurchaseItemProduct(itemId, payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Product link updated.')
     },
     onError: (error) => {
@@ -256,7 +241,7 @@ export function useMergeHouseholdProducts() {
       targetProductId: string
     }) => mergeHouseholdProducts(payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Products merged.')
     },
     onError: (error) => {

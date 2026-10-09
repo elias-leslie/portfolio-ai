@@ -10,10 +10,9 @@ import {
 import { InfoBadge } from '@/components/shared/InfoBadge'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { HouseholdFinanceDashboard } from '@/lib/api/household'
-import { formatCurrencyWhole } from '@/lib/formatters'
+import { formatCurrencyWhole, formatThousandsAxis } from '@/lib/formatters'
 import {
   currencyTooltipFormatter,
-  formatThousandsAxis,
   trendIncludesCurrentPartialMonth,
   trustBadgeVariant,
   trustStatusLabel,

@@ -12,7 +12,7 @@ import {
   type LiveFreshnessResponse,
   refreshLiveFreshness,
 } from '@/lib/api/health'
-import { fetchPreferences } from '@/lib/api/preferences'
+import { usePreferences } from './usePreferences'
 
 function pollIntervalMs(seconds?: number | null): number | false {
   if (seconds === 0) return false
@@ -47,11 +47,7 @@ export function useDetailedHealth(): UseQueryResult<DetailedHealthCheckResponse>
 }
 
 export function useLiveFreshness(): UseQueryResult<LiveFreshnessResponse> {
-  const { data: preferences } = useQuery({
-    queryKey: ['preferences'],
-    queryFn: fetchPreferences,
-    staleTime: 1000 * 60 * 5,
-  })
+  const { data: preferences } = usePreferences()
   const interval = pollIntervalMs(preferences?.frontendPollInterval)
 
   return useQuery({

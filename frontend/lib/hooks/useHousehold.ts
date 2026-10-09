@@ -49,29 +49,14 @@ import {
   uploadHouseholdDocument,
   uploadHouseholdDocuments,
 } from '@/lib/api/household'
+import {
+  HOUSEHOLD_WORKSPACE_STALE_MS,
+  invalidateHouseholdQueries,
+} from './household-query-cache'
 
 const DOCUMENT_REVIEW_POLL_INTERVAL_MS = 1500
 const DOCUMENT_REVIEW_POLL_ATTEMPTS = 40
-const HOUSEHOLD_WORKSPACE_STALE_MS = 1000 * 60 * 5
 const HOUSEHOLD_MARKET_VALUE_REFRESH_MS = 1000 * 30
-
-async function refreshHouseholdQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  await queryClient.invalidateQueries({
-    queryKey: ['household'],
-    exact: false,
-  })
-}
-
-async function invalidateHouseholdQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-) {
-  await queryClient.invalidateQueries({
-    queryKey: ['household'],
-    exact: false,
-  })
-}
 
 function patchPlanningCache(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -153,7 +138,7 @@ async function watchUploadedDocument(
   let latest = document
   for (let attempt = 0; attempt < DOCUMENT_REVIEW_POLL_ATTEMPTS; attempt += 1) {
     if (documentApplicationDone(latest)) {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       return latest
     }
 
@@ -163,9 +148,9 @@ async function watchUploadedDocument(
     latest =
       documents.items.find((candidate) => candidate.id === document.id) ??
       latest
-    await refreshHouseholdQueries(queryClient)
+    await invalidateHouseholdQueries(queryClient)
   }
-  await refreshHouseholdQueries(queryClient)
+  await invalidateHouseholdQueries(queryClient)
   return latest
 }
 
@@ -384,11 +369,7 @@ export function useReplaceHouseholdAccountHoldings() {
       payload: ManualHoldingsReplaceInput
     }) => replaceHouseholdAccountHoldings(householdAccountId, payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
-      await queryClient.invalidateQueries({
-        queryKey: ['retirement'],
-        exact: false,
-      })
+      await invalidateHouseholdQueries(queryClient, { retirement: true })
       toast.success('Holdings saved. Projections will refresh.')
     },
     onError: (error) => {
@@ -482,7 +463,7 @@ export function useUploadHouseholdDocument() {
         document.metadata?.duplicate_rebound
       if (duplicateDetected === true && duplicateRebound !== true) {
         toast.info(`${document.filename} already exists in evidence intake.`)
-        await refreshHouseholdQueries(queryClient)
+        await invalidateHouseholdQueries(queryClient)
         return
       }
       toast.success(
@@ -490,7 +471,7 @@ export function useUploadHouseholdDocument() {
           ? `${document.filename} already exists; reapplying to selected account.`
           : `${document.filename} staged for evidence intake.`,
       )
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       void watchUploadedDocument(queryClient, document)
         .then((latest) => {
           if (!documentApplicationDone(latest)) return
@@ -503,7 +484,7 @@ export function useUploadHouseholdDocument() {
           }
         })
         .catch(() => {
-          void refreshHouseholdQueries(queryClient)
+          void invalidateHouseholdQueries(queryClient)
         })
     },
     onError: (error) => {
@@ -530,13 +511,13 @@ export function useUploadHouseholdDocuments() {
       )
       if (staged.length === 0) {
         toast.info('Evidence files already exist in intake.')
-        await refreshHouseholdQueries(queryClient)
+        await invalidateHouseholdQueries(queryClient)
         return
       }
       toast.success(
         `${staged.length} evidence file${staged.length === 1 ? '' : 's'} staged for intake.`,
       )
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       for (const document of staged) {
         void watchUploadedDocument(queryClient, document)
           .then((latest) => {
@@ -553,7 +534,7 @@ export function useUploadHouseholdDocuments() {
             }
           })
           .catch(() => {
-            void refreshHouseholdQueries(queryClient)
+            void invalidateHouseholdQueries(queryClient)
           })
       }
     },
@@ -572,7 +553,7 @@ export function useCreateHouseholdTrackedAccount() {
     mutationFn: (payload: HouseholdTrackedAccountInput) =>
       createHouseholdTrackedAccount(payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Account saved.')
     },
     onError: (error) => {
@@ -595,7 +576,7 @@ export function useUpdateHouseholdTrackedAccount() {
       payload: HouseholdTrackedAccountInput
     }) => updateHouseholdTrackedAccount(accountId, payload),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Account updated.')
     },
     onError: (error) => {
@@ -612,7 +593,7 @@ export function useDeleteHouseholdDocument() {
   return useMutation({
     mutationFn: (documentId: string) => deleteHouseholdDocument(documentId),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Evidence document removed.')
     },
     onError: (error) => {
@@ -671,7 +652,7 @@ export function useDecideHouseholdDocumentReview() {
         decision,
       ),
     onSuccess: async (result) => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success(
         result.decision === 'approve'
           ? 'Reviewed evidence applied.'
@@ -679,7 +660,7 @@ export function useDecideHouseholdDocumentReview() {
       )
     },
     onError: async (error) => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.error(
         error instanceof Error
           ? error.message
@@ -695,7 +676,7 @@ export function useDeleteHouseholdTrackedAccount() {
   return useMutation({
     mutationFn: (accountId: string) => deleteHouseholdTrackedAccount(accountId),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Account archived from active Money views.')
     },
     onError: (error) => {
@@ -719,7 +700,7 @@ export function useAnswerHouseholdQuestion() {
     }) => answerHouseholdQuestion(questionId, { answerText }),
     onSuccess: async () => {
       await Promise.all([
-        refreshHouseholdQueries(queryClient),
+        invalidateHouseholdQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ['home', 'action-queue'] }),
       ])
       toast.success('Answer saved.')
@@ -766,7 +747,7 @@ export function useAskJenny() {
   return useMutation({
     mutationFn: (question: string) => askJenny(question),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient)
       toast.success('Question sent to Jenny.')
     },
     onError: (error) => {
@@ -800,7 +781,7 @@ export function useCategorizeHouseholdTransaction() {
         applyToMerchant,
       }),
     onSuccess: async () => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient, { retirement: true })
       toast.success('Household category confirmed.')
     },
     onError: (error) => {
@@ -838,7 +819,7 @@ export function useSetHouseholdTransactionSpendOverride() {
         reason,
       }),
     onSuccess: async (_result, variables) => {
-      await refreshHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient, { retirement: true })
       toast.success(
         variables.countsAsSpend === null
           ? 'Spend filters decide this row again.'
@@ -873,7 +854,7 @@ export function useSetHouseholdTransactionOwner() {
         applyToMerchant,
       }),
     onSuccess: async () => {
-      await invalidateHouseholdQueries(queryClient)
+      await invalidateHouseholdQueries(queryClient, { retirement: true })
       toast.success('Transaction owner saved.')
     },
     onError: (error) => {

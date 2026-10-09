@@ -374,7 +374,7 @@ class CardManagementService:
                 "DELETE FROM household_credit_cards WHERE id = %s AND status='candidate' AND opened_date IS NULL", [card_id]
             )
             if not (getattr(result, "rowcount", 0) or 0):
-                result = conn.execute("UPDATE household_credit_cards SET status='closed', closed_date=COALESCE(closed_date,CURRENT_DATE), is_primary_active=FALSE, updated_at=now() WHERE id=%s", [card_id])
+                result = conn.execute("UPDATE household_credit_cards SET status='closed', closed_date=COALESCE(closed_date,%s), is_primary_active=FALSE, updated_at=now() WHERE id=%s", [date.today(), card_id])
                 if not (getattr(result, "rowcount", 0) or 0):
                     raise KeyError(f"Credit card {card_id} not found.")
                 card = self._get_card(conn, card_id)

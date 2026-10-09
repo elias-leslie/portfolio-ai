@@ -80,3 +80,20 @@ resolve_portfolio_backup_mode() {
 portfolio_compose() {
     docker compose -f "$PORTFOLIO_ROOT/docker-compose.yml" "$@"
 }
+
+# Print the live native app units (systemd user or system scope) that are active.
+# PORTFOLIO_LIVE_UNITS overrides the checked unit list; set it to an empty string
+# only when the backup/restore targets disposable resources (for example the drill).
+portfolio_active_live_units() {
+    local units="${PORTFOLIO_LIVE_UNITS-portfolio-backend.service portfolio-hatchet-worker.service}"
+    local unit=""
+    if ! command -v systemctl >/dev/null 2>&1; then
+        return 0
+    fi
+    for unit in $units; do
+        if systemctl --user is-active --quiet "$unit" 2>/dev/null \
+            || systemctl is-active --quiet "$unit" 2>/dev/null; then
+            printf '%s\n' "$unit"
+        fi
+    done
+}

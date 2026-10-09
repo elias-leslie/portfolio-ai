@@ -45,6 +45,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type {
   HouseholdConfirmedFact,
   HouseholdFinanceDashboard,
+  HouseholdPlanningSnapshot,
   HouseholdProfileUpdate,
   RetirementAllocationScenario,
   RetirementAllocationScenarioInput,
@@ -150,6 +151,7 @@ import {
   type WithdrawalDraft,
   withdrawalConfigFromDraft,
 } from './retirement-planner-model'
+import { useDashboardDraftSeeding } from './useDashboardDraftSeeding'
 
 export {
   estimateSocialSecurityMonthly,
@@ -286,6 +288,24 @@ function BucketStrategyTooltip({
     </div>
   )
 }
+
+type RetirementDraftSection =
+  | 'draft'
+  | 'withdrawal'
+  | 'aca'
+  | 'partial'
+  | 'childReductions'
+  | 'realEstate'
+
+// "Save assumptions" persists every draft section below.
+const RETIREMENT_DRAFT_SECTIONS: RetirementDraftSection[] = [
+  'draft',
+  'withdrawal',
+  'aca',
+  'partial',
+  'childReductions',
+  'realEstate',
+]
 
 export function MoneyRetirementPanel({
   dashboard,
@@ -624,7 +644,7 @@ export function MoneyRetirementPanel({
       nextStatus === 'merged'
         ? (patch.mergedIntoStreamKey ?? stream.mergedIntoStreamKey)
         : null
-    void updateIncomeStreamOverride.mutateAsync({
+    updateIncomeStreamOverride.mutate({
       streamKey: stream.streamKey,
       label: stream.label,
       ownerName:
@@ -639,41 +659,69 @@ export function MoneyRetirementPanel({
   }
   const [expandedPropertyKeys, setExpandedPropertyKeys] = useState<string[]>([])
 
-  useEffect(() => {
-    const nextDraft = defaultDraft(dashboard)
-    const nextWithdrawal = defaultWithdrawalDraft(dashboard)
-    const nextAca = defaultAcaDraft(dashboard)
-    const nextPartial = defaultPartialDraft(dashboard)
-    const nextChildReductions = defaultChildReductionDraft(dashboard)
-    const nextRealEstate = defaultRealEstateDraft(dashboard)
-    setMonthlyContributionManualOverride(false)
-    setPartialNetManualOverride(false)
-    setChildReductionAutoSeeded(false)
-    setDraft(nextDraft)
-    setWithdrawalDraft(nextWithdrawal)
-    setAcaDraft(nextAca)
-    setPartialDraft(nextPartial)
-    setChildReductionDraft(nextChildReductions)
-    setRealEstateDraft(nextRealEstate)
-    setAllocationMode('current')
-    setAllocationDraft(allocationDraftFromPreview(undefined))
-    setAccountDetailsOpen(false)
-    setRequest(
-      buildRequest(
-        dashboard.profile.id,
-        dashboard,
-        nextDraft,
-        'current',
-        undefined,
-        '',
-        nextWithdrawal,
-        nextAca,
-        nextPartial,
-        nextChildReductions,
-        nextRealEstate,
-      ),
-    )
-  }, [dashboard])
+  const { trackSave } = useDashboardDraftSeeding<
+    HouseholdFinanceDashboard,
+    RetirementDraftSection
+  >({
+    dashboard,
+    seedAll: (next) => {
+      const nextDraft = defaultDraft(next)
+      const nextWithdrawal = defaultWithdrawalDraft(next)
+      const nextAca = defaultAcaDraft(next)
+      const nextPartial = defaultPartialDraft(next)
+      const nextChildReductions = defaultChildReductionDraft(next)
+      const nextRealEstate = defaultRealEstateDraft(next)
+      setMonthlyContributionManualOverride(false)
+      setPartialNetManualOverride(false)
+      setChildReductionAutoSeeded(false)
+      setDraft(nextDraft)
+      setWithdrawalDraft(nextWithdrawal)
+      setAcaDraft(nextAca)
+      setPartialDraft(nextPartial)
+      setChildReductionDraft(nextChildReductions)
+      setRealEstateDraft(nextRealEstate)
+      setAllocationMode('current')
+      setAllocationDraft(allocationDraftFromPreview(undefined))
+      setAccountDetailsOpen(false)
+      setRequest(
+        buildRequest(
+          next.profile.id,
+          next,
+          nextDraft,
+          'current',
+          undefined,
+          '',
+          nextWithdrawal,
+          nextAca,
+          nextPartial,
+          nextChildReductions,
+          nextRealEstate,
+        ),
+      )
+    },
+    seedSection: (section, next) => {
+      switch (section) {
+        case 'draft':
+          setDraft(defaultDraft(next))
+          break
+        case 'withdrawal':
+          setWithdrawalDraft(defaultWithdrawalDraft(next))
+          break
+        case 'aca':
+          setAcaDraft(defaultAcaDraft(next))
+          break
+        case 'partial':
+          setPartialDraft(defaultPartialDraft(next))
+          break
+        case 'childReductions':
+          setChildReductionDraft(defaultChildReductionDraft(next))
+          break
+        case 'realEstate':
+          setRealEstateDraft(defaultRealEstateDraft(next))
+          break
+      }
+    },
+  })
 
   useEffect(() => {
     if (!detectedTakeHome || partialNetManualOverride) return
@@ -774,16 +822,18 @@ export function MoneyRetirementPanel({
     projectionData.length > 0 ? projectionData[projectionData.length - 1] : null
   const accountAllocationCoverage = preview?.accountAllocationCoverage ?? null
 
+  const previewAssetAllocation = preview?.inputs.assetAllocation
   const allocationRows = useMemo(
     () =>
       allocationClasses.map(({ key, label }) => ({
         key,
         label,
-        value: preview
-          ? assetAllocationValue(preview.inputs.assetAllocation, key)
-          : null,
+        value:
+          previewAssetAllocation === undefined
+            ? null
+            : assetAllocationValue(previewAssetAllocation, key),
       })),
-    [preview?.inputs.assetAllocation],
+    [previewAssetAllocation],
   )
   const allocationDraftTotal = allocationClasses.reduce(
     (sum, { key }) => sum + parsePercentValue(allocationDraft[key]),
@@ -954,9 +1004,15 @@ export function MoneyRetirementPanel({
   }
 
   const saveRealEstateAssets = async () => {
-    const snapshot = await updatePlanning.mutateAsync({
-      housingCosts: realEstatePlanningRows(dashboard, realEstateDraft),
-    })
+    let snapshot: HouseholdPlanningSnapshot | undefined
+    try {
+      snapshot = await updatePlanning.mutateAsync({
+        housingCosts: realEstatePlanningRows(dashboard, realEstateDraft),
+      })
+    } catch {
+      // onError already toasted; keep the draft for a retry.
+      return undefined
+    }
     if (snapshot?.housingCosts) {
       setRealEstateDraft(
         defaultRealEstateDraft({
@@ -996,10 +1052,7 @@ export function MoneyRetirementPanel({
       housingCostId = saved?.id ?? null
     }
     if (!housingCostId) return
-    await refreshPropertyValuation.mutateAsync({
-      housingCostId,
-      address,
-    })
+    refreshPropertyValuation.mutate({ housingCostId, address })
   }
 
   const applyDraft = () => {
@@ -1107,21 +1160,28 @@ export function MoneyRetirementPanel({
       // to clear the columns.
       ...partialRequestFields(partialDraft),
     }
-    await updateProfile.mutateAsync(profileUpdate)
-    await updatePlanning.mutateAsync({
-      retirementHealthcareSchedule: withdrawalConfigFromDraft(
-        withdrawalDraft,
-      ).healthcareSchedule.map((row) => ({
-        age: row.age,
-        realAmount: row.realAmount,
-      })),
-      retirementCollegeSchedule: collegeScheduleFromDraft(withdrawalDraft),
-      plannedExpenses: childReductionPlanningRows(
-        dashboard,
-        childReductionDraft,
-      ),
-      housingCosts: realEstatePlanningRows(dashboard, realEstateDraft),
-    })
+    try {
+      await trackSave(RETIREMENT_DRAFT_SECTIONS, async () => {
+        await updateProfile.mutateAsync(profileUpdate)
+        await updatePlanning.mutateAsync({
+          retirementHealthcareSchedule: withdrawalConfigFromDraft(
+            withdrawalDraft,
+          ).healthcareSchedule.map((row) => ({
+            age: row.age,
+            realAmount: row.realAmount,
+          })),
+          retirementCollegeSchedule: collegeScheduleFromDraft(withdrawalDraft),
+          plannedExpenses: childReductionPlanningRows(
+            dashboard,
+            childReductionDraft,
+          ),
+          housingCosts: realEstatePlanningRows(dashboard, realEstateDraft),
+        })
+      })
+    } catch {
+      // onError already toasted; keep the unsaved drafts for a retry.
+      return
+    }
     setRequest(
       buildRequest(
         dashboard.profile.id,
@@ -1269,19 +1329,24 @@ export function MoneyRetirementPanel({
     const existing = scenarioInputs(scenariosQuery.data ?? []).filter(
       (row) => row.name.trim().toLowerCase() !== name.toLowerCase(),
     )
-    await replaceScenarios.mutateAsync([
-      ...existing,
-      {
-        name,
-        holdings,
-        bridgeGrowth: withdrawalDraft.bridgeGrowth,
-        bridgeRealReturn: clamp(
-          parseNumber(withdrawalDraft.bridgeRealReturnPct, 1) / 100,
-          -0.05,
-          0.1,
-        ),
-      },
-    ])
+    try {
+      await replaceScenarios.mutateAsync([
+        ...existing,
+        {
+          name,
+          holdings,
+          bridgeGrowth: withdrawalDraft.bridgeGrowth,
+          bridgeRealReturn: clamp(
+            parseNumber(withdrawalDraft.bridgeRealReturnPct, 1) / 100,
+            -0.05,
+            0.1,
+          ),
+        },
+      ])
+    } catch {
+      // onError already toasted; keep the name for a retry.
+      return
+    }
     setScenarioName('')
   }
 
@@ -1300,11 +1365,16 @@ export function MoneyRetirementPanel({
     }))
   }
 
-  const deleteScenario = async (id: string) => {
-    await replaceScenarios.mutateAsync(
+  const deleteScenario = (id: string) => {
+    replaceScenarios.mutate(
       scenarioInputs(scenariosQuery.data ?? []).filter((row) => row.id !== id),
+      {
+        onSuccess: () =>
+          setCompareSelection((current) =>
+            current.filter((item) => item !== id),
+          ),
+      },
     )
-    setCompareSelection((current) => current.filter((item) => item !== id))
   }
 
   const runCompare = async () => {

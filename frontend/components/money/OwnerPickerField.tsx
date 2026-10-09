@@ -31,6 +31,7 @@ export function OwnerPickerField({
   const listId = `${id}-options`
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: focusout bookkeeping for the combobox inside; not a user-facing control.
     <div
       className={cn('relative space-y-1.5', className)}
       onBlur={(event) => {

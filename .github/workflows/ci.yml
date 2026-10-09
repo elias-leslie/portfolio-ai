@@ -9,9 +9,16 @@ on:
 permissions:
   contents: read
 
+# github.workflow is the caller's name when docker-build.yml reuses this file,
+# so the release validation never shares (or cancels) a group with plain CI.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -58,6 +65,7 @@ jobs:
 
   backend-integration:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -95,6 +103,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
@@ -119,13 +128,14 @@ jobs:
         run: pnpm exec tsc --noEmit
       - name: Vitest
         working-directory: frontend
-        run: pnpm test -- --run
+        run: pnpm run test:coverage --run
       - name: Build
         working-directory: frontend
         run: pnpm build
 
   runtime-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: pgvector/pgvector:pg16

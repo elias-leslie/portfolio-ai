@@ -17,9 +17,26 @@ from app.models.card_strategy import (
     StrategySettings,
 )
 from app.models.credit_cards import CreditCardCreate
+from app.services import (
+    card_management_service,
+    card_rotation_engine,
+    card_spend_summary,
+    card_strategy_service,
+)
 from app.services.card_research_service import RESEARCH_ATTEMPT_KEY, CardResearchService
 from app.services.card_strategy_service import CardStrategyService
 from app.storage import get_storage
+
+# Bill due dates use add_months(); pin the clock to a month-end day so the
+# suite never depends on the day it runs (Jan 31 -> Feb 28 exercises clamping).
+_TODAY = date(2026, 1, 31)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_card_clock(freeze_today):
+    freeze_today(
+        _TODAY, card_strategy_service, card_management_service, card_spend_summary, card_rotation_engine
+    )
 
 
 @pytest.fixture
@@ -32,12 +49,12 @@ def strategy(monkeypatch):
             VALUES (%s,%s,'Chase','Fixture card',95,4000,600,90)""", [product_id,"fixture-"+product_id])
         conn.commit()
     candidate = CardCandidate(key=product_id+":p2", product_id=product_id, product_name="Fixture card",
-        player="p2", applicant="Person Two", application_on=date.today().isoformat(),
-        application_by=(date.today()+timedelta(days=14)).isoformat(), minimum_spend=4000,
+        player="p2", applicant="Person Two", application_on=_TODAY.isoformat(),
+        application_by=(_TODAY+timedelta(days=14)).isoformat(), minimum_spend=4000,
         window_days=90,bonus_value=600,annual_fee=95,incremental_value=465,monthly_required=1353,
         terms_fingerprint="original-terms",terms_current=True,source_urls=["https://chase.com"],
         checks=["Confirm eligibility"],rationale="Fixture")
-    bill = BillSuggestion(key="phone",merchant="Phone",amount=100,cadence="monthly",next_expected=date.today().isoformat(),
+    bill = BillSuggestion(key="phone",merchant="Phone",amount=100,cadence="monthly",next_expected=_TODAY.isoformat(),
                          current_account="Old bank",already_card_spend=False,evidence="Three monthly charges")
     state = SimpleNamespace(cards=[], rows=[], baseline=baseline(), candidates=[candidate], bills=[bill])
     monkeypatch.setattr(service, "_context", lambda _today: (state.cards, service.settings(), state.rows, state.baseline, [], state.candidates,
@@ -113,7 +130,7 @@ def test_bill_move_requires_real_card_cost_checks_and_later_posted_evidence(stra
         service.bill_decision(plan.id,"phone",BillDecision(status="confirmed"))
     account = _insert_account(service.storage)
     card = service.cards.create_owned_card(CreditCardCreate(product_id=state.candidates[0].product_id,
-        player="p2",status="active",opened_date=date.today().isoformat(),household_account_id=account))
+        player="p2",status="active",opened_date=_TODAY.isoformat(),household_account_id=account))
     state.cards = [card]
     plan = service.decide(plan.id,StrategyDecision(action="link_card",fingerprint=plan.fingerprint,card_id=card.id))
     with pytest.raises(ValueError,match="acceptance"):
@@ -121,10 +138,10 @@ def test_bill_move_requires_real_card_cost_checks_and_later_posted_evidence(stra
     with pytest.raises(ValueError,match="adds costs"):
         service.bill_decision(plan.id,"phone",BillDecision(status="confirmed",card_accepted=True,benefits_checked=True,
             fee_per_charge=3,lost_discount=0))
-    yesterday = date.today()-timedelta(days=1)
+    yesterday = _TODAY-timedelta(days=1)
     service.bill_decision(plan.id,"phone",BillDecision(status="confirmed",card_accepted=True,benefits_checked=True,
         fee_per_charge=0,lost_discount=0,confirmed_on=yesterday))
-    state.rows=[{"id":"pending","merchant":"Phone","household_account_id":account,"date":date.today(),"amount":100,"pending":True}]
+    state.rows=[{"id":"pending","merchant":"Phone","household_account_id":account,"date":_TODAY,"amount":100,"pending":True}]
     assert service.view().bills[0].status == "confirmed"
     state.rows[0]["pending"] = False
     assert service.view().bills[0].status == "observed"
@@ -139,11 +156,11 @@ def test_bill_never_observes_a_charge_before_confirmation_or_on_another_account(
     plan = approve(service,service.propose(ProposeStrategy()))
     account = _insert_account(service.storage)
     card = service.cards.create_owned_card(CreditCardCreate(product_id=state.candidates[0].product_id,player="p2",status="active",
-        opened_date=date.today().isoformat(),household_account_id=account))
+        opened_date=_TODAY.isoformat(),household_account_id=account))
     state.cards = [card]
     service.decide(plan.id,StrategyDecision(action="link_card",fingerprint=plan.fingerprint,card_id=card.id))
     service.bill_decision(plan.id,"phone",BillDecision(status="confirmed",card_accepted=True,benefits_checked=True,fee_per_charge=0,lost_discount=0))
-    state.rows=[{"id":"old","merchant":"Phone","household_account_id":account,"date":date.today(),"amount":100,"pending":False}]
+    state.rows=[{"id":"old","merchant":"Phone","household_account_id":account,"date":_TODAY,"amount":100,"pending":False}]
     assert service.view().bills[0].status == "confirmed"
 
 
@@ -174,7 +191,7 @@ def test_cma_payment_move_requires_an_exception_as_well_as_cost_checks(strategy)
     plan = approve(service, service.propose(ProposeStrategy()))
     account = _insert_account(service.storage)
     owned = service.cards.create_owned_card(CreditCardCreate(product_id=state.candidates[0].product_id,
-        player="p2", status="active", opened_date=date.today().isoformat(), household_account_id=account))
+        player="p2", status="active", opened_date=_TODAY.isoformat(), household_account_id=account))
     state.cards = [owned]
     service.decide(plan.id, StrategyDecision(action="link_card", fingerprint=plan.fingerprint, card_id=owned.id))
     decision = BillDecision(status="confirmed", card_accepted=True, benefits_checked=True, fee_per_charge=0, lost_discount=0)
@@ -238,17 +255,19 @@ def test_research_double_click_is_rejected_before_any_model_call(strategy):
 
 def test_wait_plan_has_a_dated_review_without_automatic_model_calls(strategy):
     service, _ = strategy
-    approve(service, service.propose(ProposeStrategy(wait=True)))
+    plan = approve(service, service.propose(ProposeStrategy(wait=True)))
     event = service.view().review_events[0]
-    assert event["date"] == (date.today()+timedelta(days=30)).isoformat()
+    # approved_at is the database's UTC timestamp, not the frozen local clock.
+    approved_on = date.fromisoformat(plan.approved_at[:10])
+    assert event["date"] == (approved_on+timedelta(days=30)).isoformat()
     assert not service.actions()
 
 
 def test_approved_forecast_cannot_silently_expand_with_later_spending(strategy):
     service, state = strategy
     approve(service, service.propose(ProposeStrategy()))
-    state.cards = [card().model_copy(update={"opened_date": date.today().isoformat(),
-        "welcome_deadline": (date.today()+timedelta(days=30)).isoformat()})]
+    state.cards = [card().model_copy(update={"opened_date": _TODAY.isoformat(),
+        "welcome_deadline": (_TODAY+timedelta(days=30)).isoformat()})]
     state.baseline.monthly_available = 5000
     view = service.view()
     assert view.progress[0].forecast < 2000

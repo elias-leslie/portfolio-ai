@@ -20,8 +20,12 @@ describe('capture upload recovery', () => {
     vi.stubGlobal('fetch', fetch)
     const indexedDB = { open: vi.fn() }
     vi.stubGlobal('indexedDB', indexedDB)
-    await expect(uploadCaptureDraft(draft)).rejects.toThrow('offline')
-    await expect(uploadCaptureDraft(draft)).rejects.toThrow('offline')
+    await expect(uploadCaptureDraft(draft)).rejects.toThrow(
+      'Upload did not finish. The draft is saved; retry when connected.',
+    )
+    await expect(uploadCaptureDraft(draft)).rejects.toThrow(
+      'Upload did not finish. The draft is saved; retry when connected.',
+    )
     expect(indexedDB.open).not.toHaveBeenCalled()
     for (const call of fetch.mock.calls) {
       const data = call[1].body as FormData

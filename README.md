@@ -20,6 +20,8 @@ For a standalone Docker installation, use Docker Engine with Compose:
 
 ```bash
 cp .env.example .env
+# docker compose requires a database password; there is no default.
+sed -i "s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env
 ./scripts/generate-hatchet-dev-token.sh .env
 docker compose up -d --build
 ```

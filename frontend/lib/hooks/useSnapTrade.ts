@@ -9,13 +9,14 @@ import {
   type SnapTradePortalPayload,
   syncSnapTrade,
 } from '@/lib/api/snaptrade'
+import { invalidateHouseholdQueries } from './household-query-cache'
 
 const SNAPTRADE_STALE_MS = 1000 * 60
 
 function refreshSnapTrade(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ['snaptrade'] }),
-    queryClient.invalidateQueries({ queryKey: ['household'], exact: false }),
+    invalidateHouseholdQueries(queryClient, { retirement: true }),
   ])
 }
 

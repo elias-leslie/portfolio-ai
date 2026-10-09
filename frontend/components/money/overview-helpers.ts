@@ -91,10 +91,6 @@ export function getTooltipNumber(
   return null
 }
 
-export function formatThousandsAxis(value: number) {
-  return `$${Math.round(value / 1000)}k`
-}
-
 export const currencyTooltipFormatter: TooltipProps<TooltipValueType>['formatter'] =
   (value) =>
     formatCurrency(getTooltipNumber(value), { decimals: 0, nullDisplay: '—' })

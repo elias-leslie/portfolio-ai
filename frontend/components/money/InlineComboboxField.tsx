@@ -78,6 +78,7 @@ export function InlineComboboxField({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: focusout bookkeeping for the combobox inside; not a user-facing control.
     <div
       className={cn('relative', className)}
       onBlur={(event) => {

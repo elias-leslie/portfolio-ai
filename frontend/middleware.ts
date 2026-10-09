@@ -1,14 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { getApiBaseUrl } from './lib/api-config'
+import { isLocalHostname } from './lib/upstream-proxy'
 
 const accessHeader = 'cf-access-jwt-assertion'
-function isLocalHostname(hostname: string): boolean {
-  return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1' ||
-    hostname.endsWith('.localhost')
-  )
-}
 
 function requestHostname(request: NextRequest): string {
   const host = request.headers.get('host') ?? request.nextUrl.host
@@ -31,13 +25,10 @@ export async function middleware(request: NextRequest) {
 
   if (request.headers.get(accessHeader)) {
     try {
-      const response = await fetch(
-        `${process.env.API_URL || 'http://localhost:8000'}/api/identity`,
-        {
-          headers: { [accessHeader]: request.headers.get(accessHeader) ?? '' },
-          cache: 'no-store',
-        },
-      )
+      const response = await fetch(`${getApiBaseUrl()}/api/identity`, {
+        headers: { [accessHeader]: request.headers.get(accessHeader) ?? '' },
+        cache: 'no-store',
+      })
       if (!response.ok)
         return new NextResponse(
           'Household sign-in is unavailable or this member is not registered.',

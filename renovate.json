@@ -7,6 +7,10 @@
   "prHourlyLimit": 2,
   "prConcurrentLimit": 10,
   "schedule": ["before 6am on monday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
   "packageRules": [
     {
       "matchManagers": ["pep621"],

@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { SnapTradeAccount, SnapTradeOrder } from '@/lib/api/snaptrade'
+import { formatCurrency } from '@/lib/formatters'
 import {
   useConfigureSnapTrade,
   useCreateSnapTradeConnectionPortal,
@@ -43,25 +44,18 @@ function defaultRedirectUri() {
   return `${window.location.origin}/money`
 }
 
-function formatCurrency(value?: number | null, currency?: string | null) {
-  if (value === null || value === undefined) return 'Not reported'
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency || 'USD',
-    maximumFractionDigits: 0,
-  }).format(value)
-}
+const NOT_REPORTED = 'Not reported'
 
-function formatCurrencyWithCents(
-  value?: number | null,
-  currency?: string | null,
+function formatSnapTradeCurrency(
+  value: number | null | undefined,
+  currency: string | null | undefined,
+  decimals: number,
 ) {
-  if (value === null || value === undefined) return 'Not reported'
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
+  return formatCurrency(value, {
+    decimals,
     currency: currency || 'USD',
-    maximumFractionDigits: 2,
-  }).format(value)
+    nullDisplay: NOT_REPORTED,
+  })
 }
 
 function formatQuantity(value?: number | null) {
@@ -469,9 +463,10 @@ export function SnapTradePanel() {
                 </div>
                 <div className="text-left md:text-right">
                   <p className="text-sm font-semibold text-text">
-                    {formatCurrency(
+                    {formatSnapTradeCurrency(
                       account.marketValue ?? account.balance,
                       account.currency,
+                      0,
                     )}
                   </p>
                   <p className="text-xs text-text-muted">
@@ -594,7 +589,7 @@ function SnapTradeOrdersTimeline({
           >
             {netCashFlow === null
               ? 'Unavailable'
-              : formatCurrencyWithCents(netCashFlow, displayCurrency)}
+              : formatSnapTradeCurrency(netCashFlow, displayCurrency, 2)}
           </p>
         </div>
         <div className="rounded-md border border-border/25 bg-surface/45 px-3 py-2">
@@ -679,7 +674,7 @@ function SnapTradeOrdersTimeline({
                 <p className="truncate text-sm text-text">
                   {formatQuantity(order.filledQuantity)}
                   {order.executionPrice !== null
-                    ? ` @ ${formatCurrencyWithCents(order.executionPrice, order.currency)}`
+                    ? ` @ ${formatSnapTradeCurrency(order.executionPrice, order.currency, 2)}`
                     : ''}
                 </p>
               </div>
@@ -688,7 +683,7 @@ function SnapTradeOrdersTimeline({
                 <div>
                   <p className="text-xs uppercase text-text-muted">Value</p>
                   <p className="text-sm font-semibold text-text">
-                    {formatCurrencyWithCents(value, order.currency)}
+                    {formatSnapTradeCurrency(value, order.currency, 2)}
                   </p>
                 </div>
                 <div className="min-w-0 md:mt-1">

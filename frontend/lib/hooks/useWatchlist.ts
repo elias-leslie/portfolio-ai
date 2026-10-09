@@ -4,10 +4,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import {
-  fetchPreferences,
-  getWatchlistRefreshMinutes,
-} from '@/lib/api/preferences'
+import { getWatchlistRefreshMinutes } from '@/lib/api/preferences'
 import {
   deleteWatchlistItem,
   fetchRefreshStatus,
@@ -22,6 +19,7 @@ import {
   type WatchlistItemUpdate,
   type WatchlistListResponse,
 } from '@/lib/api/watchlist'
+import { usePreferences } from './usePreferences'
 
 // Query keys
 export const watchlistKeys = {
@@ -42,11 +40,7 @@ export const watchlistKeys = {
  * Watchlist is user-level (not account-specific).
  */
 export function useWatchlist() {
-  const { data: preferences } = useQuery({
-    queryKey: ['preferences'],
-    queryFn: fetchPreferences,
-    staleTime: 1000 * 60 * 5, // Reduced to 5 min to pick up changes faster
-  })
+  const { data: preferences } = usePreferences()
 
   const refreshMinutes = getWatchlistRefreshMinutes(preferences)
   const refreshIntervalMs = refreshMinutes * 60 * 1000 // Convert to milliseconds

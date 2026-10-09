@@ -26,8 +26,11 @@ graphify-out
 .fallow
 .firecrawl
 logs
-.env
-.env.local
+# Never send local env files (secrets) into the build context.
+.env*
+**/.env*
+!.env.example
+!**/.env.example
 *.tar.gz
 docker/compose
 !docker/workspace-packages

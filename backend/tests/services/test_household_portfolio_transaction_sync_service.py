@@ -333,3 +333,72 @@ def test_sync_skips_malformed_transaction_rows() -> None:
     assert summary["transactions_skipped"] == 4
     assert summary["transactions_inserted"] == 0
     ledger.record_transaction.assert_not_called()
+
+
+def _reviewed_with_duplicate_fills() -> dict[str, object]:
+    fill = {
+        "transaction_type": "buy",
+        "trade_date": "2026-05-08",
+        "symbol": "VTI",
+        "shares": 1.0,
+        "price": 250.0,
+        "amount": -250.0,
+        "raw_action": "YOU BOUGHT VTI",
+    }
+    return {
+        "structured_data": {
+            "financial_accounts": [
+                {
+                    "transaction_source": "fidelity_activity_history_csv",
+                    "account_mask": "Z00000002",
+                    "household_account_id": "hh-1",
+                    "transactions": [dict(fill), dict(fill)],
+                }
+            ]
+        }
+    }
+
+
+def test_identical_same_day_fills_both_import_and_reimport_is_idempotent(
+    monkeypatch: Any,
+) -> None:
+    from tests.portfolio.test_transactions import _make_ledger
+
+    ledger, store = _make_ledger()
+    monkeypatch.setattr(
+        HouseholdPortfolioTransactionSyncService,
+        "_resolve_portfolio_account_id",
+        staticmethod(lambda *_a, **_k: "acct-1"),
+    )
+    sync = HouseholdPortfolioTransactionSyncService(ledger=ledger)
+    service = _fake_service(MagicMock())
+
+    first = sync.sync_from_reviewed_accounts(
+        service, document=cast(Any, MagicMock()), reviewed=_reviewed_with_duplicate_fills()
+    )
+    assert first["transactions_inserted"] == 2
+    assert len(store.transactions) == 2
+    assert len(store.tax_lots) == 2
+    external_ids = [row["external_id"] for row in store.transactions]
+    assert len(set(external_ids)) == 2
+    # First occurrence keeps the pre-occurrence-index key so rows stored by
+    # earlier imports still dedupe.
+    fill = cast(Any, _reviewed_with_duplicate_fills())["structured_data"][
+        "financial_accounts"
+    ][0]["transactions"][0]
+    assert external_ids[0] == _txn_external_id(account_number="Z00000002", txn=fill)
+
+    second = sync.sync_from_reviewed_accounts(
+        service, document=cast(Any, MagicMock()), reviewed=_reviewed_with_duplicate_fills()
+    )
+    assert second["transactions_inserted"] == 0
+    assert second["transactions_unchanged"] == 2
+    assert len(store.transactions) == 2
+    assert len(store.tax_lots) == 2
+
+
+def test_external_id_occurrence_zero_matches_legacy_key() -> None:
+    txn = {"trade_date": "2026-05-08", "symbol": "VTI", "shares": 1.0, "amount": 1.0}
+    legacy = _txn_external_id(account_number="Z1", txn=txn)
+    assert _txn_external_id(account_number="Z1", txn=txn, occurrence=0) == legacy
+    assert _txn_external_id(account_number="Z1", txn=txn, occurrence=1) != legacy

@@ -1155,6 +1155,101 @@ describe('MoneyRetirementPanel', () => {
     )
   })
 
+  it('keeps unsaved planner edits when the dashboard refetches', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    const { rerender } = render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const retireAgeInput = screen.getByDisplayValue('65')
+    await user.clear(retireAgeInput)
+    await user.type(retireAgeInput, '66')
+
+    // A background refetch hands over a new object for the same profile.
+    rerender(<MoneyRetirementPanel dashboard={{ ...dashboard }} />)
+    expect(screen.getByDisplayValue('66')).toBeInTheDocument()
+
+    // Switching profiles re-seeds every draft from the new dashboard.
+    rerender(
+      <MoneyRetirementPanel
+        dashboard={
+          {
+            ...dashboard,
+            profile: { ...dashboard.profile, id: 'other-profile' },
+          } as HouseholdFinanceDashboard
+        }
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByDisplayValue('66')).not.toBeInTheDocument(),
+    )
+    expect(screen.getByDisplayValue('65')).toBeInTheDocument()
+  })
+
+  it('re-seeds saved assumptions from the refreshed dashboard after a save', async () => {
+    const user = userEvent.setup()
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    const { rerender } = render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const retireAgeInput = screen.getByDisplayValue('65')
+    await user.clear(retireAgeInput)
+    await user.type(retireAgeInput, '66')
+    await user.click(screen.getByRole('button', { name: /save assumptions/i }))
+    await waitFor(() => expect(updatePlanningMutateAsync).toHaveBeenCalled())
+
+    // The server normalized the saved value; the saved section follows it.
+    rerender(
+      <MoneyRetirementPanel
+        dashboard={
+          {
+            ...dashboard,
+            profile: { ...dashboard.profile, targetRetirementAge: 67 },
+          } as HouseholdFinanceDashboard
+        }
+      />,
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('textbox', { name: /your retirement age/i }),
+      ).toHaveValue('67'),
+    )
+  })
+
+  it('keeps drafts and avoids unhandled rejections when saving fails', async () => {
+    const user = userEvent.setup()
+    updateProfileMutateAsync.mockRejectedValue(new Error('save failed'))
+    usePreviewMock.mockReturnValue({
+      data: preview,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRetirementPreview>)
+
+    render(<MoneyRetirementPanel dashboard={dashboard} />)
+
+    await user.click(screen.getByRole('button', { name: /expand planner/i }))
+    const retireAgeInput = screen.getByDisplayValue('65')
+    await user.clear(retireAgeInput)
+    await user.type(retireAgeInput, '66')
+    await user.click(screen.getByRole('button', { name: /save assumptions/i }))
+    await waitFor(() => expect(updateProfileMutateAsync).toHaveBeenCalled())
+    expect(updatePlanningMutateAsync).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue('66')).toBeInTheDocument()
+  })
+
   it('keeps the success rate labeled with its completed spending input while edits request a new run', async () => {
     const user = userEvent.setup()
     usePreviewMock.mockReturnValue({

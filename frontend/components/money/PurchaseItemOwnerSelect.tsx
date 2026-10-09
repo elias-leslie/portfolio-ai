@@ -80,6 +80,7 @@ export function PurchaseItemOwnerSelect({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: focusout bookkeeping for the combobox inside; not a user-facing control.
     <div
       className={cn('relative w-full min-w-[11rem] max-w-[14rem]', className)}
       onBlur={(event) => {

@@ -13,6 +13,7 @@ from app.config import settings
 from app.models.household_capture import CaptureReview, CaptureView
 from app.services.household_document_storage import resolve_upload_path
 from app.services.household_identity import HouseholdIdentity, require_adult
+from app.services.household_upload_crypto import read_upload_bytes, write_encrypted_upload
 from app.storage import get_storage
 
 _SELECT = """SELECT c.id, c.captured_by, coalesce(m.display_name, 'Local workspace'), c.kind,
@@ -78,6 +79,11 @@ class HouseholdCaptureService:
             raise HTTPException(404, "This capture's image is unavailable. Please upload it again.")
         return path, row[15]
 
+    def image_bytes(self, identity: HouseholdIdentity, capture_id: str) -> tuple[bytes, str]:
+        """Plaintext capture bytes (decrypted in memory) and their media type."""
+        path, content_type = self.image(identity, capture_id)
+        return read_upload_bytes(path), content_type
+
     def save(
         self,
         identity: HouseholdIdentity,
@@ -95,9 +101,8 @@ class HouseholdCaptureService:
         suffix = Path(filename).suffix.lower()
         key = f"captures/{capture_id}{suffix}"
         path = settings.household_upload_dir / key
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        path.write_bytes(content)
-        path.chmod(0o600)
+        # Digest/dedupe above uses plaintext; only the stored copy is encrypted.
+        write_encrypted_upload(path, content)
         try:
             with self.storage.connection() as conn:
                 row = conn.execute(

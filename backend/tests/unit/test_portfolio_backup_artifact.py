@@ -328,10 +328,9 @@ def test_compose_restarts_services_only_after_database_and_uploads_succeed(
     assert docker_log.rindex("run --rm -T --no-deps") < docker_log.index("up -d")
 
 
-def test_native_backup_entry_point_builds_complete_artifact(tmp_path: Path) -> None:
-    tool = _load_tool()
+def _native_backup_env(tmp_path: Path, *, active_units: str = "") -> dict[str, str]:
     fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
+    fake_bin.mkdir(exist_ok=True)
     fake_pg_dump = fake_bin / "pg_dump"
     fake_pg_dump.write_text(
         """#!/usr/bin/env bash
@@ -344,16 +343,35 @@ printf 'PGDMP-fake-database' > "$output"
 """
     )
     fake_pg_dump.chmod(0o755)
-    uploads = tmp_path / "uploads"
-    uploads.mkdir()
-    (uploads / "statement.pdf").write_bytes(b"statement")
-    artifact = tmp_path / "complete.tar.gz"
+    # Fake systemctl: a unit is "active" only when listed in FAKE_ACTIVE_UNITS.
+    fake_systemctl = fake_bin / "systemctl"
+    fake_systemctl.write_text(
+        """#!/usr/bin/env bash
+unit="${@: -1}"
+for active in ${FAKE_ACTIVE_UNITS:-}; do
+  [ "$active" = "$unit" ] && exit 0
+done
+exit 3
+"""
+    )
+    fake_systemctl.chmod(0o755)
     environment = os.environ.copy()
     environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
+    environment["FAKE_ACTIVE_UNITS"] = active_units
+    environment.pop("PORTFOLIO_LIVE_UNITS", None)
     environment["PORTFOLIO_DB_URL"] = (
         "postgresql://backup:secret@localhost:5432/portfolio_drill"
     )
+    return environment
 
+
+def _run_native_backup(
+    tmp_path: Path, environment: dict[str, str], *extra: str
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    uploads = tmp_path / "uploads"
+    uploads.mkdir(exist_ok=True)
+    (uploads / "statement.pdf").write_bytes(b"statement")
+    artifact = tmp_path / "complete.tar.gz"
     result = subprocess.run(
         [
             str(REPO_ROOT / "scripts" / "portfolio-backup.sh"),
@@ -364,6 +382,57 @@ printf 'PGDMP-fake-database' > "$output"
             "--output",
             str(artifact),
             "--no-prune",
+            *extra,
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result, artifact
+
+
+def test_native_backup_entry_point_builds_complete_artifact(tmp_path: Path) -> None:
+    tool = _load_tool()
+    result, artifact = _run_native_backup(tmp_path, _native_backup_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    manifest = tool.verify_artifact(artifact)
+    assert manifest["database"]["name"] == "portfolio_drill"
+    assert manifest["uploads"]["file_count"] == 1
+
+
+def test_native_backup_refuses_live_services_without_allow_live(
+    tmp_path: Path,
+) -> None:
+    environment = _native_backup_env(
+        tmp_path, active_units="portfolio-hatchet-worker.service"
+    )
+
+    refused, artifact = _run_native_backup(tmp_path, environment)
+    assert refused.returncode == 1
+    assert "portfolio-hatchet-worker.service" in refused.stderr
+    assert not artifact.exists()
+
+    allowed, artifact = _run_native_backup(tmp_path, environment, "--allow-live")
+    assert allowed.returncode == 0, allowed.stderr
+    assert artifact.exists()
+
+
+def test_native_restore_refuses_live_services(tmp_path: Path) -> None:
+    _, artifact, _ = _fixture_artifact(tmp_path)
+    environment = _native_backup_env(tmp_path, active_units="portfolio-backend.service")
+
+    result = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts" / "portfolio-restore.sh"),
+            str(artifact),
+            "--confirm",
+            "--mode",
+            "native",
+            "--upload-dir",
+            str(tmp_path / "restored"),
         ],
         cwd=REPO_ROOT,
         env=environment,
@@ -372,10 +441,10 @@ printf 'PGDMP-fake-database' > "$output"
         text=True,
     )
 
-    assert result.returncode == 0, result.stderr
-    manifest = tool.verify_artifact(artifact)
-    assert manifest["database"]["name"] == "portfolio_drill"
-    assert manifest["uploads"]["file_count"] == 1
+    assert result.returncode == 1
+    assert "Refusing native restore" in result.stderr
+    assert "portfolio-backend.service" in result.stderr
+    assert not (tmp_path / "restored").exists()
 
 
 def test_backup_entry_points_are_executable_and_document_complete_payload() -> None:

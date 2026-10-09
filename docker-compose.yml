@@ -4,12 +4,13 @@ services:
     environment:
       POSTGRES_DB: portfolio_ai
       POSTGRES_USER: portfolio
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portfolio}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     ports:
       - "127.0.0.1:${PORTFOLIO_DB_HOST_PORT:-5432}:5432"
     volumes:
       - portfolio-db-data:/var/lib/postgresql/data
       - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U portfolio -d portfolio_ai"]
       interval: 10s
@@ -21,6 +22,7 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
       - "127.0.0.1:${PORTFOLIO_REDIS_HOST_PORT:-6379}:6379"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -30,7 +32,7 @@ services:
   hatchet-migrate:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${HATCHET_TAG:-latest}@${HATCHET_MIGRATE_DIGEST:-sha256:ca735ee827986bf408153ea6fbac5023c92e32e12947eceae2425e2c760e2e26}
     environment:
-      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@portfolio-db:5432/hatchet
     depends_on:
       portfolio-db:
         condition: service_healthy
@@ -39,7 +41,7 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}@${HATCHET_ADMIN_DIGEST:-sha256:912ad79917a820503d2945c53ecd7c297ebcf4de766a4680e965a9885f0cf17d}
     command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
     environment:
-      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@portfolio-db:5432/hatchet
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
@@ -61,7 +63,7 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-engine:${HATCHET_TAG:-latest}@${HATCHET_ENGINE_DIGEST:-sha256:6fb976b16b20cbd6b2d388dad88371c1d7d9958dfaf1ea08f9bff489b89ab65c}
     command: /hatchet/hatchet-engine --config /hatchet/config
     environment:
-      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@portfolio-db:5432/hatchet
       SERVER_GRPC_BIND_ADDRESS: 0.0.0.0
       SERVER_GRPC_INSECURE: "t"
     ports:
@@ -74,6 +76,7 @@ services:
         condition: service_completed_successfully
       hatchet-migrate:
         condition: service_completed_successfully
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8733/ready"]
       interval: 15s
@@ -85,7 +88,7 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${HATCHET_TAG:-latest}@${HATCHET_ADMIN_DIGEST:-sha256:912ad79917a820503d2945c53ecd7c297ebcf4de766a4680e965a9885f0cf17d}
     profiles: ["tools"]
     environment:
-      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/hatchet
+      DATABASE_URL: postgresql://portfolio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@portfolio-db:5432/hatchet
       HATCHET_TENANT_ID: ${HATCHET_TENANT_ID:-}
     command:
       - /bin/sh
@@ -114,7 +117,7 @@ services:
       hatchet:
         condition: service_healthy
     environment:
-      PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/portfolio_ai}
+      PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@portfolio-db:5432/portfolio_ai}
       DB_POOL_SIZE: ${DB_POOL_SIZE:-4}
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
       REDIS_URL: ${PORTFOLIO_DOCKER_REDIS_URL:-redis://portfolio-redis:6379/0}
@@ -149,6 +152,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
     init: true
 
   portfolio-worker:
@@ -162,7 +166,7 @@ services:
       portfolio-api:
         condition: service_healthy
     environment:
-      PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:-portfolio}@portfolio-db:5432/portfolio_ai}
+      PORTFOLIO_DB_URL: ${PORTFOLIO_DOCKER_DB_URL:-postgresql://portfolio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@portfolio-db:5432/portfolio_ai}
       DB_POOL_SIZE: ${DB_POOL_SIZE:-4}
       DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-2}
       REDIS_URL: ${PORTFOLIO_DOCKER_REDIS_URL:-redis://portfolio-redis:6379/0}
@@ -208,6 +212,7 @@ services:
       API_URL: http://portfolio-api:8000
     ports:
       - "127.0.0.1:${PORTFOLIO_FRONTEND_HOST_PORT:-3000}:3000"
+    restart: unless-stopped
     healthcheck:
       test:
         [

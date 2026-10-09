@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+import pytest
+
+from app.services import _household_report_builder
 from app.services._household_report_builder import (
     build_household_reports,
     collapse_report_rows,
@@ -11,6 +14,15 @@ from app.services._household_report_builder import (
     report_rows_overlap,
 )
 
+# Report math is calendar-relative; pin the builder's clock so results never
+# depend on the day the suite runs. Boundary days are covered by parametrized
+# tests below.
+_TODAY = date(2026, 7, 15)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_report_clock(freeze_today) -> None:
+    freeze_today(_TODAY, _household_report_builder)
 
 def test_collapse_report_rows_prefers_import_row_over_matching_transaction() -> None:
     shared_date = date(2026, 3, 1)
@@ -206,8 +218,21 @@ def _report_row(
     }
 
 
-def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
-    today = date.today()
+# Month-boundary days: year rollover, short February, 31st, and the 1st.
+_FROZEN_TODAYS = [
+    date(2026, 1, 1),
+    date(2026, 3, 1),
+    date(2026, 3, 31),
+    date(2026, 7, 15),
+    date(2026, 12, 31),
+]
+
+
+@pytest.mark.parametrize("frozen_today", _FROZEN_TODAYS, ids=str)
+def test_build_household_reports_uses_today_for_recent_spend_window(
+    freeze_today, frozen_today: date
+) -> None:
+    today = freeze_today(frozen_today, _household_report_builder)
     previous_month_day = today.replace(day=1) - timedelta(days=1)
     earlier_month_day = previous_month_day.replace(day=1) - timedelta(days=1)
 
@@ -230,8 +255,12 @@ def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
         merchant_recommendation=lambda *, merchant, category, cadence: f"{merchant}:{category}:{cadence}",
     )
 
-    expected_recent = 120.0 + (
-        80.0 if (today - previous_month_day).days <= 29 else 0.0
+    # Inclusive 30-day window (today - 29 .. today). Early in a month after a
+    # short February (e.g. March 1), even the month-before-last falls inside it.
+    expected_recent = 120.0 + sum(
+        amount
+        for row_day, amount in ((previous_month_day, 80.0), (earlier_month_day, 100.0))
+        if (today - row_day).days <= 29
     )
     assert reports.executive.recent_30_day_spend == expected_recent
     # Averages divide by complete months only; the current partial month stays
@@ -261,8 +290,12 @@ def test_build_household_reports_uses_today_for_recent_spend_window() -> None:
     assert reports.month_comparison.change_pct == -20.0
 
 
-def test_build_household_reports_nets_refunds_out_of_spend_math() -> None:
-    previous_month_day = date.today().replace(day=1) - timedelta(days=1)
+@pytest.mark.parametrize("frozen_today", _FROZEN_TODAYS, ids=str)
+def test_build_household_reports_nets_refunds_out_of_spend_math(
+    freeze_today, frozen_today: date
+) -> None:
+    today = freeze_today(frozen_today, _household_report_builder)
+    previous_month_day = today.replace(day=1) - timedelta(days=1)
     refund_day = previous_month_day.replace(day=1)
 
     reports = build_household_reports(
@@ -409,7 +442,7 @@ def test_collapse_blocks_cross_account_twins_and_caps_absorption() -> None:
 
 
 def test_build_household_reports_excludes_future_dated_rows_from_current_facts() -> None:
-    today = date.today()
+    today = _TODAY
 
     reports = build_household_reports(
         report_rows=[
@@ -749,7 +782,7 @@ def test_build_household_reports_uses_cached_product_enrichment_measure_when_tit
 
 
 def test_build_household_reports_item_splits_move_category_mix_not_totals() -> None:
-    today = date.today()
+    today = _TODAY
     previous_month_day = today.replace(day=1) - timedelta(days=1)
     rows = [
         {**_report_row(
@@ -793,7 +826,7 @@ def test_build_household_reports_item_splits_move_category_mix_not_totals() -> N
 
 
 def test_build_household_reports_without_item_splits_matches_default() -> None:
-    today = date.today()
+    today = _TODAY
     rows = [
         {**_report_row(
             row_date=today, merchant="Publix", amount=120.0,
@@ -817,7 +850,7 @@ def test_the_three_essentiality_buckets_account_for_every_tracked_dollar() -> No
     honest `mixed` reading it is the largest category in this household, so the
     missing slice is roughly a quarter of the money rather than a rounding tail.
     """
-    previous_month_day = date.today().replace(day=1) - timedelta(days=1)
+    previous_month_day = _TODAY.replace(day=1) - timedelta(days=1)
     earlier_month_day = previous_month_day.replace(day=1) - timedelta(days=1)
 
     reports = build_household_reports(
@@ -850,7 +883,7 @@ def test_the_three_essentiality_buckets_account_for_every_tracked_dollar() -> No
 
 
 def test_a_household_with_nothing_mixed_reports_zero_rather_than_a_gap() -> None:
-    previous_month_day = date.today().replace(day=1) - timedelta(days=1)
+    previous_month_day = _TODAY.replace(day=1) - timedelta(days=1)
 
     reports = build_household_reports(
         report_rows=[

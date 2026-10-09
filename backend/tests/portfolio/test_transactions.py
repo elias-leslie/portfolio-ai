@@ -148,12 +148,61 @@ class _FakeStore:
 
         if q.startswith("UPDATE PORTFOLIO_TAX_LOTS SET REMAINING_SHARES"):
             new_remaining, disposed_at, lot_id = params
+            coalesce = "COALESCE" in q
             for row in self.tax_lots:
                 if row["id"] == lot_id:
                     row["remaining_shares"] = new_remaining
-                    if disposed_at is not None:
+                    if disposed_at is not None or not coalesce:
                         row["disposed_at"] = disposed_at
             return []
+
+        if q.startswith("SELECT 1 FROM PORTFOLIO_TRANSACTIONS"):
+            account_id, symbol, trade_date = params
+            for row in self.transactions:
+                if (
+                    row["account_id"] == account_id
+                    and row["symbol"] == symbol
+                    and row["transaction_type"] == "sell"
+                    and row["source"] != "legacy_aggregate"
+                    and row["trade_date"] > trade_date
+                ):
+                    return [(1,)]
+            return []
+
+        if q.startswith("SELECT ID, ACQUIRED_DATE, ORIGINAL_SHARES"):
+            account_id, symbol = params
+            matches = [
+                row
+                for row in self.tax_lots
+                if row["account_id"] == account_id and row["symbol"] == symbol
+            ]
+            matches.sort(key=lambda r: (r["acquired_date"], r["id"]))
+            return [
+                (
+                    row["id"],
+                    row["acquired_date"],
+                    row["original_shares"],
+                    row["cost_per_share"],
+                    row["disposed_at"],
+                )
+                for row in matches
+            ]
+
+        if q.startswith("SELECT ID, TRADE_DATE, SHARES, PRICE, FEES"):
+            account_id, symbol = params
+            matches = [
+                row
+                for row in self.transactions
+                if row["account_id"] == account_id
+                and row["symbol"] == symbol
+                and row["transaction_type"] == "sell"
+                and row["source"] != "legacy_aggregate"
+            ]
+            matches.sort(key=lambda r: (r["trade_date"], r["created_at"], r["id"]))
+            return [
+                (row["id"], row["trade_date"], row["shares"], row["price"], row["fees"])
+                for row in matches
+            ]
 
         if q.startswith("SELECT ID FROM PORTFOLIO_TRANSACTIONS WHERE ACCOUNT_ID"):
             account_id, external_id = params

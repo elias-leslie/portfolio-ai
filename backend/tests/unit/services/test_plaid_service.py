@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal
 from threading import Event, Lock
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -17,9 +17,11 @@ from app.services.plaid_service import (
     PlaidConfigurationError,
     PlaidIntegrationError,
     PlaidService,
+    PlaidSyncBusyError,
     _account_kind,
     _transaction_category,
     _transaction_classification,
+    _transaction_currency,
     _transaction_flow,
 )
 
@@ -1082,8 +1084,11 @@ def test_failed_cursor_commit_does_not_persist_pending_reconciliation_marker(mon
     requests: list[str] = []
     monkeypatch.setattr(plaid_service, "HouseholdTransactionDedupService", lambda _: pytest.fail("Uncommitted rows cannot be reconciled"))
     service = _durable_sync_service(monkeypatch, store, _page(added=[_transaction(date="2026-07-10")]), requests)
-    with pytest.raises(RuntimeError, match="cursor commit failed"):
-        service.sync_items()
+    # The unexpected commit failure is reported per item instead of aborting
+    # the batch, and the sanitized error never echoes the raw exception.
+    totals = service.sync_items()
+    assert [error["error_type"] for error in cast(list[dict[str, Any]], totals["errors"])] == ["RuntimeError"]
+    assert "cursor commit failed" not in json.dumps(totals)
     assert store.state["cursor"] == ""
     assert store.state["raw_rows"] == []
     assert store.state["metadata"] == {"link_metadata": {"institution": "keep"}}
@@ -1266,8 +1271,10 @@ def test_overlapping_item_syncs_are_excluded_and_later_sync_reloads_committed_cu
         future = executor.submit(service._sync_single_item, client=client, item=item)
         try:
             assert started.wait(timeout=5)
-            with pytest.raises(PlaidIntegrationError, match="already running"):
+            with pytest.raises(PlaidSyncBusyError, match="already running") as busy:
                 service._sync_single_item(client=client, item=item)
+            assert isinstance(busy.value, PlaidIntegrationError)
+            assert busy.value.status_code == 409
             assert requests == ["original"]
         finally:
             finish.set()
@@ -1275,3 +1282,151 @@ def test_overlapping_item_syncs_are_excluded_and_later_sync_reloads_committed_cu
     service._sync_single_item(client=client, item=item)
     assert requests == ["original", "committed"]
     assert state["locked"] is False
+
+
+def _batch_sync_service(monkeypatch, outcomes: dict[str, object]) -> tuple[PlaidService, list[tuple[str, str]]]:
+    service = _service()
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        service, "_load_items", lambda **_: [{"item_id": item_id} for item_id in outcomes]
+    )
+    monkeypatch.setattr(service, "_load_config", lambda: None)
+    monkeypatch.setattr(service, "_client", lambda _config: None)
+    monkeypatch.setattr(
+        service, "_record_item_error", lambda item_id, message: recorded.append((item_id, message))
+    )
+
+    def sync_single_item(*, client, item):
+        outcome = outcomes[item["item_id"]]
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(service, "_sync_single_item", sync_single_item)
+    return service, recorded
+
+
+_OK_ITEM_RESULT = {
+    "account_count": 2,
+    "transaction_added_count": 0,
+    "transaction_modified_count": 0,
+    "transaction_removed_count": 0,
+}
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [KeyError("account_id"), AssertionError(), RuntimeError("connection reset by peer")],
+)
+def test_unexpected_item_failure_is_recorded_and_remaining_items_still_sync(monkeypatch, failure):
+    service, recorded = _batch_sync_service(
+        monkeypatch, {"broken": failure, "healthy": dict(_OK_ITEM_RESULT)}
+    )
+
+    totals = service.sync_items()
+
+    assert totals["item_count"] == 2
+    assert totals["account_count"] == 2
+    assert recorded == [("broken", plaid_service._UNEXPECTED_SYNC_ERROR_MESSAGE)]
+    assert totals["errors"] == [
+        {
+            "item_id": "broken",
+            "error_message": plaid_service._UNEXPECTED_SYNC_ERROR_MESSAGE,
+            "error_type": type(failure).__name__,
+        }
+    ]
+    # The sanitized message never echoes raw exception text.
+    assert "connection reset" not in json.dumps(totals)
+
+
+def test_failure_to_record_item_error_does_not_abort_batch(monkeypatch):
+    service, _recorded = _batch_sync_service(
+        monkeypatch, {"broken": RuntimeError("db down"), "healthy": dict(_OK_ITEM_RESULT)}
+    )
+
+    def fail_record(item_id, message):
+        raise RuntimeError("db still down")
+
+    monkeypatch.setattr(service, "_record_item_error", fail_record)
+
+    totals = service.sync_items()
+
+    assert totals["account_count"] == 2
+    assert [error["item_id"] for error in cast(list[dict[str, Any]], totals["errors"])] == ["broken"]
+
+
+def test_busy_item_is_skipped_without_marking_it_failed(monkeypatch):
+    service, recorded = _batch_sync_service(
+        monkeypatch, {"busy": PlaidSyncBusyError(), "healthy": dict(_OK_ITEM_RESULT)}
+    )
+
+    totals = service.sync_items()
+
+    assert recorded == []
+    assert totals["errors"] == []
+    assert totals["account_count"] == 2
+    skipped = cast(list[dict[str, Any]], totals["skipped"])
+    assert [entry["item_id"] for entry in skipped] == ["busy"]
+    assert skipped[0]["reason"] == "sync_in_progress"
+
+
+@pytest.mark.parametrize(
+    ("transaction", "expected"),
+    [
+        ({"iso_currency_code": "CAD"}, "CAD"),
+        ({"iso_currency_code": None, "unofficial_currency_code": "BTC"}, "BTC"),
+        ({"unofficial_currency_code": "VERYLONGCOIN"}, "XXX"),
+        ({}, "USD"),
+    ],
+)
+def test_transaction_currency_never_mislabels_unofficial_codes_as_usd(transaction, expected):
+    assert _transaction_currency(transaction) == expected
+
+
+class _HouseholdInsertConnection(_RecordingConnection):
+    def execute(self, sql, params=None):
+        super().execute(sql, params)
+        if "FROM plaid_accounts" in sql:
+            return _RecordingResult(["household-account", "Card", "credit", "credit card"])
+        return _RecordingResult()
+
+
+@pytest.mark.parametrize(
+    ("pending", "expected_posted"),
+    [(False, date(2026, 3, 3)), (True, None)],
+)
+def test_household_posted_date_uses_plaid_posting_date_not_authorized_date(
+    monkeypatch, pending, expected_posted
+):
+    service = _service()
+    service.transaction_service = SimpleNamespace(
+        _resolve_merchant=lambda **_kwargs: (None, "Shop", "Retail", "discretionary", False, None)
+    )
+    monkeypatch.setattr(plaid_service.SoftChargeReconciler, "try_match", lambda **_kwargs: None)
+    conn = _HouseholdInsertConnection()
+
+    service._upsert_transaction(
+        conn=conn,
+        item={"item_id": "item-1"},
+        document_id="document-1",
+        transaction={
+            "transaction_id": "txn-1",
+            "account_id": "account-1",
+            "date": "2026-03-03",
+            "authorized_date": "2026-03-01",
+            "amount": 12.5,
+            "name": "Shop",
+            "pending": pending,
+            "unofficial_currency_code": "BTC",
+        },
+        removed=False,
+    )
+
+    params = next(
+        params for sql, params in conn.calls if "INSERT INTO household_transactions" in sql
+    )
+    assert params is not None
+    transaction_date, posted_date = params[5], params[6]
+    assert transaction_date.date() == date(2026, 3, 3)
+    assert (posted_date.date() if posted_date else None) == expected_posted
+    assert params[11] == "BTC"

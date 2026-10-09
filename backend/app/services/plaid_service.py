@@ -94,6 +94,42 @@ class PlaidIntegrationError(RuntimeError):
         self.error_payload = error_payload or {"detail": message}
 
 
+class PlaidSyncBusyError(PlaidIntegrationError):
+    """Raised when another sync already holds the per-item lock.
+
+    The item itself is healthy, so batch syncs report it as skipped instead of
+    recording ``last_error``. API callers still get a sanitized 409 payload.
+    """
+
+    def __init__(self, message: str = "A sync is already running for this Plaid connection.") -> None:
+        super().__init__(
+            message,
+            status_code=409,
+            error_payload={"detail": message, "error_code": "SYNC_IN_PROGRESS"},
+        )
+
+
+_UNEXPECTED_SYNC_ERROR_MESSAGE = "Plaid sync failed unexpectedly; see server logs."
+_MAX_CURRENCY_CODE_LENGTH = 8  # household_transactions.currency is VARCHAR(8)
+
+
+def _transaction_currency(transaction: dict[str, object]) -> str:
+    """Return the row currency without mislabeling unofficial codes as USD.
+
+    Plaid sets exactly one of ``iso_currency_code`` / ``unofficial_currency_code``.
+    Unofficial codes (e.g. crypto) are kept as-is; ``XXX`` (ISO "no currency")
+    marks a code that does not fit the column so it is never summed as USD.
+    """
+    iso_code = transaction.get("iso_currency_code")
+    if iso_code:
+        return str(iso_code)
+    unofficial_code = transaction.get("unofficial_currency_code")
+    if unofficial_code:
+        code = str(unofficial_code)
+        return code if len(code) <= _MAX_CURRENCY_CODE_LENGTH else "XXX"
+    return "USD"
+
+
 @dataclass(slots=True)
 class PlaidConfig:
     environment: str
@@ -740,6 +776,7 @@ class PlaidService:
             "transaction_modified_count": 0,
             "transaction_removed_count": 0,
             "errors": [],
+            "skipped": [],
         }
         config = self._load_config()
         client = self._client(config)
@@ -750,24 +787,53 @@ class PlaidService:
             totals["item_count"] = int(totals["item_count"]) + 1
             try:
                 item_result = self._sync_single_item(client=client, item=item)
+            except PlaidSyncBusyError as exc:
+                # Another sync owns this item; it is not unhealthy, so do not
+                # touch last_error (that would also clobber the owner's result).
+                logger.info("plaid_item_sync_skipped_busy", item_id=item["item_id"])
+                cast_skipped = totals["skipped"]
+                if isinstance(cast_skipped, list):
+                    cast_skipped.append(
+                        {"item_id": item["item_id"], "reason": "sync_in_progress", **exc.error_payload}
+                    )
+                continue
             except plaid.ApiException as exc:
                 payload = _plaid_error_payload(exc)
-                self._record_item_error(item["item_id"], str(payload["error_message"]))
+                self._record_item_error_safely(item["item_id"], str(payload["error_message"]))
                 cast_errors = totals["errors"]
                 if isinstance(cast_errors, list):
                     cast_errors.append({"item_id": item["item_id"], **payload})
                 continue
             except (SecretDecryptionError, SecretKeyUnavailableError) as exc:
-                self._record_item_error(item["item_id"], str(exc))
+                self._record_item_error_safely(item["item_id"], str(exc))
                 cast_errors = totals["errors"]
                 if isinstance(cast_errors, list):
                     cast_errors.append({"item_id": item["item_id"], "error_message": str(exc)})
                 continue
             except PlaidIntegrationError as exc:
-                self._record_item_error(item["item_id"], str(exc))
+                self._record_item_error_safely(item["item_id"], str(exc))
                 cast_errors = totals["errors"]
                 if isinstance(cast_errors, list):
                     cast_errors.append({"item_id": item["item_id"], **exc.error_payload})
+                continue
+            except Exception as exc:
+                # Unexpected failures (DB errors, malformed rows) must not abort
+                # the remaining items or leave this one looking healthy.
+                logger.exception(
+                    "plaid_item_sync_unexpected_error",
+                    item_id=item["item_id"],
+                    error_type=type(exc).__name__,
+                )
+                self._record_item_error_safely(item["item_id"], _UNEXPECTED_SYNC_ERROR_MESSAGE)
+                cast_errors = totals["errors"]
+                if isinstance(cast_errors, list):
+                    cast_errors.append(
+                        {
+                            "item_id": item["item_id"],
+                            "error_message": _UNEXPECTED_SYNC_ERROR_MESSAGE,
+                            "error_type": type(exc).__name__,
+                        }
+                    )
                 continue
 
             totals["account_count"] = int(totals["account_count"]) + int(
@@ -991,7 +1057,7 @@ class PlaidService:
                 [item_id],
             ).fetchone()
             if not lock or not lock[0]:
-                raise PlaidIntegrationError("A sync is already running for this Plaid connection.")
+                raise PlaidSyncBusyError()
             try:
                 row = conn.execute(
                     "SELECT transactions_cursor, metadata FROM plaid_items WHERE item_id = %s AND status = 'active'",
@@ -1530,7 +1596,10 @@ class PlaidService:
                 if reconcile_added and household_account_id:
                     source_account_id = str(transaction["account_id"])
                     transaction_date = _parse_date(transaction.get("date"))
-                    assert transaction_date is not None
+                    if transaction_date is None:
+                        raise PlaidIntegrationError(
+                            "Transaction response is incomplete; coverage is unverified"
+                        )
                     previous_window = pending_windows.get(source_account_id)
                     pending_windows[source_account_id] = (
                         min(previous_window[0], transaction_date),
@@ -1648,7 +1717,8 @@ class PlaidService:
 
         transaction_date = _parse_date(transaction.get("date"))
         amount = _money(transaction.get("amount"))
-        assert transaction_date is not None and amount is not None
+        if transaction_date is None or amount is None:
+            raise PlaidIntegrationError("Transaction response is incomplete; coverage is unverified")
         account_id = str(transaction.get("account_id") or "")
         personal_finance_category = _as_json_object(transaction.get("personal_finance_category"))
         merchant = str(
@@ -1824,14 +1894,17 @@ class PlaidService:
                 merchant_id,
                 row_hash,
                 datetime.combine(transaction_date, datetime.min.time(), tzinfo=UTC),
-                datetime.combine(authorized_date, datetime.min.time(), tzinfo=UTC)
-                if authorized_date
-                else None,
+                # Plaid ``date`` is the posting date once a row is no longer
+                # pending; ``authorized_date`` is when the purchase happened, so
+                # it must not populate posted_date (it stays in plaid_transactions).
+                None
+                if transaction.get("pending")
+                else datetime.combine(transaction_date, datetime.min.time(), tzinfo=UTC),
                 str(transaction.get("name") or merchant),
                 canonical_name,
                 account_label,
                 household_amount,
-                transaction.get("iso_currency_code") or "USD",
+                _transaction_currency(transaction),
                 flow_type,
                 category,
                 essentiality,
@@ -1861,6 +1934,17 @@ class PlaidService:
             description=str(transaction.get("name") or merchant),
         )
         return household_account_id
+
+    def _record_item_error_safely(self, item_id: object, message: str) -> None:
+        """Record last_error without letting a second failure abort the batch."""
+        try:
+            self._record_item_error(str(item_id), message)
+        except Exception as exc:
+            logger.warning(
+                "plaid_item_error_record_failed",
+                item_id=item_id,
+                error_type=type(exc).__name__,
+            )
 
     def _record_item_error(self, item_id: str, message: str) -> None:
         with self.storage.connection() as conn:

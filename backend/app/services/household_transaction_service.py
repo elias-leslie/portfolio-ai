@@ -514,7 +514,7 @@ class HouseholdTransactionService:
                         balance_after = COALESCE(EXCLUDED.balance_after, household_transactions.balance_after),
                         pending = FALSE,
                         removed = CASE
-                            WHEN household_transactions.metadata ? 'dedup'
+                            WHEN jsonb_exists(household_transactions.metadata, 'dedup')
                               OR household_transactions.categorization_source IN (
                                   'manual', 'manual_rule', 'merchant_rule',
                                   'transaction_audit', 'transaction_audit_agent'
@@ -574,7 +574,7 @@ class HouseholdTransactionService:
                           'manual', 'manual_rule', 'merchant_rule',
                           'transaction_audit', 'transaction_audit_agent'
                       )
-                      AND NOT (metadata ? 'dedup')
+                      AND NOT jsonb_exists(metadata, 'dedup')
                     RETURNING id
                     """,
                     [

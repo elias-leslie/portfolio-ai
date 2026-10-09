@@ -21,6 +21,7 @@ from app.services._household_merchants import (
     _is_refund_like_text,
 )
 from app.services._household_spend_filters import looks_like_investment_activity
+from app.services.household_upload_crypto import open_upload_text
 
 RECEIPT_CONFIDENCE = 0.9
 CHASE_STATEMENT_CONFIDENCE = 0.88
@@ -373,7 +374,9 @@ def parse_statement_csv(
     account_label: str | None,
 ) -> list[ExtractedTransaction]:
     try:
-        with stored_path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as handle:
+        with open_upload_text(
+            stored_path, encoding="utf-8-sig", errors="ignore", newline=""
+        ) as handle:
             raw_reader = csv_reader(handle)
             headers: list[str] | None = None
             rows = []

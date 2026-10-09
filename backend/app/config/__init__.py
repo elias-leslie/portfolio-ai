@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     portfolio_client_id: str = ""
     portfolio_request_source: str = "portfolio-ai"
     sec_user_agent: str = ""
-    portfolio_secret_key: str = ""
+    portfolio_secret_key: SecretStr = SecretStr("")
 
     # Web push (D11) — the household alert channel. The private key signs the
     # VAPID assertion and never leaves the server; the public key is handed to

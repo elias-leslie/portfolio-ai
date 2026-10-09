@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${1:-$ROOT_DIR/.env.local}"
 
 cd "$ROOT_DIR"
-touch "$ENV_FILE"
+(umask 077 && touch "$ENV_FILE")
 
 bootstrap_token="${HATCHET_CLIENT_TOKEN:-bootstrap-placeholder}"
 compose_cmd=(docker compose --env-file "$ENV_FILE")
@@ -60,12 +60,18 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-tmp_file="$(mktemp)"
+# The env file holds secrets: keep every temp file private and the final file 0600.
+umask 077
+env_dir="$(dirname "$ENV_FILE")"
+tmp_file="$(mktemp "$env_dir/.hatchet-env.XXXXXX")"
+tmp_next="$(mktemp "$env_dir/.hatchet-env.XXXXXX")"
+trap 'rm -f "$tmp_file" "$tmp_next"' EXIT
 grep -v '^HATCHET_CLIENT_TOKEN=' "$ENV_FILE" > "$tmp_file" || true
-grep -v '^HATCHET_TENANT_ID=' "$tmp_file" > "${tmp_file}.next" || true
-mv "${tmp_file}.next" "$tmp_file"
-printf 'HATCHET_TENANT_ID=%s\n' "$tenant_id" >> "$tmp_file"
-printf 'HATCHET_CLIENT_TOKEN=%s\n' "$token" >> "$tmp_file"
-mv "$tmp_file" "$ENV_FILE"
+grep -v '^HATCHET_TENANT_ID=' "$tmp_file" > "$tmp_next" || true
+printf 'HATCHET_TENANT_ID=%s\n' "$tenant_id" >> "$tmp_next"
+printf 'HATCHET_CLIENT_TOKEN=%s\n' "$token" >> "$tmp_next"
+chmod 600 "$tmp_next"
+mv "$tmp_next" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 
 echo "Wrote HATCHET_TENANT_ID and HATCHET_CLIENT_TOKEN to $ENV_FILE"

@@ -82,4 +82,25 @@ describe('Plaid sync notices', () => {
     expect(successMock).toHaveBeenCalledWith('Plaid sync finished.')
     expect(warningMock).not.toHaveBeenCalled()
   })
+
+  it('refreshes household and retirement queries after a sync', async () => {
+    syncMock.mockResolvedValue({ errors: [] })
+    const client = new QueryClient()
+    client.setQueryData(['household', 'dashboard'], { ok: true })
+    client.setQueryData(['retirement', 'spending-actuals'], { ok: true })
+    client.setQueryData(['portfolio', 'summary'], { ok: true })
+    const { result } = renderHook(() => useSyncPlaidItems(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    })
+    await act(async () => {
+      await result.current.mutateAsync({})
+    })
+    const invalidated = (key: string[]) =>
+      client.getQueryState(key)?.isInvalidated
+    expect(invalidated(['household', 'dashboard'])).toBe(true)
+    expect(invalidated(['retirement', 'spending-actuals'])).toBe(true)
+    expect(invalidated(['portfolio', 'summary'])).toBe(false)
+  })
 })

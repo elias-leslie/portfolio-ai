@@ -47,6 +47,7 @@ export interface PlaidSyncResult {
   transactionModifiedCount: number
   transactionRemovedCount: number
   errors: Array<Record<string, unknown>>
+  skipped?: Array<Record<string, unknown>>
 }
 
 export interface PlaidExchangeResult {
@@ -67,7 +68,17 @@ export function plaidSyncIssues(result: unknown): {
   ) {
     return { count: 1, description: 'Sync status is unavailable.' }
   }
-  if (result.errors.length === 0) return null
+  if (result.errors.length === 0) {
+    const skipped =
+      'skipped' in result && Array.isArray(result.skipped)
+        ? result.skipped.length
+        : 0
+    if (skipped === 0) return null
+    return {
+      count: skipped,
+      description: `A sync is already running for ${skipped === 1 ? 'this connection' : `${skipped} connections`}; its results will appear when it finishes.`,
+    }
+  }
   const first: unknown = result.errors[0]
   const detail =
     typeof first === 'object' && first !== null

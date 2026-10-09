@@ -14,6 +14,7 @@ from PIL import Image, ImageOps
 from pypdf import PdfReader
 
 from app.logging_config import get_logger
+from app.services.household_upload_crypto import open_upload_text, read_upload_bytes
 
 logger = get_logger(__name__)
 
@@ -78,7 +79,7 @@ def _merge_text_fragments(*fragments: str) -> str:
 
 def _render_pdf_pages_to_png(stored_path: Path, *, scale: float, max_pages: int) -> list[bytes]:
     png_pages: list[bytes] = []
-    pdf = pdfium.PdfDocument(str(stored_path))
+    pdf = pdfium.PdfDocument(read_upload_bytes(stored_path))
     try:
         for page_index in range(min(len(pdf), max_pages)):
             page = pdf.get_page(page_index)
@@ -116,7 +117,7 @@ def _extract_pdf_image_text(stored_path: Path) -> str | None:
 
 def _extract_pdf_text(stored_path: Path) -> str | None:
     try:
-        reader = PdfReader(str(stored_path))
+        reader = PdfReader(io.BytesIO(read_upload_bytes(stored_path)))
         chunks: list[str] = []
         for page in reader.pages[:_PDF_PAGE_LIMIT]:
             text = page.extract_text() or ""
@@ -138,14 +139,14 @@ def _extract_pdf_text(stored_path: Path) -> str | None:
 
 def _extract_image_text(stored_path: Path) -> str | None:
     try:
-        return _prepare_and_ocr(Image.open(stored_path))
+        return _prepare_and_ocr(Image.open(io.BytesIO(read_upload_bytes(stored_path))))
     except Exception as exc:
         logger.warning("household_image_ocr_failed", path=str(stored_path), error=str(exc))
         return None
 
 
 def _extract_csv_text(stored_path: Path) -> str:
-    with stored_path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+    with open_upload_text(stored_path, encoding="utf-8", errors="ignore", newline="") as handle:
         reader = csv.reader(handle)
         rows = [
             ", ".join(cell.strip() for cell in row[:32])
@@ -156,7 +157,7 @@ def _extract_csv_text(stored_path: Path) -> str:
 
 
 def _extract_plain_text(stored_path: Path) -> str | None:
-    text = stored_path.read_text(encoding="utf-8", errors="ignore")
+    text = read_upload_bytes(stored_path).decode("utf-8", errors="ignore")
     cleaned = text.strip()
     return cleaned[:12000] if cleaned else None
 

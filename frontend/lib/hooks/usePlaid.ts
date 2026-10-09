@@ -10,13 +10,14 @@ import {
   removePlaidItem,
   syncPlaidItems,
 } from '@/lib/api/plaid'
+import { invalidateHouseholdQueries } from './household-query-cache'
 
 const PLAID_STALE_MS = 1000 * 60
 
 function refreshPlaid(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ['plaid'] }),
-    queryClient.invalidateQueries({ queryKey: ['household'], exact: false }),
+    invalidateHouseholdQueries(queryClient, { retirement: true }),
   ])
 }
 

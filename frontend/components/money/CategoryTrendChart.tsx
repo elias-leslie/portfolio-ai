@@ -11,12 +11,11 @@ import {
   YAxis,
 } from 'recharts'
 import { SectionCard } from '@/components/shared/SectionCard'
-import { formatCurrency } from '@/lib/formatters'
+import { formatCurrency, formatThousandsAxis } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 import {
   currencyTooltipFormatter,
   formatMonthLabel,
-  formatThousandsAxis,
   monthTooltipLabelFormatter,
 } from './budget-helpers'
 

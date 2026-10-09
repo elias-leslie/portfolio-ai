@@ -82,14 +82,6 @@ export function formatFullMonthLabel(value: string) {
   })
 }
 
-export function formatThousandsAxis(value: number) {
-  if (Math.abs(value) < 1000) {
-    return `$${Math.round(value)}`
-  }
-  const thousands = value / 1000
-  return `$${Number.isInteger(thousands) ? thousands.toFixed(0) : thousands.toFixed(1)}k`
-}
-
 export function tooltipNumber(
   value: TooltipValueType | undefined,
 ): number | null {

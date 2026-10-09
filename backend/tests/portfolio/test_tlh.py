@@ -420,6 +420,34 @@ def test_find_candidates_detail_populates_lt_st_split() -> None:
     assert cand.realized_loss_short_term == pytest.approx(-1000.0)
 
 
+@pytest.mark.parametrize(
+    ("as_of", "expect_long_term"),
+    [(date(2024, 3, 1), False), (date(2024, 3, 2), True)],
+)
+def test_loss_split_uses_calendar_anniversary_across_leap_year(
+    as_of: date, expect_long_term: bool
+) -> None:
+    analyzer, store = _make_analyzer(prices={"AAPL": 100.0})
+    store.add_lot(
+        account_id="t",
+        symbol="AAPL",
+        acquired_date=date(2023, 3, 1),
+        shares=10,
+        cost_per_share=200.0,
+    )
+
+    lt, st = analyzer._loss_split_by_period(
+        account_id="t", symbol="AAPL", current_price=100.0, as_of=as_of
+    )
+
+    # 2023-03-01 -> 2024-03-01 is 366 days (leap year) yet only the
+    # anniversary itself, so it is still short-term.
+    if expect_long_term:
+        assert (lt, st) == (pytest.approx(-1000.0), 0.0)
+    else:
+        assert (lt, st) == (0.0, pytest.approx(-1000.0))
+
+
 def test_find_candidates_falls_back_when_no_lots() -> None:
     analyzer, store = _make_analyzer(prices={"AAPL": 100.0})
     store.add_account(id="t", account_type="Taxable")

@@ -12,6 +12,7 @@ from app.services.household_document_storage import (
     resolve_upload_path,
     upload_storage_key,
 )
+from app.services.household_upload_crypto import read_upload_bytes
 
 
 def test_save_upload_to_disk_uses_private_permissions_and_atomic_name(
@@ -27,7 +28,8 @@ def test_save_upload_to_disk_uses_private_permissions_and_atomic_name(
     )
 
     assert stored_path == upload_dir / "document-1.pdf"
-    assert stored_path.read_bytes() == b"private financial data"
+    assert b"private financial data" not in stored_path.read_bytes()
+    assert read_upload_bytes(stored_path) == b"private financial data"
     assert stat.S_IMODE(upload_dir.stat().st_mode) == 0o700
     assert stat.S_IMODE(stored_path.stat().st_mode) == 0o600
     assert list(upload_dir.glob("*.tmp")) == []

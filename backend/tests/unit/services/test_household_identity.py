@@ -75,6 +75,34 @@ def test_proxy_cannot_turn_unsigned_edge_request_into_local_operator():
             identity.resolve_identity(req)
 
 
+def test_local_cli_and_same_origin_browser_keep_local_operator():
+    for headers in [
+        [],
+        [(b"user-agent", b"curl/8.5.0")],
+        [(b"origin", b"http://localhost:3000"), (b"sec-fetch-site", b"same-origin")],
+        [(b"origin", b"http://127.0.0.1:3000")],
+        [(b"origin", b"http://[::1]:3000"), (b"sec-fetch-site", b"same-site")],
+        [(b"sec-fetch-site", b"none")],
+    ]:
+        assert identity.resolve_identity(request(headers=headers)).access == "local_operator"
+
+
+def test_cross_site_browser_request_never_becomes_local_operator():
+    for headers in [
+        [(b"sec-fetch-site", b"cross-site")],
+        [(b"origin", b"http://localhost:3000"), (b"sec-fetch-site", b"cross-site")],
+        [(b"origin", b"https://attacker.example")],
+        # DNS rebinding: the page is same-origin with the attacker hostname.
+        [(b"origin", b"http://rebind.attacker.example:3000"), (b"sec-fetch-site", b"same-origin")],
+        [(b"origin", b"null")],
+        [(b"origin", b"file://")],
+        [(b"origin", b"http://localhost.attacker.example")],
+    ]:
+        with pytest.raises(HTTPException) as exc:
+            identity.resolve_identity(request(headers=headers))
+        assert exc.value.status_code == 403
+
+
 def test_capture_only_allowlist_does_not_grant_financial_or_review_access():
     allowed = identity.capture_path_allowed
     assert allowed("GET", "/api/identity")

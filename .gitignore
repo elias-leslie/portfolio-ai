@@ -120,3 +120,6 @@ certs/
 scripts/experiments/
 .index.yaml
 .gitnexus
+
+# Local MCP client config (copy from .mcp.json.template)
+.mcp.json

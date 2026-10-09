@@ -80,3 +80,25 @@ async def test_alert_failure_does_not_fail_healthy_provider_sync(workflow, monke
     assert result["snaptrade"]["status"] == "success"
     assert result["plaid"]["errors"] == []
     assert result["card_alerts"]["status"] == "error"
+
+
+def test_account_sync_does_not_cancel_a_running_thread_bound_sync(monkeypatch):
+    from hatchet_sdk import ConcurrencyLimitStrategy
+
+    captured: dict[str, object] = {}
+
+    def task(**kwargs):
+        captured.update(kwargs)
+        return lambda function: function
+
+    monkeypatch.setattr("app.hatchet_app.hatchet", SimpleNamespace(task=task))
+    source = Path(__file__).resolve().parents[2] / "app/workflows/account_sync.py"
+    spec = importlib.util.spec_from_file_location("app.workflows._account_sync_concurrency", source)
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(importlib.util.module_from_spec(spec))
+
+    concurrency = captured["concurrency"]
+    assert concurrency.max_runs == 1
+    # CANCEL_IN_PROGRESS cannot stop asyncio.to_thread work, so a new run would
+    # race the still-running sync; the newer run must be the one dropped.
+    assert concurrency.limit_strategy == ConcurrencyLimitStrategy.CANCEL_NEWEST

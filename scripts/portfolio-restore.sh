@@ -119,6 +119,14 @@ MANIFEST_DATABASE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["da
 load_portfolio_backup_env
 DATABASE_URL="${DATABASE_URL:-${PORTFOLIO_DB_URL:-${PORTFOLIO_AI_DB_URL:-}}}"
 MODE="$(resolve_portfolio_backup_mode "$MODE" "$DATABASE_URL")"
+if [ "$MODE" = "native" ]; then
+    mapfile -t ACTIVE_LIVE_UNITS < <(portfolio_active_live_units)
+    if [ "${#ACTIVE_LIVE_UNITS[@]}" -gt 0 ]; then
+        echo "Refusing native restore while app services are active: ${ACTIVE_LIVE_UNITS[*]}" >&2
+        echo "Stop them first (systemctl --user stop ${ACTIVE_LIVE_UNITS[*]}), then rerun this restore." >&2
+        exit 1
+    fi
+fi
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/portfolio-restore.XXXXXX")"
 chmod 700 "$WORK_DIR"

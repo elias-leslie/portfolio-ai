@@ -6,6 +6,7 @@ import ipaddress
 import json
 from functools import lru_cache
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 import jwt
 from fastapi import HTTPException, Request
@@ -91,6 +92,35 @@ def is_local_connection(request: Request) -> bool:
         return False
 
 
+def _is_local_origin(origin: str) -> bool:
+    try:
+        parts = urlsplit(origin.strip())
+    except ValueError:
+        return False
+    hostname = (parts.hostname or "").lower()
+    if parts.scheme not in {"http", "https"} or not hostname:
+        return False
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
+
+
+def browser_request_is_cross_site(request: Request) -> bool:
+    """True when a browser marks the request as coming from a non-local site.
+
+    CLI tools, ST tooling and server-side Next fetches send neither header, so
+    they keep local authority. A hostile page in a browser on this host
+    (cross-site form POST, DNS rebinding) always carries one of them.
+    """
+    if request.headers.get("sec-fetch-site", "").strip().lower() == "cross-site":
+        return True
+    origin = request.headers.get("origin")
+    return origin is not None and not _is_local_origin(origin)
+
+
 def resolve_identity(request: Request) -> HouseholdIdentity:
     assertion = request.headers.get("cf-access-jwt-assertion", "").strip()
     if assertion:
@@ -119,6 +149,7 @@ def resolve_identity(request: Request) -> HouseholdIdentity:
         is_local_connection(request)
         and local_forward
         and not any(request.headers.get(header) for header in ("cf-connecting-ip", "cf-ray"))
+        and not browser_request_is_cross_site(request)
     ):
         return HouseholdIdentity(display_name="Local workspace", access="local_operator")
     raise HTTPException(403, "Household sign-in is required.")

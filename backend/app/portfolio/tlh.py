@@ -36,16 +36,15 @@ from .contracts.tlh import (
     WashSaleVerdict,
 )
 from .price_fetcher import PriceDataFetcher
-from .transactions import TransactionLedger
+from .transactions import TransactionLedger, is_long_term_holding
 
 logger = get_logger(__name__)
 
 # IRS wash-sale window: 30 days before and 30 days after the sale date,
 # inclusive on both ends. Total of 61 calendar days. Per IRS Pub 550.
 _WASH_SALE_DAYS = 30
-# Holding-period threshold for long-term capital gains/losses treatment.
-# 'Held more than one year' is the precise statutory phrasing.
-_LONG_TERM_DAYS = 365
+# Holding-period classification ('held more than one year') uses the shared
+# calendar-anniversary helper ``is_long_term_holding`` from the ledger.
 
 
 class TLHAnalyzer:
@@ -373,6 +372,7 @@ class TLHAnalyzer:
         account_id: str,
         symbol: str,
         current_price: float,
+        as_of: date | None = None,
     ) -> tuple[float, float]:
         """Split unrealized loss into long-term / short-term buckets via lots.
 
@@ -384,8 +384,7 @@ class TLHAnalyzer:
         if not lots:
             return 0.0, 0.0
 
-        today = date.today()
-        threshold = today - timedelta(days=_LONG_TERM_DAYS)
+        today = as_of or date.today()
         lt = 0.0
         st = 0.0
         for lot in lots:
@@ -396,7 +395,7 @@ class TLHAnalyzer:
             delta = value - cost
             if delta >= 0:
                 continue
-            if lot.acquired_date < threshold:
+            if is_long_term_holding(lot.acquired_date, today):
                 lt += delta
             else:
                 st += delta

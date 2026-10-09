@@ -22,7 +22,9 @@ class CredentialCipher:
     """Encrypt and decrypt credential values with the app secret key."""
 
     def __init__(self, secret_key: str | None = None) -> None:
-        raw_key = secret_key if secret_key is not None else settings.portfolio_secret_key
+        raw_key = (
+            secret_key if secret_key is not None else settings.portfolio_secret_key.get_secret_value()
+        )
         self._raw_key = raw_key.strip()
 
     @property

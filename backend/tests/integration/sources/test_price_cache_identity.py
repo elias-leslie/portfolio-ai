@@ -7,7 +7,8 @@ def test_first_index_quote_creates_parent_and_preserves_existing_symbol_metadata
     storage = get_storage()
     with storage.connection() as conn:
         conn.execute(
-            "INSERT INTO symbols (symbol,company_name) VALUES ('CACHEKNOWN','Known company')"
+            "INSERT INTO symbols (symbol,company_name) VALUES ('CACHEKNOWN','Known company') "
+            "ON CONFLICT (symbol) DO UPDATE SET company_name = EXCLUDED.company_name"
         )
         conn.commit()
     prices = {

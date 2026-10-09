@@ -23,16 +23,12 @@ import {
   type OvernightHistoryResponse,
   type SectorHistoryResponse,
 } from '../api/market'
-import { fetchPreferences } from '../api/preferences'
+import { usePreferences } from './usePreferences'
 
 type PollMs = number | false
 
 function useMarketPollMs(defaultSeconds: number = 30): PollMs {
-  const { data: preferences } = useQuery({
-    queryKey: ['preferences'],
-    queryFn: fetchPreferences,
-    staleTime: 1000 * 60 * 5,
-  })
+  const { data: preferences } = usePreferences()
   if (preferences?.frontendPollInterval === 0) return false
   return (
     Math.max(10, preferences?.frontendPollInterval ?? defaultSeconds) * 1000

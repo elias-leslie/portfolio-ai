@@ -10,8 +10,11 @@ import {
 } from 'recharts'
 import { SectionCard } from '@/components/shared/SectionCard'
 import type { HouseholdSpendingTransaction } from '@/lib/api/household'
-import { formatCurrency, formatCurrencyWhole } from '@/lib/formatters'
-import { formatThousandsAxis } from './budget-helpers'
+import {
+  formatCurrency,
+  formatCurrencyWhole,
+  formatThousandsAxis,
+} from '@/lib/formatters'
 
 type ConnectedSpendTransaction = HouseholdSpendingTransaction & {
   sourceSystem?: string | null

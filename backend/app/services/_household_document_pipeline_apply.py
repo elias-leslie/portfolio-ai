@@ -27,6 +27,7 @@ from app.services.household_document_storage import (
     resolve_document_upload,
 )
 from app.services.household_finance_rows import FIELD_LABELS, row_to_document
+from app.services.household_upload_crypto import open_upload_text
 
 if TYPE_CHECKING:
     from app.services.household_finance_service import HouseholdFinanceService
@@ -248,7 +249,9 @@ def import_csv_rows(
     # dedup hash is built from. Each row is then skipped for missing identity
     # and the import reports nothing inserted and nothing duplicated -- an
     # export that looks already-applied while none of it landed.
-    with stored_path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
+    with open_upload_text(
+        stored_path, encoding="utf-8-sig", errors="ignore", newline=""
+    ) as fh:
         rows = list(DictReader(fh))
     inserted = duplicates = skipped = 0
     with service.storage.connection() as conn:
@@ -308,7 +311,9 @@ def preview_import_delta(
     )
     if stored_path is None:
         return []
-    with stored_path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
+    with open_upload_text(
+        stored_path, encoding="utf-8-sig", errors="ignore", newline=""
+    ) as fh:
         rows = list(DictReader(fh))
     hashed: dict[str, dict[str, str | None]] = {}
     unreadable = 0

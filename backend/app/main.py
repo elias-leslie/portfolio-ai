@@ -43,6 +43,7 @@ from app.api.retirement_routes import router as retirement_router
 from app.config import settings
 from app.config.cors import build_cors_origins
 from app.logging_config import SyslogPrefixFormatter, configure_logging, get_logger
+from app.services.credential_crypto import SecretDecryptionError, SecretKeyUnavailableError
 from app.services.household_identity import (
     capture_path_allowed,
     resolve_identity,
@@ -178,6 +179,18 @@ async def household_access(
     response = await call_next(request)
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.exception_handler(SecretKeyUnavailableError)
+@app.exception_handler(SecretDecryptionError)
+async def encrypted_storage_unavailable(request: Request, exc: Exception) -> JSONResponse:
+    """Encrypted uploads fail closed without a usable PORTFOLIO_SECRET_KEY."""
+    logger.error("encrypted_storage_unavailable", path=request.url.path, error=type(exc).__name__)
+    return JSONResponse(
+        {"detail": "Encrypted storage is unavailable. Check the server's secret key configuration."},
+        status_code=503,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 # Register routers

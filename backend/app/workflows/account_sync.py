@@ -33,7 +33,11 @@ logger = get_logger(__name__)
     concurrency=ConcurrencyExpression(
         expression="'portfolio-sync-accounts'",
         max_runs=1,
-        limit_strategy=ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
+        # CANCEL_NEWEST, not CANCEL_IN_PROGRESS: the provider syncs run in
+        # asyncio.to_thread, which a Hatchet cancel cannot stop, so cancelling
+        # the running task would let the new run race the still-live thread.
+        # Dropping the newer run keeps at most one sync touching the ledger.
+        limit_strategy=ConcurrencyLimitStrategy.CANCEL_NEWEST,
     ),
 )
 async def sync_accounts_wf(input: EmptyInput, ctx: Context) -> dict[str, Any]:

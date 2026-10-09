@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -29,6 +30,21 @@ from app.services.household_transaction_service import (
     _undated_receipt_reason,
 )
 
+# Spending views, pacing comparators, and future-date holds are calendar
+# relative. Pin every app clock (and this module's) to a mid-month day so the
+# suite never depends on the day it runs; on the 1st, on month-end days, or
+# early in January several assertions here used to change meaning.
+_TODAY = date(2026, 7, 15)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_household_clock(freeze_today) -> None:
+    app_modules = [
+        module
+        for name, module in list(sys.modules.items())
+        if module is not None and (name == "app" or name.startswith("app."))
+    ]
+    freeze_today(_TODAY, *app_modules, sys.modules[__name__])
 
 def test_cma_card_cautopay_is_a_transfer_without_hiding_utility_autopay() -> None:
     assert _classify_statement_csv_flow(
@@ -712,8 +728,12 @@ def test_document_replay_reuses_prior_row_and_preserves_reviewed_flow() -> None:
     assert storage.conn.insert_params[4] == "prior-row-hash"
     assert "transaction_audit_agent" in storage.conn.upsert_sql
     assert "THEN household_transactions.flow_type" in storage.conn.upsert_sql
-    assert "household_transactions.metadata ? 'dedup'" in storage.conn.upsert_sql
-    assert "AND NOT (metadata ? 'dedup')" in storage.conn.delete_sql
+    assert "jsonb_exists(household_transactions.metadata, 'dedup')" in storage.conn.upsert_sql
+    assert "AND NOT jsonb_exists(metadata, 'dedup')" in storage.conn.delete_sql
+    # The storage wrapper rewrites every "?" to a bind placeholder, so the jsonb
+    # "?" operator would shift parameters and fail every document import.
+    assert "?" not in storage.conn.upsert_sql
+    assert "?" not in storage.conn.delete_sql
     assert "transaction_audit_agent" in storage.conn.delete_sql
 
 
@@ -1285,8 +1305,6 @@ def test_the_prior_month_comparator_names_the_month_it_used() -> None:
 
 def test_the_running_month_is_paced_against_the_same_day_of_the_month_before() -> None:
     today = date.today()
-    if today.day < 3:
-        return
 
     def row(row_id: str, row_date: date, amount: str) -> tuple[Any, ...]:
         return (

@@ -132,12 +132,16 @@ printf 'private upload restored\n' > "$SOURCE_UPLOADS/document-test.pdf"
 chmod 600 "$SOURCE_UPLOADS/document-test.pdf"
 ARTIFACT="$WORK_DIR/portfolio-ai-drill.tar.gz"
 
+# The drill only touches disposable databases and upload dirs, so the live-unit
+# guard (which protects the deployed database) does not apply.
+PORTFOLIO_LIVE_UNITS="" \
 PORTFOLIO_DB_URL="$(database_url_for "$SOURCE_DB")" \
 "$SCRIPT_DIR/portfolio-backup.sh" \
     --mode native \
     --upload-dir "$SOURCE_UPLOADS" \
     --output "$ARTIFACT" \
     --no-prune
+PORTFOLIO_LIVE_UNITS="" \
 PORTFOLIO_DB_URL="$(database_url_for "$TARGET_DB")" \
 "$SCRIPT_DIR/portfolio-restore.sh" "$ARTIFACT" \
     --confirm \

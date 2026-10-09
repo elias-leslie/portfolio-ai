@@ -366,3 +366,60 @@ def test_legacy_aggregate_writes_synthetic_txn_on_update_position(
     # Two entries: the original add, plus a delta-buy of +5 shares.
     assert len(rows) == 2
     assert all(r.source == "legacy_aggregate" for r in rows)
+
+
+def test_backdated_buy_replays_lots_and_gains_in_postgres(
+    manager: PortfolioManager, ledger: TransactionLedger
+) -> None:
+    account = _make_account(manager)
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2024, 1, 2),
+        shares=10.0,
+        price=100.0,
+        fees=1.0,
+    )
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="AAPL",
+        transaction_type="sell",
+        trade_date=date(2026, 1, 5),
+        shares=5.0,
+        price=200.0,
+        fees=2.0,
+    )
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="AAPL",
+        transaction_type="buy",
+        trade_date=date(2023, 1, 3),
+        shares=5.0,
+        price=50.0,
+    )
+
+    sells = ledger.recent_sells([account.id], "AAPL", since_date=date.min)
+    # (200 * 5 - 2 sell fee) - 5 * 50 backdated basis
+    assert [row.realized_gain for row in sells] == [pytest.approx(748.0)]
+    open_lots = ledger.open_lots(account.id, "AAPL")
+    assert [(lot.acquired_date, lot.remaining_shares) for lot in open_lots] == [
+        (date(2024, 1, 2), pytest.approx(10.0))
+    ]
+
+
+def test_sell_without_basis_stores_null_realized_gain(
+    manager: PortfolioManager, ledger: TransactionLedger
+) -> None:
+    account = _make_account(manager)
+    ledger.record_transaction(
+        account_id=account.id,
+        symbol="ZZZ",
+        transaction_type="sell",
+        trade_date=date(2026, 1, 5),
+        shares=3.0,
+        price=10.0,
+    )
+    sells = ledger.recent_sells([account.id], "ZZZ", since_date=date.min)
+    assert [row.realized_gain for row in sells] == [None]
+    assert ledger.realized_gains_ytd(account.id, 2026)["unknown_gain_sells"] == 1

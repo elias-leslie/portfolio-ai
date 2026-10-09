@@ -18,7 +18,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.concurrency import run_in_threadpool
-from starlette.responses import FileResponse
+from starlette.responses import Response
 
 from app.models.household_finance import HouseholdDocument, HouseholdDocumentList
 from app.services.household_document_review_contracts import (
@@ -28,6 +28,7 @@ from app.services.household_document_review_contracts import (
 )
 from app.services.household_document_storage import resolve_document_upload
 from app.services.household_evidence_source import read_evidence_source
+from app.services.household_upload_crypto import read_upload_bytes
 from app.services.household_upload_validation import (
     HouseholdUploadValidationError,
     validate_household_upload_metadata,
@@ -85,8 +86,9 @@ async def evidence_file(document_id: uuid.UUID):
     path = resolve_document_upload(document.metadata, service._upload_root())
     if path is None:
         raise HTTPException(404, "No original uploaded file is available for this record.")
-    return FileResponse(
-        path,
+    content = await run_in_threadpool(read_upload_bytes, path)
+    return Response(
+        content,
         media_type=document.content_type or "application/octet-stream",
         headers={
             "Cache-Control": "no-store",

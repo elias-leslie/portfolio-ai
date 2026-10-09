@@ -16,6 +16,7 @@ from app.services.household_document_redaction import (
     redact_sensitive_text,
     redact_sensitive_value,
 )
+from app.services.household_upload_crypto import read_upload_bytes
 
 _IMAGE_REVIEW_MAX_BYTES = 4_000_000
 _IMAGE_REVIEW_MAX_DIMENSION = 3200
@@ -80,7 +81,7 @@ def _crop_receipt_region(image: Image.Image) -> Image.Image:
 
 def _build_review_image_content(stored_path: Path) -> ImageContent | None:
     try:
-        with Image.open(stored_path) as raw_image:
+        with Image.open(io.BytesIO(read_upload_bytes(stored_path))) as raw_image:
             image = ImageOps.exif_transpose(raw_image).convert("RGB")
     except Exception:
         return None

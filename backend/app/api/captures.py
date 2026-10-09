@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Reque
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from starlette.datastructures import Headers
-from starlette.responses import FileResponse
+from starlette.responses import Response
 
 from app.api.intake import _service as intake_service
 from app.models.household_capture import CaptureReview, CaptureView
@@ -105,10 +105,10 @@ async def capture(
 
 
 @router.get("/{capture_id}/image")
-def capture_image(request: Request, capture_id: UUID) -> FileResponse:
-    path, content_type = _service().image(request_identity(request), str(capture_id))
-    return FileResponse(
-        path,
+def capture_image(request: Request, capture_id: UUID) -> Response:
+    content, content_type = _service().image_bytes(request_identity(request), str(capture_id))
+    return Response(
+        content,
         media_type=content_type,
         headers={
             "Cache-Control": "no-store",
@@ -137,9 +137,10 @@ async def send_to_intake(
             raise HTTPException(
                 422, "Shelf tags are price evidence; they do not belong in the transaction ledger."
             )
-        path, mime = await run_in_threadpool(_service().image, identity, str(capture_id))
+        content, mime = await run_in_threadpool(
+            _service().image_bytes, identity, str(capture_id)
+        )
         service = intake_service()
-        content = await run_in_threadpool(path.read_bytes)
         upload = UploadFile(
             io.BytesIO(content), filename=capture.filename, headers=Headers({"content-type": mime})
         )

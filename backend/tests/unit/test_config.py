@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pydantic import SecretStr
+
 from app.config import Settings, sqlalchemy_database_url
 
 
@@ -43,3 +45,18 @@ def test_sqlalchemy_database_url_preserves_existing_psycopg() -> None:
 
 def test_sqlalchemy_database_url_ignores_non_postgresql() -> None:
     assert sqlalchemy_database_url("sqlite:///test.db") == "sqlite:///test.db"
+
+
+def test_portfolio_secret_key_is_masked_secret(monkeypatch) -> None:
+    settings = Settings(portfolio_db_url="postgresql://test", portfolio_secret_key="super-secret")
+
+    assert isinstance(settings.portfolio_secret_key, SecretStr)
+    assert settings.portfolio_secret_key.get_secret_value() == "super-secret"
+    assert "super-secret" not in repr(settings)
+
+    from app.services import credential_crypto
+
+    monkeypatch.setattr(credential_crypto, "settings", settings)
+    cipher = credential_crypto.CredentialCipher()
+    assert cipher.available
+    assert cipher.decrypt(cipher.encrypt("value")) == "value"

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import UTC, date, datetime, tzinfo
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -39,6 +42,75 @@ def testclient_local_transport(monkeypatch):
             bool(request.client and request.client.host == "testclient") or original(request)
         ),
     )
+
+
+@pytest.fixture
+def freeze_today(monkeypatch: pytest.MonkeyPatch) -> Callable[..., date]:
+    """Pin the calendar inside the given modules to a fixed day.
+
+    Calendar-sensitive code (month windows, ``add_months``) must not depend on
+    the day the suite runs. Each module's ``date`` name is replaced with a
+    subclass whose ``today()`` returns ``today``, and its ``datetime`` name (if
+    any) with one whose ``now()`` returns noon UTC on ``today`` (converted to
+    the requested tz). ``isinstance`` checks and all other behavior are
+    unchanged. Usage: ``today = freeze_today(date(2026, 3, 31), some_module)``.
+    """
+
+    class _RealInstances(type):
+        # Keep ``isinstance(value, date)`` / ``datetime`` true for real values.
+        def __instancecheck__(cls, instance: object) -> bool:
+            return isinstance(instance, cls.__mro__[1])
+
+        def __subclasscheck__(cls, subclass: type) -> bool:
+            return issubclass(subclass, cls.__mro__[1])
+
+    def _freeze(today: date, *modules: ModuleType) -> date:
+        frozen = date(today.year, today.month, today.day)
+        frozen_now = datetime(today.year, today.month, today.day, 12, tzinfo=UTC)
+
+        class _FrozenDate(date, metaclass=_RealInstances):
+            _frozen_clock = True
+
+            @classmethod
+            def today(cls) -> date:
+                return frozen
+
+        class _FrozenDatetime(datetime, metaclass=_RealInstances):
+            _frozen_clock = True
+
+            @classmethod
+            def now(cls, tz: tzinfo | None = None) -> datetime:
+                if tz is None:
+                    return frozen_now.replace(tzinfo=None)
+                return frozen_now.astimezone(tz)
+
+        for module in modules:
+            for name, real, frozen_cls in (
+                ("date", date, _FrozenDate),
+                ("datetime", datetime, _FrozenDatetime),
+            ):
+                current = getattr(module, name, None)
+                # Re-freezing (e.g. autouse default + parametrized day) is allowed.
+                if current is real or getattr(current, "_frozen_clock", False):
+                    monkeypatch.setattr(module, name, frozen_cls)
+        return frozen
+
+    return _freeze
+
+
+@pytest.fixture(autouse=True)
+def household_upload_test_key(monkeypatch):
+    """Uploads are encrypted at rest and fail closed without a key.
+
+    Environments without PORTFOLIO_SECRET_KEY (CI) get a throwaway test key so
+    upload flows remain testable; tests of the unset-key path patch it back.
+    """
+    from app.services import household_upload_crypto
+
+    if not household_upload_crypto._configured_secret():
+        monkeypatch.setattr(
+            household_upload_crypto, "_configured_secret", lambda: "pytest-only-upload-key"
+        )
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

@@ -21,6 +21,9 @@ Options:
   --upload-dir DIR           Native/local upload directory override
   --keep-days DAYS           Prune complete artifacts older than DAYS (default: 30)
   --no-prune                 Do not prune old complete artifacts
+  --allow-live               Native only: back up while portfolio-backend or
+                             portfolio-hatchet-worker is active (snapshot may
+                             not be consistent between DB and uploads)
   -h, --help                 Show this help
 EOF
 }
@@ -32,6 +35,7 @@ DATABASE_URL=""
 UPLOAD_DIR=""
 KEEP_DAYS=30
 PRUNE=true
+ALLOW_LIVE=false
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -63,6 +67,10 @@ while [ "$#" -gt 0 ]; do
             PRUNE=false
             shift
             ;;
+        --allow-live)
+            ALLOW_LIVE=true
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -83,6 +91,14 @@ fi
 load_portfolio_backup_env
 DATABASE_URL="${DATABASE_URL:-${PORTFOLIO_DB_URL:-${PORTFOLIO_AI_DB_URL:-}}}"
 MODE="$(resolve_portfolio_backup_mode "$MODE" "$DATABASE_URL")"
+if [ "$MODE" = "native" ] && [ "$ALLOW_LIVE" != true ]; then
+    mapfile -t ACTIVE_LIVE_UNITS < <(portfolio_active_live_units)
+    if [ "${#ACTIVE_LIVE_UNITS[@]}" -gt 0 ]; then
+        echo "Refusing native backup while app services are active: ${ACTIVE_LIVE_UNITS[*]}" >&2
+        echo "Stop them first for a consistent DB/upload snapshot, or rerun with --allow-live." >&2
+        exit 1
+    fi
+fi
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 if [ -z "$OUTPUT" ]; then
     OUTPUT="$BACKUP_DIR/portfolio_ai_complete_$TIMESTAMP.tar.gz"
