@@ -75,6 +75,28 @@ def question_family(question_text: str, field_name: str | None) -> str:
     return "unknown"
 
 
+# Families that only record household context (how often a store is used).
+# They never gate applying a document: blocking on them re-asked the same
+# question on every review after the household had already answered it.
+NON_BLOCKING_QUESTION_FAMILIES = frozenset({"shopping_channel", "merchant_cadence"})
+
+
+def blocking_review_questions(questions: object) -> list[dict[str, object]]:
+    """Return review questions that must be answered before a document applies."""
+    if not isinstance(questions, list):
+        return []
+    blocking: list[dict[str, object]] = []
+    for question in questions:
+        if not isinstance(question, dict):
+            continue
+        text = str(question.get("question") or "")
+        field_name = question.get("field_name")
+        family = question_family(text, field_name if isinstance(field_name, str) else None)
+        if family not in NON_BLOCKING_QUESTION_FAMILIES:
+            blocking.append(question)
+    return blocking
+
+
 def question_sort_key(question: HouseholdQuestion) -> tuple[int, str]:
     """Return a sort key for ordering questions by priority then creation time."""
     priority_rank = {"high": 0, "medium": 1, "low": 2}.get(question.priority, 3)

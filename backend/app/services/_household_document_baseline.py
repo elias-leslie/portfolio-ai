@@ -175,15 +175,17 @@ def _build_questions(
     if source_type == "credit_card" and isinstance(account_hint, str) and account_hint:
         return _question_credit_card_account(account_hint)
 
-    questions: list[_QuestionDict] = [_question_role()]
-
+    # The generic role question only helps when the document type is unknown;
+    # a recognised statement already has a more specific question below.
+    questions: list[_QuestionDict] = []
     if source_type == "other" or document_type == "other":
+        questions.append(_question_role())
         questions.append(_question_unknown_document())
     if source_type in {"bank", "credit_card"}:
         questions.append(_question_core_spending())
     if source_type in {"retirement", "brokerage"}:
         questions.append(_question_retirement())
-    if "keep refining" not in summary.lower():
+    if questions and "keep refining" not in summary.lower():
         questions[0]["rationale"] = f"{questions[0]['rationale']} Current best read: {summary}"
 
     return questions

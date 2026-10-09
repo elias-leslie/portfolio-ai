@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from app.services._household_document_pipeline_utils import looks_like_transaction_activity
+from app.services.household_question_classifier import blocking_review_questions
+
+_GENERIC_QUESTION_REASON = "The review returned unresolved user questions."
 
 _GENERIC_SUMMARIES = frozenset(
     {
@@ -48,10 +51,23 @@ def normalize_review_checks(*, reviewed: dict[str, Any], extracted_text: str | N
                 extracted_text=extracted_text,
             )
         )
+    questions = reviewed.get("questions")
+    blocking = blocking_review_questions(questions)
     if review_checks.get("ambiguity_remaining") is None:
-        review_checks["ambiguity_remaining"] = bool(reviewed.get("questions"))
-    if review_checks.get("ambiguity_remaining") and not review_checks.get("ambiguity_reason") and reviewed.get("questions"):
-        questions = reviewed.get("questions")
+        review_checks["ambiguity_remaining"] = bool(blocking)
+    elif review_checks.get("ambiguity_remaining") and not blocking and isinstance(questions, list):
+        # Ambiguity that only restates informational questions is not a blocker.
+        informational = {
+            str(question.get("question") or "").strip()
+            for question in questions
+            if isinstance(question, dict)
+        }
+        reason = str(review_checks.get("ambiguity_reason") or "").strip()
+        if not reason or reason in informational or reason == _GENERIC_QUESTION_REASON:
+            review_checks["ambiguity_remaining"] = False
+            review_checks.pop("ambiguity_reason", None)
+    if review_checks.get("ambiguity_remaining") and not review_checks.get("ambiguity_reason") and blocking:
+        questions = blocking
         texts = [str(question.get("question") or "").strip() for question in questions if isinstance(question, dict)] if isinstance(questions,list) else []
         review_checks["ambiguity_reason"] = " ".join(text for text in texts[:3] if text) or "The review did not identify the missing fact. Re-review the source before applying changes."
     return review_checks

@@ -34,6 +34,7 @@ from app.services._household_document_review_signatures import (
     sanitize_money_signature_structured_data,
 )
 from app.services._household_document_text import _extract_csv_text, _extract_text
+from app.services._household_review_question_filter import drop_settled_questions
 from app.services.household_account_identity import clean_text, derive_account_mask
 from app.services.household_review_agent_service import HouseholdReviewAgentService
 from app.storage import get_storage
@@ -646,11 +647,26 @@ class HouseholdDocumentReviewService(HouseholdDocumentContextMixin, HouseholdDoc
             document_type=document_type,
             extracted_text=extracted_text,
         )
+        self._drop_settled_questions(reviewed)
         reviewed["review_checks"] = self._normalize_review_checks(reviewed=reviewed, extracted_text=extracted_text)
         if source_type == "receipt" or document_type == "receipt":
             self._finalize_receipt_itemization(reviewed=reviewed, extracted_text=extracted_text)
         reviewed["_review_strategy"] = review_strategy
         return reviewed
+
+    def _drop_settled_questions(self, reviewed: dict[str, Any]) -> None:
+        """Keep questions the household already answered out of this review."""
+        storage = getattr(self, "storage", None)
+        if storage is None:
+            return
+        try:
+            with storage.connection() as conn:
+                dropped = drop_settled_questions(conn, reviewed)
+        except Exception as exc:
+            logger.warning("household_review_settled_question_filter_failed", error=str(exc))
+            return
+        if dropped:
+            logger.info("household_review_settled_questions_dropped", count=len(dropped))
 
     @staticmethod
     def _finalize_receipt_itemization(*, reviewed: dict[str, Any], extracted_text: str | None) -> None:

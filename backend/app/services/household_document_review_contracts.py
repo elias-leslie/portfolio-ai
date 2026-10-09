@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+from app.services.household_question_classifier import blocking_review_questions
+
 
 class HouseholdDocumentReviewApplicationError(RuntimeError):
     """Approval paused after its exact decision was durably recorded."""
@@ -54,7 +56,7 @@ class HouseholdDocumentReviewPayload(BaseModel):
         if not isinstance(value, dict):
             return value
         questions = value.get("questions")
-        if not isinstance(questions, list) or not questions:
+        if not blocking_review_questions(questions):
             return value
         raw_checks = value.get("review_checks")
         checks = dict(raw_checks) if isinstance(raw_checks, dict) else {}
