@@ -1625,12 +1625,12 @@ def test_order_history_held_for_review_can_be_approved_and_imported(
         "confidence": 0.98,
         "structured_data": {"merchant": "Amazon", "account_hint": "Amazon account"},
         "inferred_values": [],
-        # A soft preference question, not an account ambiguity -- but enough to
-        # hold the document for review.
+        # One open question is enough to hold the document for review. Shopping
+        # channel questions no longer hold documents, so ask one that still does.
         "questions": [
             {
                 "field_name": None,
-                "question": "Should Amazon orders count as regular household spending?",
+                "question": "Which household account placed these Amazon orders?",
                 "priority": "medium",
                 "question_format": "boolean",
             }
