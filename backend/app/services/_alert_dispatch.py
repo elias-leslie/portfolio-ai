@@ -9,9 +9,8 @@ part worth reusing rather than the alert kinds:
 2. ``jenny_notifications`` takes it for the UI, deduped by open-notification
    upsert;
 3. **web push** takes it for the phones that registered (3.6), with the marker
-   passed through as the tray tag so a repeat replaces its own entry;
-4. the shared agent-hub chat takes it **only when no phone did**, because
-   swapping a transport must not open a window where a finding reaches nobody.
+   passed through as the tray tag so a repeat replaces its own entry. When no
+   phone took it the marker stays unset, so the crossing is retried later.
 
 Marker keys are namespaced by ``marker_prefix`` so two producers cannot collide
 on one: the card kinds and the plan kinds are counted separately even when both
@@ -37,7 +36,6 @@ from app.services._jenny_review_notifications import (
     _normalize_routine_id,
     upsert_notification,
 )
-from app.services.notifier_service import get_notifier
 from app.services.push_service import PushService
 from app.storage import get_storage
 
@@ -151,7 +149,6 @@ def dispatch_alerts(
         return []
 
     _ensure_routine_row(routine_id, routine_type=routine_type)
-    notifier = get_notifier()
     push = PushService()
     shim = _StorageShim()
     for alert in pending:
@@ -172,10 +169,7 @@ def dispatch_alerts(
             url=ALERT_CLICK_URL,
             tag=alert.marker_key,
         )
-        delivered = delivery.delivered > 0
-        if not delivered:
-            delivered = notifier.send(title=alert.title, body=alert.body, severity=alert.severity)
-        if not delivered:
+        if delivery.delivered == 0:
             logger.warning("alert_delivery_failed", marker_key=alert.marker_key)
             continue  # Keep the crossing eligible for retry; the inbox remains deduped.
         mark_sent(alert.marker_key, marker_prefix=marker_prefix)
