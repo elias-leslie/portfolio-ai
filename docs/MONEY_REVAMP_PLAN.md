@@ -2092,9 +2092,9 @@ The screen in the artifact. All seven tasks landed.
     `spend_alert_service.py` keeps its evaluate → dedupe-marker shape and only
     the transport changed: the crossing marker is passed through as the tray
     `tag`, so a repeat of one finding replaces its own notification instead of
-    stacking under it. The shared Telegram chat is **not** deleted — it carries
-    any alert no phone took, because the month can go over the cap the day
-    before the first device subscribes. Recipients come from
+    stacking under it. (The Telegram fallback for alerts no phone took was
+    removed on 2026-10-10 when Telegram was retired; an untaken alert stays
+    unmarked and is retried.) Recipients come from
     `household_members` by role, so the girls are never offered (D15). Both
     adults are on Android, so no install ceremony was needed and the D11 iOS
     caveat stayed void.

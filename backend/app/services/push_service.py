@@ -1,10 +1,7 @@
 """Web push to the household's phones — the alert transport D11 chose.
 
-Replaces the shared Telegram chat as the phone sink for money alerts. What that
-buys, and the reason the swap was worth making: a push subscription belongs to
+This is the only phone sink for money alerts. A push subscription belongs to
 one device, so Elias's Pixel and Mariana's Galaxy can be told different things.
-``Notifier.send()`` posts to one agent-hub chat with no recipient parameter and
-can only ever tell both of them everything.
 
 The payload is encrypted in this process to the browser's own public key, so the
 push service (Google's, for both of these phones) relays ciphertext it cannot

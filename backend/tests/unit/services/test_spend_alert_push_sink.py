@@ -1,4 +1,4 @@
-"""The phone sink for alerts is web push now, not the shared chat (D11).
+"""The phone sink for alerts is web push, and only web push (D11).
 
 Exercised through the card producer, which is a real caller of the dispatch the
 plan kinds also use (§7 3.7) — the sink behaviour is shared, so testing it once
@@ -14,15 +14,6 @@ import pytest
 from app.models.push_alerts import PushDelivery
 from app.services._alert_dispatch import ALERT_CLICK_URL
 from app.services.spend_alert_service import SpendAlertService
-
-
-class _FakeNotifier:
-    def __init__(self) -> None:
-        self.sent: list[dict[str, Any]] = []
-
-    def send(self, *, title: str, body: str, severity: str = "info") -> bool:
-        self.sent.append({"title": title, "body": body, "severity": severity})
-        return True
 
 
 class _FakePush:
@@ -59,12 +50,10 @@ def _cap(_self: SpendAlertService, _cards: list[dict[str, Any]]) -> float:
 def dispatch(monkeypatch):
     """One over-cap pace alert, with every sink and store stubbed out."""
 
-    def _run(delivery: PushDelivery) -> tuple[_FakePush, _FakeNotifier, list]:
+    def _run(delivery: PushDelivery) -> tuple[_FakePush, list]:
         push = _FakePush(delivery)
-        notifier = _FakeNotifier()
         dispatch_stubs: dict[str, Any] = {
             "PushService": lambda: push,
-            "get_notifier": lambda: notifier,
             "upsert_notification": _noop,
             "already_sent": lambda _key, **_kwargs: False,
             "mark_sent": _noop,
@@ -85,38 +74,33 @@ def dispatch(monkeypatch):
         for name, replacement in methods.items():
             monkeypatch.setattr(SpendAlertService, name, replacement)
         dispatched = SpendAlertService().evaluate_and_dispatch(trigger="test")
-        return push, notifier, dispatched
+        return push, dispatched
 
     return _run
 
 
 def test_a_delivered_push_is_the_whole_phone_sink(dispatch) -> None:
-    """The shared chat does not also fire — that is what D11 replaced."""
-    push, notifier, dispatched = dispatch(PushDelivery(delivered=2))
+    push, dispatched = dispatch(PushDelivery(delivered=2))
 
     assert [alert.kind for alert in dispatched] == ["spend_over_cap"]
     assert len(push.sent) == 1
-    assert notifier.sent == []
 
 
-def test_the_shared_chat_still_carries_an_alert_no_phone_took(dispatch) -> None:
+def test_an_alert_no_phone_took_is_not_dispatched(dispatch) -> None:
     """Before any device registers there is nothing to push to.
 
-    Swapping the transport must not open a window where a finding reaches
-    nobody: the month can go over the cap the day before the first phone
-    subscribes.
+    The crossing stays undispatched (and unmarked) so it is retried once a
+    phone subscribes; the inbox row still records the finding.
     """
-    push, notifier, dispatched = dispatch(PushDelivery(delivered=0))
+    push, dispatched = dispatch(PushDelivery(delivered=0))
 
     assert len(push.sent) == 1
-    assert [sent["title"] for sent in notifier.sent] == [
-        alert.title for alert in dispatched
-    ]
+    assert dispatched == []
 
 
 def test_the_push_carries_the_crossing_marker_as_its_tray_tag(dispatch) -> None:
     """A repeat of one crossing replaces its own notification, not stacks."""
-    push, _notifier, dispatched = dispatch(PushDelivery(delivered=1))
+    push, dispatched = dispatch(PushDelivery(delivered=1))
 
     sent = push.sent[0]
     assert sent["tag"] == dispatched[0].marker_key
@@ -266,7 +250,7 @@ def test_two_alerts_of_one_kind_are_two_inbox_rows(monkeypatch) -> None:
     ]
 
 
-def test_failed_phone_and_fallback_delivery_leave_crossing_retryable(monkeypatch):
+def test_failed_phone_delivery_leaves_crossing_retryable(monkeypatch):
     from app.services._alert_dispatch import Alert, dispatch_alerts
     marked = []
     monkeypatch.setattr('app.services._alert_dispatch.already_sent', lambda *_a, **_k: False)
@@ -274,9 +258,6 @@ def test_failed_phone_and_fallback_delivery_leave_crossing_retryable(monkeypatch
     monkeypatch.setattr('app.services._alert_dispatch.upsert_notification', _noop)
     monkeypatch.setattr('app.services._alert_dispatch._StorageShim', object)
     monkeypatch.setattr('app.services._alert_dispatch.PushService', lambda: _FakePush(PushDelivery(delivered=0)))
-    notifier = _FakeNotifier()
-    monkeypatch.setattr(notifier, 'send', lambda **_k: False)
-    monkeypatch.setattr('app.services._alert_dispatch.get_notifier', lambda: notifier)
     monkeypatch.setattr('app.services._alert_dispatch.mark_sent', lambda *a, **_k: marked.append(a))
     sent = dispatch_alerts([Alert(kind='cap',severity='warning',title='Cap',body='Above cap',marker_key='cap')],
         routine_id='test',routine_type='test',marker_prefix='test',trigger='test')
